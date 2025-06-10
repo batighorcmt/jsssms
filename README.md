@@ -1,0 +1,2 @@
+# jsssms
+Jorepukuria Secondary School
