@@ -21,32 +21,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // প্রস্তুতকৃত স্টেটমেন্ট দিয়ে ইউজার ও রোল চেক করুন
-    $sql = "SELECT * FROM users WHERE username = ? AND role = ? LIMIT 1";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $username, $role);
-    $stmt->execute();
-    $result = $stmt->get_result();
+  $sql = "SELECT id, username, password, name, role FROM users WHERE username = ? AND role = ? LIMIT 1";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ss", $username, $role);
+$stmt->execute();
 
-    if ($result->num_rows === 1) {
-        $user = $result->fetch_assoc();
-        // পাসওয়ার্ড যাচাই (হ্যাশড পাসওয়ার্ড হলে)
-        if (password_verify($password, $user['password'])) {
-            // লগইন সফল, সেশন স্টোর করুন
-            $_SESSION['id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['name'] = $user['name'];
-            $_SESSION['role'] = $user['role'];
+$stmt->store_result();
 
-            header("Location: /dashboard.php");
-            exit();
-        } else {
-            header("Location: /auth/login.php?error=পাসওয়ার্ড সঠিক নয়");
-            exit();
-        }
+if ($stmt->num_rows === 1) {
+    $stmt->bind_result($id, $db_username, $db_password, $name, $db_role);
+    $stmt->fetch();
+
+    if (password_verify($password, $db_password)) {
+        $_SESSION['id'] = $id;
+        $_SESSION['username'] = $db_username;
+        $_SESSION['name'] = $name;
+        $_SESSION['role'] = $db_role;
+
+        header("Location: /dashboard.php");
+        exit();
     } else {
-        header("Location: /auth/login.php?error=ইউজারনেম অথবা রোল ভুল");
+        header("Location: /auth/login.php?error=পাসওয়ার্ড সঠিক নয়");
         exit();
     }
+} else {
+    header("Location: /auth/login.php?error=ইউজারনেম অথবা রোল ভুল");
+    exit();
+}
+
 } else {
     header("Location: /dashboard.php");
     exit();
