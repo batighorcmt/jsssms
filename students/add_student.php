@@ -167,7 +167,7 @@ include '../config/db.php';
     // AJAX to load sections based on class
     document.getElementById('class_id').addEventListener('change', function () {
         var classId = this.value;
-        fetch('../ajax/get_sections.php?class_id=' + classId)
+        fetch('/ajax/get_sections.php?class_id=' + classId)
             .then(res => res.json())
             .then(data => {
                 let section = document.getElementById('section_id');
