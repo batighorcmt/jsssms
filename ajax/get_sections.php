@@ -1,5 +1,5 @@
 <?php
-include '../config/db.php';
+include '/config/db.php';
 
 if (isset($_GET['class_id'])) {
     $class_id = $_GET['class_id'];
