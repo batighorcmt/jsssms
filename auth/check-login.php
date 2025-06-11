@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $role = test_input($_POST['role'] ?? '');
 
     if (!$username || !$password || !$role) {
-        header("Location: login.php?error=সব ফিল্ড পূরণ করুন");
+        header("Location: /auth/login.php?error=সব ফিল্ড পূরণ করুন");
         exit();
     }
 
@@ -37,17 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['name'] = $user['name'];
             $_SESSION['role'] = $user['role'];
 
-            header("Location: ../dashboard.php");
+            header("Location: /dashboard.php");
             exit();
         } else {
-            header("Location: login.php?error=পাসওয়ার্ড সঠিক নয়");
+            header("Location: /auth/login.php?error=পাসওয়ার্ড সঠিক নয়");
             exit();
         }
     } else {
-        header("Location: login.php?error=ইউজারনেম অথবা রোল ভুল");
+        header("Location: /auth/login.php?error=ইউজারনেম অথবা রোল ভুল");
         exit();
     }
 } else {
-    header("Location: ../dashboard.php");
+    header("Location: /dashboard.php");
     exit();
 }
