@@ -2,7 +2,6 @@
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
-$BASE_URL = '/jsssms/'; // যেমন: /jsssms/
 
 $current = basename($_SERVER['PHP_SELF']);
 ?>
