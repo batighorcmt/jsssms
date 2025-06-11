@@ -1,150 +1,136 @@
 <?php
-// load_students_mark_form.php
 session_start();
 include '../config/db.php';
-
-if (!isset($_POST['exam_id'], $_POST['class_id'], $_POST['year'])) {
-    echo '<div class="alert alert-danger">সঠিক ডাটা পাঠানো হয়নি।</div>';
-    exit;
-}
 
 $exam_id = intval($_POST['exam_id']);
 $class_id = intval($_POST['class_id']);
 $subject_id = intval($_POST['subject_id']);
 $year = intval($_POST['year']);
 
-// ১. শুধুমাত্র নির্দিষ্ট exam_id ও class_id এর subject গুলো নিয়ে আসছি
-$sqlSubjects = "
-    SELECT es.id AS subject_id, s.subject_name, es.creative_marks, es.objective_marks
-    FROM exam_subjects es
-    JOIN subjects s ON es.subject_id = s.id
-    JOIN exams e ON es.exam_id = e.id
-    WHERE es.exam_id = ? AND e.class_id = ?
-";
-$stmt = $conn->prepare($sqlSubjects);
-$stmt->bind_param("ii", $exam_id, $class_id);
-$stmt->execute();
-$resultSubjects = $stmt->get_result();
+// Subject Details
+$sql = "SELECT es.id AS exam_subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
+        FROM exam_subjects es 
+        JOIN subjects s ON es.subject_id = s.id
+        WHERE es.exam_id = ? AND es.subject_id = ?";
 
-if ($resultSubjects->num_rows == 0) {
-    echo '<div class="alert alert-warning">এই পরীক্ষার জন্য কোন বিষয় নির্ধারিত হয়নি।</div>';
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ii", $exam_id, $subject_id);
+$stmt->execute();
+$subject = $stmt->get_result()->fetch_assoc();
+
+if (!$subject) {
+    echo '<div class="alert alert-warning">এই বিষয়টি পরীক্ষার সাথে যুক্ত নয়।</div>';
     exit;
 }
 
-// যেহেতু একবারে একটি বিষয় নিয়ে কাজ করবে, প্রথম (একটি) বিষয় নিচ্ছি
-$examSubject = $resultSubjects->fetch_assoc();
-$subject_id = $examSubject['subject_id'];
-$subject_name = $examSubject['subject_name'];
-$creativeMax = $examSubject['creative_marks'];
-$objectiveMax = $examSubject['objective_marks'];
+$subject_name = $subject['subject_name'];
+$creativeMax = $subject['creative_marks'];
+$objectiveMax = $subject['objective_marks'];
+$practicalMax = $subject['practical_marks'];
 
-// ২. ছাত্রদের ডাটা নিয়ে আসা
-$sqlStudents = "SELECT id, student_name, father_name FROM students WHERE class_id = ? AND year = ? ORDER BY roll_no ASC";
-$stmt2 = $conn->prepare($sqlStudents);
+// Students List
+$sql2 = "SELECT id, student_name, father_name, roll_no, student_id FROM students WHERE class_id = ? AND year = ? ORDER BY roll_no ASC";
+$stmt2 = $conn->prepare($sql2);
 $stmt2->bind_param('ii', $class_id, $year);
 $stmt2->execute();
-$resultStudents = $stmt2->get_result();
+$students = $stmt2->get_result();
 
-if ($resultStudents->num_rows == 0) {
-    echo '<div class="alert alert-warning">এই শ্রেণি ও সালের কোন ছাত্র পাওয়া যায়নি।</div>';
+if ($students->num_rows === 0) {
+    echo '<div class="alert alert-warning">এই শ্রেণি ও সালের ছাত্র পাওয়া যায়নি।</div>';
     exit;
 }
 
-// ৩. মার্কস টেবিল থেকে ছাত্র ও subject অনুযায়ী মার্কস নিয়ে আসা
+// Existing Marks
 $marks = [];
-$sqlMarks = "SELECT student_id, creative_marks, objective_marks FROM marks WHERE exam_id = ? AND subject_id = ?";
-$stmt3 = $conn->prepare($sqlMarks);
-$stmt3->bind_param('ii', $exam_id, $subject_id);
+$sql3 = "SELECT student_id, creative_marks, objective_marks, practical_marks FROM marks WHERE exam_id = ? AND subject_id = ?";
+$stmt3 = $conn->prepare($sql3);
+$stmt3->bind_param("ii", $exam_id, $subject_id);
 $stmt3->execute();
 $resultMarks = $stmt3->get_result();
-while ($markRow = $resultMarks->fetch_assoc()) {
-    $marks[$markRow['student_id']] = $markRow;
+while ($row = $resultMarks->fetch_assoc()) {
+    $marks[$row['student_id']] = $row;
 }
 ?>
 
-<form id="marksEntryForm">
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>ক্রমিক</th>
-            <th>ছাত্রের নাম</th>
-            <th>পিতার নাম</th>
-            <th><?= htmlspecialchars($subject_name) ?></th>
-        </tr>
-        <tr>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th>
-                সৃজনশীল (<?= $creativeMax ?>) ও নৈর্ব্যক্তিক (<?= $objectiveMax ?>)
-            </th>
-        </tr>
-        <tr>
-            <th></th>
-            <th></th>
-            <th></th>
-            <th>
-                <div class="row">
-                    <div class="col-6 text-center">সৃজনশীল</div>
-                    <div class="col-6 text-center">নৈর্ব্যক্তিক</div>
-                </div>
-            </th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php $i = 1; while ($student = $resultStudents->fetch_assoc()): 
-            $studId = $student['id'];
-            $creativeMark = isset($marks[$studId]) ? $marks[$studId]['creative_marks'] : 0;
-            $objectiveMark = isset($marks[$studId]) ? $marks[$studId]['objective_marks'] : 0;
-        ?>
-        <tr>
-            <td><?= $i++; ?></td>
-            <td><?= htmlspecialchars($student['student_name']) ?></td>
-            <td><?= htmlspecialchars($student['father_name']) ?></td>
-            
-            <td>
-                <div class="row">
-                    <div class="col-6">
-                        <input type="number" 
-                               min="0" max="<?= $creativeMax ?>" step="0.01" 
-                               class="form-control mark-input" 
-                               data-student-id="<?= $studId ?>" 
-                               data-exam-subject-id="<?= $subject_id ?>" 
-                               data-field="creative_marks"
-                               value="<?= $creativeMark ?>"
-                               onblur="saveMark(this)">
-                    </div>
-                    <div class="col-6">
-                        <input type="number" 
-                               min="0" max="<?= $objectiveMax ?>" step="0.01" 
-                               class="form-control mark-input" 
-                               data-student-id="<?= $studId ?>" 
-                               data-exam-subject-id="<?= $subject_id ?>" 
-                               data-field="objective_marks"
-                               value="<?= $objectiveMark ?>"
-                               onblur="saveMark(this)">
-                    </div>
-                </div>
-            </td>
-        </tr>
-        <?php endwhile; ?>
-    </tbody>
-</table>
-</form>
+<div class="card mt-4 shadow">
+    <div class="card-header bg-primary text-white">
+        <strong><?= htmlspecialchars($subject_name) ?></strong> 
+        (সৃজনশীল: <?= $creativeMax ?> / নৈর্ব্যক্তিক: <?= $objectiveMax ?> / ব্যবহারিক: <?= $practicalMax ?>)
+    </div>
+    <div class="card-body p-0">
+        <form id="marksEntryForm">
+            <table class="table table-bordered table-striped table-hover mb-0">
+                <thead class="thead-light text-center">
+                    <tr>
+                        <th>ক্রমিক</th>
+                        <th>আইডি নং</th>
+                        <th>রোল নং</th>
+                        <th>নাম</th>
+                        <th>সৃজনশীল</th>
+                        <th>নৈর্ব্যক্তিক</th>
+                        <th>ব্যবহারিক</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $i = 1; while ($student = $students->fetch_assoc()): 
+                        $sid = $student['id'];
+                        $creative = $marks[$sid]['creative_marks'] ?? 0;
+                        $objective = $marks[$sid]['objective_marks'] ?? 0;
+                        $practical = $marks[$sid]['practical_marks'] ?? 0;
+                    ?>
+                    <tr>
+                        <td class="text-center"><?= $i++ ?></td>
+                        <td class="text-center"><?= htmlspecialchars($student['student_id']) ?></td>
+                        <td class="text-center"><?= htmlspecialchars($student['roll_no']) ?></td>
+                        <td><?= htmlspecialchars($student['student_name']) ?></td>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+                        <td>
+                            <input type="number" min="0" max="<?= $creativeMax ?>" step="0.01"
+                                class="form-control form-control-sm text-center"
+                                data-student-id="<?= $sid ?>" 
+                                data-subject-id="<?= $subject_id ?>" 
+                                data-field="creative_marks"
+                                value="<?= $creative ?>"
+                                onblur="saveMark(this)">
+                        </td>
+                        <td>
+                            <input type="number" min="0" max="<?= $objectiveMax ?>" step="0.01"
+                                class="form-control form-control-sm text-center"
+                                data-student-id="<?= $sid ?>" 
+                                data-subject-id="<?= $subject_id ?>" 
+                                data-field="objective_marks"
+                                value="<?= $objective ?>"
+                                onblur="saveMark(this)">
+                        </td>
+                        <td>
+                            <input type="number" min="0" max="<?= $practicalMax ?>" step="0.01"
+                                class="form-control form-control-sm text-center"
+                                data-student-id="<?= $sid ?>" 
+                                data-subject-id="<?= $subject_id ?>" 
+                                data-field="practical_marks"
+                                value="<?= $practical ?>"
+                                onblur="saveMark(this)">
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        </form>
+    </div>
+</div>
+
 <script>
 function saveMark(input) {
-    var student_id = input.getAttribute('data-student-id');
-    var subject_id = input.getAttribute('data-exam-subject-id');
-    var field = input.getAttribute('data-field');
-    var value = input.value;
+    let student_id = input.dataset.studentId;
+    let subject_id = input.dataset.subjectId;
+    let field = input.dataset.field;
+    let value = input.value;
 
-    var min = parseFloat(input.min);
-    var max = parseFloat(input.max);
-    var valFloat = parseFloat(value);
+    let min = parseFloat(input.min);
+    let max = parseFloat(input.max);
+    let val = parseFloat(value);
 
-    if (isNaN(valFloat) || valFloat < min || valFloat > max) {
+    if (isNaN(val) || val < min || val > max) {
         alert('নম্বর অবশ্যই ' + min + ' থেকে ' + max + ' এর মধ্যে হতে হবে।');
         input.value = 0;
         input.focus();
@@ -152,13 +138,11 @@ function saveMark(input) {
     }
 
     $.post('save_mark.php', {
+        exam_id: <?= $exam_id ?>,
         student_id: student_id,
         subject_id: subject_id,
         field: field,
         value: value
-    }, function(response) {
-        // প্রয়োজনীয় হলে response এখানে ব্যবহার করবে
-        // console.log(response);
     });
 }
 </script>

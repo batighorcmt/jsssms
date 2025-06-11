@@ -6,7 +6,8 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 }
 
 include '../config/db.php';
-include '../includes/header.php'; ?>
+include '../includes/header.php';
+?>
 <div class="d-flex">
 <?php include '../includes/sidebar.php'; ?>
 
@@ -22,57 +23,27 @@ include '../includes/header.php'; ?>
                 <th>ক্রমিক</th>
                 <th>পরীক্ষার নাম</th>
                 <th>শ্রেণি</th>
-                <th>বিষয়</th>
-                <th>তারিখ</th>
-                <th>সময়</th>
-                <th>সৃজনশীল</th>
-                <th>নৈর্ব্যক্তিক</th>
-                <th>ব্যবহারিক</th>
-                <th>মোট</th>
                 <th>অ্যাকশন</th>
             </tr>
         </thead>
         <tbody>
             <?php
-            $sql = "
-                SELECT 
-                    exams.id AS exam_id,
-                    exams.exam_name,
-                    classes.class_name,
-                    exam_subjects.id AS exam_subject_id,
-                    subjects.subject_name,
-                    exam_subjects.exam_date,
-                    exam_subjects.exam_time,
-                    exam_subjects.creative_marks,
-                    exam_subjects.objective_marks,
-                    exam_subjects.practical_marks,
-                    exam_subjects.total_marks
-                FROM exams
-                JOIN classes ON exams.class_id = classes.id
-                JOIN exam_subjects ON exams.id = exam_subjects.exam_id
-                JOIN subjects ON exam_subjects.subject_id = subjects.id
-                ORDER BY exams.exam_name, classes.class_name, subjects.subject_name
-            ";
+            $sql = "SELECT exams.id, exams.exam_name, classes.class_name 
+                    FROM exams 
+                    JOIN classes ON exams.class_id = classes.id 
+                    ORDER BY exams.exam_name ASC";
             $result = $conn->query($sql);
             $i = 1;
             while ($row = $result->fetch_assoc()):
             ?>
-                <tr>
-                    <td><?= $i++; ?></td>
-                    <td><?= htmlspecialchars($row['exam_name']) ?></td>
-                    <td><?= htmlspecialchars($row['class_name']) ?></td>
-                    <td><?= htmlspecialchars($row['subject_name']) ?></td>
-                    <td><?= htmlspecialchars($row['exam_date']) ?></td>
-                    <td><?= htmlspecialchars($row['exam_time']) ?></td>
-                    <td><?= $row['creative_marks'] ?></td>
-                    <td><?= $row['objective_marks'] ?></td>
-                    <td><?= $row['practical_marks'] ?></td>
-                    <td><?= $row['total_marks'] ?></td>
-                    <td>
-                        <a href="edit_exam.php?id=<?= $row['exam_subject_id'] ?>" class="btn btn-sm btn-info">এডিট</a>
-                        <a href="delete_exam.php?id=<?= $row['exam_subject_id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('আপনি কি নিশ্চিতভাবে ডিলিট করতে চান?')">ডিলিট</a>
-                    </td>
-                </tr>
+            <tr>
+                <td><?= $i++ ?></td>
+                <td><?= htmlspecialchars($row['exam_name']) ?></td>
+                <td><?= htmlspecialchars($row['class_name']) ?></td>
+                <td>
+                    <a href="exam_details.php?exam_id=<?= $row['id'] ?>" class="btn btn-sm btn-primary">বিস্তারিত</a>
+                </td>
+            </tr>
             <?php endwhile; ?>
         </tbody>
     </table>
