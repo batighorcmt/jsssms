@@ -3,6 +3,7 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+
 $current = basename($_SERVER['PHP_SELF']);
 ?>
 
@@ -47,6 +48,11 @@ $current = basename($_SERVER['PHP_SELF']);
     <li>
       <a href="<?= $BASE_URL ?>settings/manage_exams.php" class="nav-link <?= ($current == 'manage_exams.php') ? 'active' : 'text-dark' ?>">
         📝 Manage Exams
+      </a>
+    <li>
+          <li>
+      <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current == 'mark_entry.php') ? 'active' : 'text-dark' ?>">
+        📝 Mark Entry
       </a>
     <li>
       <a href="<?= $BASE_URL ?>exam_results.php" class="nav-link <?= ($current == 'exam_results.php') ? 'active' : 'text-dark' ?>">
