@@ -20,13 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $exam_type = $conn->real_escape_string($_POST['exam_type']);
     $created_by = $_SESSION['user_id'] ?? 0;
 
-    // Step 1: Insert into exams
+    // Step 1: Insert into exams table
     $insert_exam_sql = "INSERT INTO exams (exam_name, class_id, exam_type, created_by, created_at)
                         VALUES ('$exam_name', $class_id, '$exam_type', $created_by, NOW())";
     if ($conn->query($insert_exam_sql)) {
         $exam_id = $conn->insert_id;
 
-        // Step 2: Insert each subject for the exam
+        // Step 2: Insert each subject with marks
         $subject_ids = $_POST['subject_id'];
         $exam_dates = $_POST['exam_date'];
         $exam_times = $_POST['exam_time'];
@@ -37,37 +37,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $all_success = true;
 
-        foreach ($subject_ids as $index => $subject_id) {
-            $exam_date = $conn->real_escape_string($exam_dates[$index]);
-            $exam_time = $conn->real_escape_string($exam_times[$index]);
-            $creative = (int)$creative_marks[$index];
-            $objective = (int)$objective_marks[$index];
-            $practical = (int)$practical_marks[$index];
-            $pass_type = $conn->real_escape_string($pass_types[$index]);
+        foreach ($subject_ids as $i => $subject_id) {
+            $exam_date = $conn->real_escape_string($exam_dates[$i]);
+            $exam_time = $conn->real_escape_string($exam_times[$i]);
+            $creative = (int)$creative_marks[$i];
+            $objective = (int)$objective_marks[$i];
+            $practical = (int)$practical_marks[$i];
+            $pass_type = $conn->real_escape_string($pass_types[$i]);
             $total = $creative + $objective + $practical;
 
             $insert_subject_sql = "INSERT INTO exam_subjects 
-                (exam_id, subject_id, exam_date, exam_time, creative_marks, objective_marks, practical_marks, pass_type, total_marks) 
+                (exam_id, subject_id, exam_date, exam_time, creative_marks, objective_marks, practical_marks, pass_type, total_marks)
                 VALUES 
                 ($exam_id, $subject_id, '$exam_date', '$exam_time', $creative, $objective, $practical, '$pass_type', $total)";
-            
+
             if (!$conn->query($insert_subject_sql)) {
                 $all_success = false;
-                $message = '<div class="alert alert-danger">ত্রুটি: ' . $conn->error . '</div>';
+                $message = '<div class="alert alert-danger">ত্রুটি হয়েছে: ' . $conn->error . '</div>';
                 break;
             }
         }
 
         if ($all_success) {
-            $message = '<div class="alert alert-success">পরীক্ষাটি সফলভাবে তৈরি হয়েছে।</div>';
+            $message = '<div class="alert alert-success">পরীক্ষা সফলভাবে তৈরি করা হয়েছে।</div>';
         }
 
     } else {
-        $message = '<div class="alert alert-danger">পরীক্ষা যুক্ত করতে ব্যর্থ: ' . $conn->error . '</div>';
+        $message = '<div class="alert alert-danger">পরীক্ষা তৈরি ব্যর্থ হয়েছে: ' . $conn->error . '</div>';
     }
 }
 
-// Load classes for dropdown
+// Load classes
 $classQuery = "SELECT * FROM classes ORDER BY class_name ASC";
 $classResult = $conn->query($classQuery);
 ?>
@@ -106,9 +106,9 @@ $classResult = $conn->query($classQuery);
             <table class="table table-bordered">
                 <thead class="table-light">
                     <tr>
-                        <th>বিষয়ের নাম</th>
-                        <th>পরীক্ষার তারিখ</th>
-                        <th>পরীক্ষার সময়</th>
+                        <th>বিষয়</th>
+                        <th>তারিখ</th>
+                        <th>সময়</th>
                         <th>সৃজনশীল</th>
                         <th>নৈর্ব্যক্তিক</th>
                         <th>ব্যবহারিক</th>
@@ -117,7 +117,7 @@ $classResult = $conn->query($classQuery);
                     </tr>
                 </thead>
                 <tbody id="subjectsTableBody">
-                    <!-- AJAX দিয়ে সাবজেক্ট আসবে -->
+                    <!-- AJAX দিয়ে লোড হবে -->
                 </tbody>
             </table>
         </div>
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(res => res.json())
             .then(data => {
                 if (data.length === 0) {
-                    subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center">এই শ্রেণিতে কোনো বিষয় পাওয়া যায়নি।</td></tr>';
+                    subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">এই শ্রেণিতে কোনো বিষয় পাওয়া যায়নি।</td></tr>';
                     subjectsContainer.style.display = 'block';
                     submitBtn.style.display = 'none';
                     return;
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <td><input type="number" name="practical_marks[]" class="form-control practical_marks" min="0" value="0" required></td>
                             <td>
                                 <select name="pass_type[]" class="form-select" required>
-                                    <option value="total">মোট নম্বর ভিত্তিক</option>
+                                    <option value="total">মোট ভিত্তিক</option>
                                     <option value="individual">প্রতিটি অংশে পাস</option>
                                 </select>
                             </td>
@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 subjectsContainer.style.display = 'block';
                 submitBtn.style.display = 'inline-block';
 
-                // Auto total calculation
+                // Mark total update
                 document.querySelectorAll('.creative_marks, .objective_marks, .practical_marks').forEach(input => {
                     input.addEventListener('input', updateTotals);
                 });
@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateTotals();
             })
             .catch(() => {
-                subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-danger text-center">ত্রুটি হয়েছে, আবার চেষ্টা করুন।</td></tr>';
+                subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">বিষয় লোড করতে ব্যর্থ।</td></tr>';
                 subjectsContainer.style.display = 'block';
                 submitBtn.style.display = 'none';
             });
