@@ -76,7 +76,7 @@ $classResult = $conn->query($classQuery);
     <h4>নতুন পরীক্ষা তৈরি করুন</h4>
     <?= $message; ?>
 
-    <form method="POST">
+    <form method="POST" action="store_exam.php">
         <div class="mb-3">
             <label for="exam_name" class="form-label">পরীক্ষার নাম</label>
             <input type="text" name="exam_name" id="exam_name" class="form-control" required>
@@ -109,11 +109,13 @@ $classResult = $conn->query($classQuery);
                         <th>বিষয়</th>
                         <th>তারিখ</th>
                         <th>সময়</th>
-                        <th>সৃজনশীল</th>
-                        <th>নৈর্ব্যক্তিক</th>
-                        <th>ব্যবহারিক</th>
-                        <th>পাস পদ্ধতি</th>
-                        <th>মোট</th>
+                        <th>সৃজনশীল মার্ক</th>
+                        <th>নৈর্ব্যক্তিক মার্ক</th>
+                        <th>ব্যবহারিক মার্ক</th>
+                        <th>মোট </th>
+                        <th>সৃজনশীল পাশ মার্ক</th>
+                        <th>নৈর্ব্যক্তিক পাশ মার্ক</th>
+                        <th>ব্যবহারিক পাশ মার্ক</th>
                     </tr>
                 </thead>
                 <tbody id="subjectsTableBody">
@@ -156,23 +158,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 data.forEach(subject => {
                     rows += `
                         <tr>
-                            <td>
-                                ${subject.subject_name}
-                                <input type="hidden" name="subject_id[]" value="${subject.id}">
-                            </td>
-                            <td><input type="date" name="exam_date[]" class="form-control" required></td>
-                            <td><input type="time" name="exam_time[]" class="form-control" required></td>
-                            <td><input type="number" name="creative_marks[]" class="form-control creative_marks" min="0" value="0" required></td>
-                            <td><input type="number" name="objective_marks[]" class="form-control objective_marks" min="0" value="0" required></td>
-                            <td><input type="number" name="practical_marks[]" class="form-control practical_marks" min="0" value="0" required></td>
-                            <td>
-                                <select name="pass_type[]" class="form-select" required>
-                                    <option value="total">মোট ভিত্তিক</option>
-                                    <option value="individual">প্রতিটি অংশে পাস</option>
-                                </select>
-                            </td>
-                            <td><input type="number" class="form-control total_marks" value="0" readonly></td>
-                        </tr>
+    <td>
+        ${subject.subject_name}
+        <input type="hidden" name="subject_id[]" value="1">
+    </td>
+    <td><input type="date" name="exam_date[]" class="form-control" required></td>
+    <td><input type="time" name="exam_time[]" class="form-control" required></td>
+    <td><input type="number" name="creative_marks[]" class="form-control creative_marks" min="0" value="0" required></td>
+    <td><input type="number" name="objective_marks[]" class="form-control objective_marks" min="0" value="0" required></td>
+    <td><input type="number" name="practical_marks[]" class="form-control practical_marks" min="0" value="0" required></td>
+    <td><input type="number" class="form-control total_marks" value="0" readonly></td>
+    <td><input type="number" name="creative_pass[]" class="form-control" min="0" value="0" required></td>
+    <td><input type="number" name="objective_pass[]" class="form-control" min="0" value="0" required></td>
+    <td><input type="number" name="practical_pass[]" class="form-control" min="0" value="0" required></td>
+</tr>
+
                     `;
                 });
 
