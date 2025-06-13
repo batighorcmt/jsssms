@@ -20,7 +20,7 @@ $sql = "SELECT es.id AS subject_id, s.subject_name, es.creative_marks, es.object
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $exam_id, $subject_id);
 $stmt->execute();
-$stm->store_result();
+$stmt->store_result();
 
 $stmt->bind_result($m_student_id, $creative_marks, $objective_marks, $practical_marks);
 
