@@ -17,6 +17,9 @@ $sql = "SELECT es.id AS s.subject_id, s.subject_name, es.creative_marks, es.obje
         WHERE es.exam_id = ? AND es.subject_id = ?";
 
 $stmt = $conn->prepare($sql);
+if (!$stmt) {
+    die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
+}
 $stmt->bind_param("ii", $exam_id, $subject_id);
 $stmt->execute();
 $subject = $stmt->get_result()->fetch_assoc();
