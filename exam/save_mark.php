@@ -9,7 +9,7 @@ $field = $_POST['field'];
 $value = $_POST['value'];
 
 // Check if record exists
-$sqlCheck = "SELECT id FROM marks WHERE exam_id = ? AND student_id = ? AND subject_id = ?";
+$sqlCheck = "SELECT student_id FROM marks WHERE exam_id = ? AND student_id = ? AND subject_id = ?";
 $stmt = $conn->prepare($sqlCheck);
 $stmt->bind_param("iii", $exam_id, $student_id, $subject_id);
 $stmt->execute();

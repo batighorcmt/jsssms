@@ -19,9 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $group = $_POST['group'];
     $type = $_POST['type'];
     $status = $_POST['status'];
+    $default_marks = $_POST['default_marks'];
+    $has_creative = $_POST['has_creative'];
+    $has_objective = $_POST['has_objective'];
+    $has_practical = $_POST['has_practical'];
+    $pass_type = $_POST['pass_type'];
 
-    $stmt = $conn->prepare("INSERT INTO subjects (class_id, subject_name, subject_code, `group`, type, status) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("isssss", $class_id, $subject_name, $subject_code, $group, $type, $status);
+    $stmt = $conn->prepare("INSERT INTO subjects (class_id, subject_name, subject_code, `group`, type, status, default_marks, has_creative, has_objective, has_practical, pass_type) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("isssssiiiis", $class_id, $subject_name, $subject_code, $group, $type, $status, $default_marks, $has_creative, $has_objective, $has_practical, $pass_type);
     $stmt->execute();
     header("Location: manage_subjects.php");
     exit();
@@ -36,9 +42,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $group = $_POST['group'];
     $type = $_POST['type'];
     $status = $_POST['status'];
+    $default_marks = $_POST['default_marks'];
+    $has_creative = $_POST['has_creative'];
+    $has_objective = $_POST['has_objective'];
+    $has_practical = $_POST['has_practical'];
+    $pass_type = $_POST['pass_type'];
 
-    $stmt = $conn->prepare("UPDATE subjects SET class_id=?, subject_name=?, subject_code=?, `group`=?, type=?, status=? WHERE id=?");
-    $stmt->bind_param("isssssi", $class_id, $subject_name, $subject_code, $group, $type, $status, $id);
+    $stmt = $conn->prepare("UPDATE subjects SET class_id=?, subject_name=?, subject_code=?, `group`=?, type=?, status=?, default_marks=?, has_creative=?, has_objective=?, has_practical=?, pass_type=? WHERE id=?");
+    $stmt->bind_param("isssssiiiisi", $class_id, $subject_name, $subject_code, $group, $type, $status, $default_marks, $has_creative, $has_objective, $has_practical, $pass_type, $id);
     $stmt->execute();
     header("Location: manage_subjects.php");
     exit();
@@ -97,7 +108,7 @@ $classes = $conn->query("SELECT id, class_name FROM classes ORDER BY class_name 
         <div class="row mt-2">
             <div class="col-md-4">
                 <label class="form-label">গ্রুপ</label>
-                <select name="group" class="form-control">
+                <select name="group" class="form-control" id="group">
                     <option value="">নির্বাচন করুন</option>
                     <option value="none">কোন গ্রুপ না</option>
                     <option value="Science">বিজ্ঞান</option>
@@ -121,6 +132,44 @@ $classes = $conn->query("SELECT id, class_name FROM classes ORDER BY class_name 
             </div>
         </div>
 
+        <div class="row mt-2">
+            <div class="col-md-3">
+                <label class="form-label">সৃজনশীল আছে?</label>
+                <select name="has_creative" class="form-select" id="has_creative" required>
+                    <option value="1">হ্যাঁ</option>
+                    <option value="0">না</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">নৈর্ব্যক্তিক আছে?</label>
+                <select name="has_objective" class="form-select" id="has_objective" required>
+                    <option value="1">হ্যাঁ</option>
+                    <option value="0">না</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">ব্যবহারিক আছে?</label>
+                <select name="has_practical" class="form-select" id="has_practical" required>
+                    <option value="1">হ্যাঁ</option>
+                    <option value="0">না</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">পাস টাইপ</label>
+                <select name="pass_type" class="form-select" id="pass_type" required>
+                    <option value="total">মোট নাম্বার</option>
+                    <option value="individual">আলাদা আলাদা</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row mt-2">
+            <div class="col-md-4">
+                <label class="form-label">ডিফল্ট পূর্ণমান</label>
+                <input type="number" name="default_marks" class="form-control" id="default_marks" value="100" required>
+            </div>
+        </div>
+
         <div class="row mt-3">
             <div class="col-md-12 d-flex justify-content-end">
                 <button type="submit" class="btn btn-primary" id="submit_btn">Add Subject</button>
@@ -138,6 +187,11 @@ $classes = $conn->query("SELECT id, class_name FROM classes ORDER BY class_name 
                 <th>কোড</th>
                 <th>গ্রুপ</th>
                 <th>ধরন</th>
+                <th>পূর্ণমান</th>
+                <th>সৃজনশীল</th>
+                <th>নৈর্ব্যক্তিক</th>
+                <th>ব্যবহারিক</th>
+                <th>পাস টাইপ</th>
                 <th>স্ট্যাটাস</th>
                 <th>অ্যাকশন</th>
             </tr>
@@ -151,6 +205,11 @@ $classes = $conn->query("SELECT id, class_name FROM classes ORDER BY class_name 
                 <td><?= $row['subject_code'] ?></td>
                 <td><?= $row['group'] ?></td>
                 <td><?= $row['type'] ?></td>
+                <td><?= $row['default_marks'] ?></td>
+                <td><?= $row['has_creative'] ? '✔' : '✘' ?></td>
+                <td><?= $row['has_objective'] ? '✔' : '✘' ?></td>
+                <td><?= $row['has_practical'] ? '✔' : '✘' ?></td>
+                <td><?= $row['pass_type'] ?></td>
                 <td><?= $row['status'] ?></td>
                 <td>
                     <button class="btn btn-sm btn-info" onclick='editSubject(<?= json_encode($row) ?>)'>Edit</button>
@@ -172,6 +231,13 @@ function editSubject(data) {
     document.getElementById('group').value = data.group;
     document.getElementById('type').value = data.type;
     document.getElementById('status').value = data.status;
+
+    document.getElementById('default_marks').value = data.default_marks;
+    document.getElementById('has_creative').value = data.has_creative;
+    document.getElementById('has_objective').value = data.has_objective;
+    document.getElementById('has_practical').value = data.has_practical;
+    document.getElementById('pass_type').value = data.pass_type;
+
     document.getElementById('submit_btn').innerText = 'Update Subject';
 }
 </script>

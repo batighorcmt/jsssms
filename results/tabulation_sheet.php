@@ -1,3 +1,4 @@
+
 <?php
 include '../config/db.php';
 
@@ -10,13 +11,15 @@ if (!$exam_id || !$class_id || !$year) {
     exit;
 }
 
+// প্রতিষ্ঠানের তথ্য (হার্ডকোড করা হয়েছে, চাইলে ডাটাবেজ থেকে আনা যাবে)
+$institute_name = "নতুন উচ্চ বিদ্যালয়";
+$institute_address = "ধানমন্ডি, ঢাকা-১২০৫";
+
 // পরীক্ষার নাম
 $exam = mysqli_fetch_assoc(mysqli_query($conn, "SELECT exam_name FROM exams WHERE id='$exam_id'"))['exam_name'];
-
-// ক্লাস নাম
 $class = mysqli_fetch_assoc(mysqli_query($conn, "SELECT class_name FROM classes WHERE id='$class_id'"))['class_name'];
 
-// বিষয় ও পাস নম্বর
+// বিষয় তালিকা
 $subjects_q = mysqli_query($conn, "
     SELECT s.id as subject_id, s.subject_name, s.subject_code, 
            s.has_creative, s.has_objective, s.has_practical,
@@ -31,7 +34,7 @@ while ($row = mysqli_fetch_assoc($subjects_q)) {
     $subjects[] = $row;
 }
 
-// শিক্ষার্থীদের তথ্য
+// শিক্ষার্থী তালিকা
 $students_q = mysqli_query($conn, "
     SELECT * FROM students 
     WHERE class_id='$class_id' AND year='$year'
@@ -61,7 +64,6 @@ function subjectGPA($total) {
     elseif ($total >= 33) return 1.00;
     return 0.00;
 }
-
 ?>
 
 <!DOCTYPE html>
@@ -70,106 +72,111 @@ function subjectGPA($total) {
     <meta charset="UTF-8">
     <title>টেবুলেশন শীট</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        th, td { vertical-align: middle !important; font-size: 13px border-spacing: 0px;  padding: 0px; }
+        @media print {
+            .no-print { display: none; }
+            table { font-size: 11px border-spacing: 0px;  padding: 0px; }
+        }
+        .fail-mark { color: red; font-weight: bold; }
+    </style>
 </head>
 <body>
-<div class="container my-5">
-    <div class="card shadow">
-        <div class="card-body">
-            <h4 class="text-center mb-4">টেবুলেশন শীট - <?= $exam ?> (<?= $class ?>, <?= $year ?>)</h4>
+<div class="container my-4">
+    <div class="text-center mb-3">
+        <h5><?= $institute_name ?></h5>
+        <p><?= $institute_address ?></p>
+        <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
+        <button onclick="window.print()" class="btn btn-primary no-print">প্রিন্ট</button>
+    </div>
 
-            <div class="table-responsive">
-                <table class="table table-bordered table-striped align-middle text-center">
-                    <thead class="table-primary">
-                        <tr>
-                            <th>ক্রম</th>
-                            <th>শিক্ষার্থীর নাম</th>
-                            <th>রোল</th>
-                            <?php foreach ($subjects as $sub): ?>
-                                <th>
-                                    <?= $sub['subject_name'] ?><br>
-                                    <?= $sub['has_creative'] ? "C " : "" ?>
-                                    <?= $sub['has_objective'] ? "O " : "" ?>
-                                    <?= $sub['has_practical'] ? "P " : "" ?>
-                                </th>
-                            <?php endforeach; ?>
-                            <th>মোট</th>
-                            <th>GPA</th>
-                            <th>ফেল</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $all_students = [];
-                        while ($stu = mysqli_fetch_assoc($students_q)) {
-                            $total = 0;
-                            $fail_count = 0;
-                            $gpa_total = 0;
-                            $gpa_subjects = 0;
-                            $row = "<tr><td>{$stu['roll_no']}</td><td>{$stu['student_name']}</td><td>{$stu['roll_no']}</td>";
+    <div class="table-responsive">
+        <table class="table table-bordered text-center align-middle">
+            <thead class="table-primary">
+                <tr>
+                    <th rowspan="2">ক্রম</th>
+                    <th rowspan="2">শিক্ষার্থীর নাম</th>
+                    <th rowspan="2">রোল</th>
+                    <?php foreach ($subjects as $sub): 
+                        $colspan = $sub['has_creative'] + $sub['has_objective'] + $sub['has_practical'] + 2;
+                    ?>
+                        <th colspan="<?= $colspan ?>">
+                            <?= $sub['subject_name'] ?><br>
+                            <small>(<?= $sub['subject_code'] ?>)</small>
+                        </th>
+                    <?php endforeach; ?>
+                    <th rowspan="2">মোট</th>
+                    <th rowspan="2">GPA</th>
+                    <th rowspan="2">ফেল</th>
+                </tr>
+                <tr>
+                    <?php foreach ($subjects as $sub): ?>
+                        <?php if ($sub['has_creative']) echo "<th>C</th>"; ?>
+                        <?php if ($sub['has_objective']) echo "<th>O</th>"; ?>
+                        <?php if ($sub['has_practical']) echo "<th>P</th>"; ?>
+                        <th>Total</th>
+                        <th>GPA</th>
+                    <?php endforeach; ?>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $all_students = [];
+                while ($stu = mysqli_fetch_assoc($students_q)) {
+                    $total = 0;
+                    $fail_count = 0;
+                    $gpa_total = 0;
+                    $gpa_subjects = 0;
+                    $row_data = "";
 
-                            foreach ($subjects as $sub) {
-                                $c = $sub['has_creative'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'creative') : null;
-                                $o = $sub['has_objective'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'objective') : null;
-                                $p = $sub['has_practical'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'practical') : null;
+                    foreach ($subjects as $sub) {
+                        $c = $sub['has_creative'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'creative') : null;
+                        $o = $sub['has_objective'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'objective') : null;
+                        $p = $sub['has_practical'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'practical') : null;
 
-                                $marks_display = '';
-                                $sub_total = 0;
-                                $fail = false;
+                        $sub_total = ($c ?? 0) + ($o ?? 0) + ($p ?? 0);
+                        $fail = false;
 
-                                if ($class_id <= 3) {
-                                    if (!is_null($c)) $sub_total += $c;
-                                    if (!is_null($o)) $sub_total += $o;
-                                    if (!is_null($p)) $sub_total += $p;
-                                    if ($sub_total < 33 || $c == 0 || $o == 0 || $p == 0) {
-                                        $fail = true;
-                                        $fail_count++;
-                                    }
-                                    $marks_display = ($c !== null ? "C: $c<br>" : "") . ($o !== null ? "O: $o<br>" : "") . ($p !== null ? "P: $p<br>" : "");
-                                } else {
-                                    if ($sub['has_creative']) {
-                                        if (isFail($c, $sub['creative_pass'])) $fail = true;
-                                        $marks_display .= "C: " . ($c == 0 ? "<span class='text-danger fw-bold'>$c</span>" : $c) . "<br>";
-                                    }
-                                    if ($sub['has_objective']) {
-                                        if (isFail($o, $sub['objective_pass'])) $fail = true;
-                                        $marks_display .= "O: " . ($o == 0 ? "<span class='text-danger fw-bold'>$o</span>" : $o) . "<br>";
-                                    }
-                                    if ($sub['has_practical']) {
-                                        if (isFail($p, $sub['practical_pass'])) $fail = true;
-                                        $marks_display .= "P: " . ($p == 0 ? "<span class='text-danger fw-bold'>$p</span>" : $p) . "<br>";
-                                    }
-
-                                    $sub_total = ($c ?? 0) + ($o ?? 0) + ($p ?? 0);
-                                    if ($fail) $fail_count++;
-                                }
-
-                                $gpa = subjectGPA($sub_total);
-                                $gpa_total += $gpa;
-                                $gpa_subjects++;
-
-                                $total += $sub_total;
-                                $row .= "<td>" . ($fail ? "<span class='text-danger fw-bold'>$sub_total</span>" : $sub_total) . "<br><small>$marks_display</small></td>";
+                        if ($class_id <= 3) {
+                            if ($sub_total < 33 || $c === 0 || $o === 0 || $p === 0) {
+                                $fail = true;
+                                $fail_count++;
                             }
-
-                            $final_gpa = $fail_count > 0 ? 0.00 : round($gpa_total / $gpa_subjects, 2);
-                            $row .= "<td>$total</td><td>$final_gpa</td><td>$fail_count</td></tr>";
-
-                            $all_students[] = ['fail' => $fail_count, 'total' => $total, 'row' => $row];
+                        } else {
+                            if ($sub['has_creative'] && isFail($c, $sub['creative_pass'])) $fail = true;
+                            if ($sub['has_objective'] && isFail($o, $sub['objective_pass'])) $fail = true;
+                            if ($sub['has_practical'] && isFail($p, $sub['practical_pass'])) $fail = true;
+                            if ($fail) $fail_count++;
                         }
 
-                        usort($all_students, function ($a, $b) {
-                            return $a['fail'] === $b['fail'] ? $b['total'] - $a['total'] : $a['fail'] - $b['fail'];
-                        });
+                        $gpa = subjectGPA($sub_total);
+                        $gpa_total += $gpa;
+                        $gpa_subjects++;
 
-                        foreach ($all_students as $i => $stu) {
-                            echo $stu['row'];
-                        }
-                        ?>
-                    </tbody>
-                </table>
-            </div>
+                        if ($sub['has_creative']) $row_data .= "<td>" . (isFail($c, $sub['creative_pass']) ? "<span class='fail-mark'>$c</span>" : $c) . "</td>";
+                        if ($sub['has_objective']) $row_data .= "<td>" . (isFail($o, $sub['objective_pass']) ? "<span class='fail-mark'>$o</span>" : $o) . "</td>";
+                        if ($sub['has_practical']) $row_data .= "<td>" . (isFail($p, $sub['practical_pass']) ? "<span class='fail-mark'>$p</span>" : $p) . "</td>";
 
-        </div>
+                        $row_data .= "<td>$sub_total</td><td>" . number_format($gpa, 2) . "</td>";
+                        $total += $sub_total;
+                    }
+
+                    $final_gpa = $fail_count > 0 ? '0.00' : number_format($gpa_total / $gpa_subjects, 2);
+                    $fail_display = $fail_count > 0 ? $fail_count : "";
+
+                    $all_students[] = [
+                        'fail' => $fail_count,
+                        'total' => $total,
+                        'row' => "<tr><td></td><td>{$stu['student_name']}</td><td>{$stu['roll_no']}</td>$row_data<td>$total</td><td>$final_gpa</td><td>$fail_display</td></tr>"
+                    ];
+                }
+
+                foreach ($all_students as $i => $stu) {
+                    echo preg_replace('/<td><\/td>/', "<td>" . ($i + 1) . "</td>", $stu['row'], 1);
+                }
+                ?>
+            </tbody>
+        </table>
     </div>
 </div>
 </body>

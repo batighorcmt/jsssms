@@ -73,7 +73,7 @@ while ($row = $resultMarks->fetch_assoc()) {
                 </thead>
                 <tbody>
                     <?php $i = 1; while ($student = $students->fetch_assoc()): 
-                        $sid = $student['id'];
+                        $sid = $student['student_id'];
                         $creative = $marks[$sid]['creative_marks'] ?? 0;
                         $objective = $marks[$sid]['objective_marks'] ?? 0;
                         $practical = $marks[$sid]['practical_marks'] ?? 0;
