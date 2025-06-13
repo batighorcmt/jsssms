@@ -20,9 +20,9 @@ $sql = "SELECT es.id AS subject_id, s.subject_name, es.creative_marks, es.object
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $exam_id, $subject_id);
 $stmt->execute();
-$stmt3->store_result();
+$stm3->store_result();
 
-$stmt3->bind_result($m_student_id, $creative_marks, $objective_marks, $practical_marks);
+$stmt->bind_result($m_student_id, $creative_marks, $objective_marks, $practical_marks);
 
 if ($result->num_rows === 0) {
     echo '<div class="alert alert-warning">এই বিষয়টি পরীক্ষার সাথে যুক্ত নয়।</div>';
