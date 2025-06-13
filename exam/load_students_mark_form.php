@@ -12,7 +12,7 @@ $subject_id = intval($_POST['subject_id']);
 $year = intval($_POST['year']);
 
 // Subject Details
-$sql = "SELECT es.id AS exam_subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
+$sql = "SELECT es.id AS subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
         FROM exam_subjects es 
         JOIN subjects s ON es.subject_id = s.id
         WHERE es.exam_id = ? AND es.subject_id = ?";
