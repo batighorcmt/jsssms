@@ -2,7 +2,7 @@
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
-$BASE_URL = '/jsssms/'; // যেমন: /jsssms/
+$BASE_URL = '/jss/'; // যেমন: /jsssms/
 
 $current = basename($_SERVER['PHP_SELF']);
 ?>
