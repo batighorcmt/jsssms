@@ -20,20 +20,24 @@ $sql = "SELECT es.id AS exam_subject_id, s.subject_name, es.creative_marks, es.o
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $exam_id, $subject_id);
 $stmt->execute();
-$subject->bind_result($subject_id, $subject_name);
+$result = $stmt->get_result();
 
-if (!$subject) {
+if ($result->num_rows === 0) {
     echo '<div class="alert alert-warning">এই বিষয়টি পরীক্ষার সাথে যুক্ত নয়।</div>';
     exit;
 }
 
-$subject_name = $subject['subject_name'];
-$creativeMax = $subject['creative_marks'];
-$objectiveMax = $subject['objective_marks'];
-$practicalMax = $subject['practical_marks'];
+$subject_data = $result->fetch_assoc();
+$subject_name = $subject_data['subject_name'];
+$creativeMax = $subject_data['creative_marks'];
+$objectiveMax = $subject_data['objective_marks'];
+$practicalMax = $subject_data['practical_marks'];
 
 // Students List
-$sql2 = "SELECT id, student_name, father_name, roll_no, student_id FROM students WHERE class_id = ? AND year = ? ORDER BY roll_no ASC";
+$sql2 = "SELECT id, student_name, father_name, roll_no, student_id 
+         FROM students 
+         WHERE class_id = ? AND year = ? 
+         ORDER BY roll_no ASC";
 $stmt2 = $conn->prepare($sql2);
 $stmt2->bind_param('ii', $class_id, $year);
 $stmt2->execute();
@@ -46,7 +50,9 @@ if ($students->num_rows === 0) {
 
 // Existing Marks
 $marks = [];
-$sql3 = "SELECT student_id, creative_marks, objective_marks, practical_marks FROM marks WHERE exam_id = ? AND subject_id = ?";
+$sql3 = "SELECT student_id, creative_marks, objective_marks, practical_marks 
+         FROM marks 
+         WHERE exam_id = ? AND subject_id = ?";
 $stmt3 = $conn->prepare($sql3);
 $stmt3->bind_param("ii", $exam_id, $subject_id);
 $stmt3->execute();
