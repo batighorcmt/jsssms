@@ -16,13 +16,13 @@ $sql = "SELECT es.subject_id, s.subject_name, es.creative_marks, es.objective_ma
         JOIN subjects s ON es.subject_id = s.id
         WHERE es.exam_id = ? AND es.subject_id = ?";
 
-$stmt = $conn->prepare($sql);
-if (!$stmt) {
+$stmt1 = $conn->prepare($sql);
+if (!$stmt1) {
     die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
 }
-$stmt->bind_param("ii", $exam_id, $subject_id);
-$stmt->execute();
-$subject = $stmt->get_result()->fetch_assoc();
+$stmt1->bind_param("ii", $exam_id, $subject_id);
+$stmt1->execute();
+$subject = $stmt1->get_result()->fetch_assoc();
 
 if (!$subject) {
     echo '<div class="alert alert-warning">এই বিষয়টি পরীক্ষার সাথে যুক্ত নয়।</div>';
