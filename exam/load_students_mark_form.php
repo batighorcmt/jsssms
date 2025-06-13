@@ -20,7 +20,7 @@ $sql = "SELECT es.id AS exam_subject_id, s.subject_name, es.creative_marks, es.o
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $exam_id, $subject_id);
 $stmt->execute();
-$subject = $stmt->get_result()->fetch_assoc();
+$subject->bind_result($subject_id, $subject_name);
 
 if (!$subject) {
     echo '<div class="alert alert-warning">এই বিষয়টি পরীক্ষার সাথে যুক্ত নয়।</div>';
