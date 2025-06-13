@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 session_start();
 include '../config/db.php';
 
@@ -12,7 +8,7 @@ $subject_id = intval($_POST['subject_id']);
 $year = intval($_POST['year']);
 
 // Subject Details
-$sql = "SELECT es.id AS subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
+$sql = "SELECT es.id AS s.subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
         FROM exam_subjects es 
         JOIN subjects s ON es.subject_id = s.id
         WHERE es.exam_id = ? AND es.subject_id = ?";
@@ -20,26 +16,20 @@ $sql = "SELECT es.id AS subject_id, s.subject_name, es.creative_marks, es.object
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $exam_id, $subject_id);
 $stmt->execute();
-$stmt->store_result();
+$subject = $stmt->get_result()->fetch_assoc();
 
-$stmt->bind_result($m_student_id, $creative_marks, $objective_marks, $practical_marks);
-
-if ($result->num_rows === 0) {
+if (!$subject) {
     echo '<div class="alert alert-warning">এই বিষয়টি পরীক্ষার সাথে যুক্ত নয়।</div>';
     exit;
 }
 
-$subject_data = $result->fetch_assoc();
-$subject_name = $subject_data['subject_name'];
-$creativeMax = $subject_data['creative_marks'];
-$objectiveMax = $subject_data['objective_marks'];
-$practicalMax = $subject_data['practical_marks'];
+$subject_name = $subject['subject_name'];
+$creativeMax = $subject['creative_marks'];
+$objectiveMax = $subject['objective_marks'];
+$practicalMax = $subject['practical_marks'];
 
 // Students List
-$sql2 = "SELECT id, student_name, father_name, roll_no, student_id 
-         FROM students 
-         WHERE class_id = ? AND year = ? 
-         ORDER BY roll_no ASC";
+$sql2 = "SELECT id, student_name, father_name, roll_no, student_id FROM students WHERE class_id = ? AND year = ? ORDER BY roll_no ASC";
 $stmt2 = $conn->prepare($sql2);
 $stmt2->bind_param('ii', $class_id, $year);
 $stmt2->execute();
@@ -52,9 +42,7 @@ if ($students->num_rows === 0) {
 
 // Existing Marks
 $marks = [];
-$sql3 = "SELECT student_id, creative_marks, objective_marks, practical_marks 
-         FROM marks 
-         WHERE exam_id = ? AND subject_id = ?";
+$sql3 = "SELECT student_id, creative_marks, objective_marks, practical_marks FROM marks WHERE exam_id = ? AND subject_id = ?";
 $stmt3 = $conn->prepare($sql3);
 $stmt3->bind_param("ii", $exam_id, $subject_id);
 $stmt3->execute();
