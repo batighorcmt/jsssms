@@ -2,21 +2,26 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-include '../config/db.php'; // Ensure path is correct
+include '../config/db.php';
 
 if (isset($_POST['class_id'])) {
     $class_id = $_POST['class_id'];
 
-    $stmt = $conn->prepare("SELECT subject_id, subject_name FROM subjects WHERE class_id = ? AND status = 'Active'");
+    $stmt = $conn->prepare("SELECT id, subject_name FROM subjects WHERE class_id = ? AND status = 'Active'");
+    
+    if ($stmt === false) {
+        die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
+    }
+
     $stmt->bind_param("i", $class_id);
     $stmt->execute();
     $result = $stmt->get_result();
 
     echo '<option value="">বিষয় নির্বাচন করুন</option>';
     while ($row = $result->fetch_assoc()) {
-        echo '<option value="' . $row['subject_id'] . '">' . $row['subject_name'] . '</option>';
+        echo '<option value="' . $row['id'] . '">' . $row['subject_name'] . '</option>';
     }
+
     $stmt->close();
 }
 ?>
- 
