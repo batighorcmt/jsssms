@@ -339,7 +339,7 @@ function subjectGPA($total, $max) {
 
             // Sort students by roll number (ascending)
             usort($all_students, function($a, $b) {
-                return $a['total'] < $b['total'];
+                return $a['roll_no'] < $b['roll_no'];
             });
 
             // Output sorted students
