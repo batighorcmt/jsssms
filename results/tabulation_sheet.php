@@ -119,7 +119,7 @@ foreach ($subjects as $sub) {
                     'subject_name' => $group_name,
                     'subject_code' => $group_name,
                     'has_creative' => 1,
-                    'has_objective' => 1,
+                    'has_objective' => 0,
                     'has_practical' => 0,
                     'creative_pass' => $merged_pass_marks[$group_name]['creative_pass'],
                     'objective_pass' => $merged_pass_marks[$group_name]['objective_pass'],
