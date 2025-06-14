@@ -89,8 +89,8 @@ function subjectGPA($total) {
         <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
         <button onclick="window.print()" class="btn btn-primary no-print">প্রিন্ট</button>
     </div>
-
-    <div class="table-responsive">
+</div>
+    <div class="align-middle">
         <table class="table table-bordered text-center align-middle">
             <thead class="table-primary">
                 <tr>
