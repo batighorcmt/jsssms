@@ -307,7 +307,7 @@ function subjectGPA($total, $max) {
             
             // Sort students by total marks (descending)
             usort($all_students, function($a, $b) {
-                return $b['total'] <=> $a['total'];
+                return $b['roll_no'] <=> $a['roll_no'];
             });
             
             // Output sorted students
