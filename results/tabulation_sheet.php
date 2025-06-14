@@ -27,36 +27,9 @@ $merged_subjects = [
 // Fetch marks for merged subjects
 $merged_marks = [];
 
-foreach ($merged_subjects as $group_name => $sub_codes) {
-    // ✅ প্লেসহোল্ডার তৈরি
-    $placeholders = implode(',', array_fill(0, count($sub_codes), '?'));
-
-    $sql = "SELECT m.student_id, m.subject_id, s.subject_code, 
-                   m.creative_marks, m.objective_marks, m.practical_marks
-            FROM marks m
-            JOIN subjects s ON m.subject_id = s.id
-            JOIN students stu ON m.student_id = stu.student_id
-            JOIN student_subjects ss ON ss.student_id = m.student_id AND ss.subject_id = s.id
-            WHERE m.exam_id = ?
-              AND stu.class_id = ?
-              AND stu.year = ?
-              AND s.subject_code IN ($placeholders)";
-
-    $stmt = $conn->prepare($sql);
-
-    if (!$stmt) {
-        die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
-    }
-
-    // ✅ bind_param value তৈরী
-    $types = 'sss' . str_repeat('s', count($sub_codes));
-    $params = array_merge([$exam_id, $class_id, $year], $sub_codes);
-
-    // ✅ bind_param কল করার জন্য reference array বানাও
-    $bind_names[] = $types;
-    foreach ($params as $key => $value) {
-        $bind_names[] = &$params[$key];
-    }
+foreach ($merged_subjects as $group_name => $sub_codes) { // ✅ প্লেসহোল্ডার গুলো সঠিকভাবে বানান (without quotes) $placeholders = implode(',', array_fill(0, count($sub_codes), '?'));
+ `$sql = "SELECT m.student_id, m.subject_id, s.subject_code,                   m.creative_marks, m.objective_marks, m.practical_marks           FROM marks m           JOIN subjects s ON m.subject_id = s.id           JOIN students stu ON m.student_id = stu.student_id           WHERE m.exam_id = ?           AND stu.class_id = ?           AND stu.year = ?           AND s.subject_code IN ($placeholders)";    $stmt = $conn->prepare($sql);    // ✅ সকল bind_param value একত্রিত করুন   $types = 'sss' . str_repeat('s', count($sub_codes));   $params = array_merge([$exam_id, $class_id, $year], $sub_codes);    // ✅ bind_param() call with unpacked reference   $stmt->bind_param($types, ...$params);    $stmt->execute();   $res = $stmt->get_result();    while ($row = $res->fetch_assoc()) {       $sid = $row['student_id'];       if (!isset($merged_marks[$sid][$group_name])) {           $merged_marks[$sid][$group_name] = ['creative' => 0, 'objective' => 0, 'practical' => 0];       }       $merged_marks[$sid][$group_name]['creative'] += $row['creative_marks'];       $merged_marks[$sid][$group_name]['objective'] += $row['objective_marks'];       $merged_marks[$sid][$group_name]['practical'] += $row['practical_marks'];   }   ` 
+}
 
     // ✅ bind_param কল
     call_user_func_array([$stmt, 'bind_param'], $bind_names);
