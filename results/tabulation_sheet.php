@@ -17,6 +17,44 @@ $institute_address = "ধানমন্ডি, ঢাকা-১২০৫";
 
 // পরীক্ষার নাম
 $exam = mysqli_fetch_assoc(mysqli_query($conn, "SELECT exam_name FROM exams WHERE id='$exam_id'"))['exam_name'];
+
+
+// === Custom Subject Merging ===
+// Define merged subjects: subject_code => [subject_ids]
+$merged_subjects = [
+    'Bangla' => ['101', '102'],
+    'English' => ['107', '108']
+];
+
+// Fetch marks for merged subjects
+$merged_marks = [];
+
+foreach ($merged_subjects as $group_name => $sub_ids) {
+    $placeholders = implode(',', array_fill(0, count($sub_ids), '?'));
+    $types = str_repeat('i', count($sub_ids) + 3); // +3 for exam_id, class_id, year
+    $params = array_merge([$exam_id, $class_id, $year], $sub_ids);
+
+    $sql = "SELECT m.student_id, m.subject_id, m.creative_marks, m.objective_marks, m.practical_marks
+            FROM marks m
+            JOIN students s ON m.student_id = s.student_id
+            WHERE m.exam_id = ? AND s.class_id = ? AND s.year = ? AND m.subject_id IN ($placeholders)";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    while ($row = $res->fetch_assoc()) {
+        $sid = $row['student_id'];
+        if (!isset($merged_marks[$sid][$group_name])) {
+            $merged_marks[$sid][$group_name] = ['creative' => 0, 'objective' => 0, 'practical' => 0];
+        }
+        $merged_marks[$sid][$group_name]['creative'] += $row['creative_marks'];
+        $merged_marks[$sid][$group_name]['objective'] += $row['objective_marks'];
+        $merged_marks[$sid][$group_name]['practical'] += $row['practical_marks'];
+    }
+}
+
 $class = mysqli_fetch_assoc(mysqli_query($conn, "SELECT class_name FROM classes WHERE id='$class_id'"))['class_name'];
 
 // বিষয় তালিকা
