@@ -7,8 +7,8 @@ $class_id = intval($_POST['class_id']);
 $subject_id = intval($_POST['subject_id']);
 $year = intval($_POST['year']);
 
-// Subject Details
-$sql = "SELECT es.id AS s.subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
+// ✅ Subject Details
+$sql = "SELECT s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
         FROM exam_subjects es 
         JOIN subjects s ON es.subject_id = s.id
         WHERE es.exam_id = ? AND es.subject_id = ?";
@@ -28,12 +28,13 @@ $creativeMax = $subject['creative_marks'];
 $objectiveMax = $subject['objective_marks'];
 $practicalMax = $subject['practical_marks'];
 
-// Students who selected this subject
-$sql2 = "SELECT s.id, s.student_name, s.father_name, s.roll_no, s.student_id
+// ✅ Students List (who selected this subject)
+$sql2 = "SELECT s.id, s.student_name, s.father_name, s.roll_no, s.student_id 
          FROM students s
          JOIN student_subjects ss ON s.student_id = ss.student_id
          WHERE s.class_id = ? AND s.year = ? AND ss.subject_id = ?
          ORDER BY s.roll_no ASC";
+
 $stmt2 = $conn->prepare($sql2);
 $stmt2->bind_param('iii', $class_id, $year, $subject_id);
 $stmt2->execute();
@@ -44,7 +45,7 @@ if ($students->num_rows === 0) {
     exit;
 }
 
-// Existing Marks
+// ✅ Existing Marks
 $marks = [];
 $sql3 = "SELECT student_id, creative_marks, objective_marks, practical_marks FROM marks WHERE exam_id = ? AND subject_id = ?";
 $stmt3 = $conn->prepare($sql3);
@@ -56,6 +57,7 @@ while ($row = $resultMarks->fetch_assoc()) {
 }
 ?>
 
+<!-- ✅ Display Form -->
 <div class="card mt-4 shadow">
     <div class="card-header bg-primary text-white">
         <strong><?= htmlspecialchars($subject_name) ?></strong> 
@@ -84,36 +86,33 @@ while ($row = $resultMarks->fetch_assoc()) {
                     ?>
                     <tr>
                         <td class="text-center"><?= $i++ ?></td>
-                        <td class="text-center"><?= htmlspecialchars($student['student_id']) ?></td>
+                        <td class="text-center"><?= $sid ?></td>
                         <td class="text-center"><?= htmlspecialchars($student['roll_no']) ?></td>
                         <td><?= htmlspecialchars($student['student_name']) ?></td>
 
-                        <td>
-                            <input type="number" min="0" max="<?= $creativeMax ?>" step="0.01"
-                                class="form-control form-control-sm text-center"
-                                data-student-id="<?= $sid ?>" 
-                                data-subject-id="<?= $subject_id ?>" 
-                                data-field="creative_marks"
-                                value="<?= $creative ?>"
-                                onblur="saveMark(this)">
+                        <td><input type="number" min="0" max="<?= $creativeMax ?>" step="0.01"
+                                   class="form-control form-control-sm text-center"
+                                   data-student-id="<?= $sid ?>" 
+                                   data-subject-id="<?= $subject_id ?>" 
+                                   data-field="creative_marks"
+                                   value="<?= $creative ?>"
+                                   onblur="saveMark(this)">
                         </td>
-                        <td>
-                            <input type="number" min="0" max="<?= $objectiveMax ?>" step="0.01"
-                                class="form-control form-control-sm text-center"
-                                data-student-id="<?= $sid ?>" 
-                                data-subject-id="<?= $subject_id ?>" 
-                                data-field="objective_marks"
-                                value="<?= $objective ?>"
-                                onblur="saveMark(this)">
+                        <td><input type="number" min="0" max="<?= $objectiveMax ?>" step="0.01"
+                                   class="form-control form-control-sm text-center"
+                                   data-student-id="<?= $sid ?>" 
+                                   data-subject-id="<?= $subject_id ?>" 
+                                   data-field="objective_marks"
+                                   value="<?= $objective ?>"
+                                   onblur="saveMark(this)">
                         </td>
-                        <td>
-                            <input type="number" min="0" max="<?= $practicalMax ?>" step="0.01"
-                                class="form-control form-control-sm text-center"
-                                data-student-id="<?= $sid ?>" 
-                                data-subject-id="<?= $subject_id ?>" 
-                                data-field="practical_marks"
-                                value="<?= $practical ?>"
-                                onblur="saveMark(this)">
+                        <td><input type="number" min="0" max="<?= $practicalMax ?>" step="0.01"
+                                   class="form-control form-control-sm text-center"
+                                   data-student-id="<?= $sid ?>" 
+                                   data-subject-id="<?= $subject_id ?>" 
+                                   data-field="practical_marks"
+                                   value="<?= $practical ?>"
+                                   onblur="saveMark(this)">
                         </td>
                     </tr>
                     <?php endwhile; ?>
