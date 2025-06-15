@@ -8,7 +8,7 @@ include '../includes/header.php';
 ?>
 <div class="d-flex">
     <?php include '../includes/sidebar.php'; ?>
-</div>
+
 
 <div class="container mt-4">
     <h4 class="mb-4">🎓 Student Transcript Viewer</h4>
