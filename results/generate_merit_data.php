@@ -170,21 +170,5 @@ foreach ($merit_list as $stu) {
     $serial++;
 }
 echo '</tbody></table></div></div>';
+
 ?>
-
-<script>
-function printMerit() {
-    var printContents = document.getElementById('printArea').innerHTML;
-    var newWindow = window.open('', '', 'height=800,width=1000');
-    newWindow.document.write('<html><head><title>Merit List</title>');
-    newWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
-    newWindow.document.write('</head><body>');
-    newWindow.document.write(printContents);
-    newWindow.document.write('</body></html>');
-    newWindow.document.close();
-    newWindow.focus();
-    newWindow.print();
-    newWindow.close();
-}
-</script>
-

@@ -176,12 +176,7 @@ function printMerit() {
     newWindow.print();
     newWindow.close();
 }
-</script>
 
-<?php include '../includes/footer.php'; ?>
-
-
-<script>
 document.getElementById('meritForm').addEventListener('submit', function (e) {
     e.preventDefault();
 
@@ -198,6 +193,13 @@ document.getElementById('meritForm').addEventListener('submit', function (e) {
         document.getElementById('resultArea').innerHTML = '<div class="alert alert-danger">লোড করতে সমস্যা হয়েছে!</div>';
     });
 });
+</script>
+
+<?php include '../includes/footer.php'; ?>
+
+
+<script>
+
 </script>
 
 
