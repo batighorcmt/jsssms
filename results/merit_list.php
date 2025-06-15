@@ -64,6 +64,7 @@ include '../includes/sidebar.php';
 
     <div class="mt-4" id="printArea"></div>
 </div>
+</div>
 
 <script>
 document.getElementById('meritForm').addEventListener('submit', function(e) {
