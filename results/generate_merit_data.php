@@ -48,10 +48,9 @@ while ($row = $result->fetch_assoc()) {
 }
 
 // Get subjects for this exam
-$sql = "SELECT es.*, s.subject_code, s.type, s.class_id, e.exam_name
+$sql = "SELECT es.*, s.subject_code, s.type, s.class_id
         FROM exam_subjects es
         JOIN subjects s ON es.subject_id = s.id
-        JOIN exam e ON es.exam_id = e.id
         WHERE es.exam_id = ? AND s.class_id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $exam_id, $class_id);
