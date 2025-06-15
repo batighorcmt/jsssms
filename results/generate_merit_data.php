@@ -161,9 +161,10 @@ foreach ($groups as $group) {
         }
     </style>
 
-<div class="text-end mb-3">
-    <button onclick="printMerit()" class="btn btn-sm btn-primary">
-        <i class="bi bi-printer"></i> প্রিন্ট  </button>
+<div class="text-center my-3 no-print">
+    <button onclick="printMerit()" class="btn btn-primary">
+        <i class="bi bi-printer"></i> প্রিন্ট করুন
+    </button>
 </div>
 <div class="container mt-3" id="printArea">
     <!-- প্রতিষ্ঠানের নাম ও ঠিকানা -->
