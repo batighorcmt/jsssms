@@ -68,8 +68,8 @@ $current = basename($_SERVER['PHP_SELF']);
       </a>
     </li>
     <li>
-      <a href="<?= $BASE_URL ?>mark_entry.php" class="nav-link <?= ($current == 'mark_entry.php') ? 'active' : 'text-dark' ?>">
-        ✏️ Marks Entry
+      <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current == 'mark_entry.php') ? 'active' : 'text-dark' ?>">
+        📝 Mark Entry
       </a>
     </li>
     <li>
