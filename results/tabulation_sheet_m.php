@@ -1,161 +1,88 @@
-
 <?php
-session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    die("Access Denied");
+include 'db.php'; // DB connection
+
+$class_id = 1; // Static for now
+$exam_id = 1;
+
+// Load subjects for the class & exam
+$subjects = [];
+$sql = "SELECT s.id, s.subject_name, s.subject_code FROM exam_subjects es 
+        JOIN subjects s ON es.subject_id = s.id 
+        WHERE es.exam_id = $exam_id AND s.class_id = $class_id AND es.active = 'Yes' 
+        ORDER BY s.subject_code ASC";
+$result = mysqli_query($conn, $sql);
+while ($row = mysqli_fetch_assoc($result)) {
+    $subjects[] = $row;
 }
 
-include '../config/db.php';
+// Inject custom subject columns
+$final_subjects = [];
+foreach ($subjects as $index => $subject) {
+    $final_subjects[] = $subject;
 
-$exam_id = $_GET['exam_id'] ?? null;
-$class_id = $_GET['class_id'] ?? null;
-$year = $_GET['year'] ?? null;
-
-if (!$exam_id || !$class_id || !$year) {
-    die("Invalid request");
+    if ($subject['subject_code'] == '102') {
+        $final_subjects[] = ['subject_name' => 'Bangla', 'subject_code' => 'bangla_combined'];
+    }
+    if ($subject['subject_code'] == '108') {
+        $final_subjects[] = ['subject_name' => 'English', 'subject_code' => 'english_combined'];
+    }
 }
 
-// Helper functions
-function getGPA($percentage) {
-    if ($percentage >= 80) return 5.00;
-    elseif ($percentage >= 70) return 4.00;
-    elseif ($percentage >= 60) return 3.50;
-    elseif ($percentage >= 50) return 3.00;
-    elseif ($percentage >= 40) return 2.00;
-    elseif ($percentage >= 33) return 1.00;
-    return 0.00;
-}
-
-function getGrade($gpa) {
-    if ($gpa == 5.00) return "A+";
-    elseif ($gpa >= 4.00) return "A";
-    elseif ($gpa >= 3.50) return "A-";
-    elseif ($gpa >= 3.00) return "B";
-    elseif ($gpa >= 2.00) return "C";
-    elseif ($gpa >= 1.00) return "D";
-    return "F";
-}
-
-function isGroupMergedSubject($code) {
-    return in_array($code, [101, 102, 107, 108]);
-}
-
-// Fetch students
-$sql = "SELECT DISTINCT s.student_id, s.student_name, s.roll_no
-        FROM students s
-        JOIN marks m ON s.student_id = m.student_id
-        WHERE s.class = ? AND s.year = ?
-        ORDER BY s.roll_no ASC";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("is", $class_id, $year);
-$stmt->execute();
-$result = $stmt->get_result();
-
+// Fetch all students in class
 $students = [];
-while ($row = $result->fetch_assoc()) {
-    $students[$row['student_id']] = [
-        'name' => $row['student_name'],
-        'roll' => $row['roll_no'],
-        'marks' => [],
-        'merged' => []
-    ];
+$student_sql = "SELECT student_id, roll_no, student_name FROM students WHERE class_id = $class_id AND status = 'Active' ORDER BY roll_no ASC";
+$student_result = mysqli_query($conn, $student_sql);
+while ($row = mysqli_fetch_assoc($student_result)) {
+    $students[] = $row;
 }
 
-// Fetch marks
-$sql = "SELECT m.student_id, m.subject_id, s.subject_code, s.subject_name,
-               es.total_marks, es.creative_pass, es.objective_pass, es.practical_pass,
-               m.creative_marks, m.objective_marks, m.practical_marks
-        FROM marks m
-        JOIN subjects s ON m.subject_id = s.id
-        JOIN exam_subjects es ON m.subject_id = es.subject_id AND es.exam_id = ?
-        WHERE m.exam_id = ?";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ii", $exam_id, $exam_id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-while ($row = $result->fetch_assoc()) {
-    $sid = $row['student_id'];
-    $code = $row['subject_code'];
-
-    $total = $row['creative_marks'] + $row['objective_marks'] + $row['practical_marks'];
-    $converted = ($total / $row['total_marks']) * 100;
-    $gpa = getGPA($converted);
-    $status = 'Passed';
-
-    if ($class_id >= 9) {
-        if ($row['creative_marks'] < $row['creative_pass'] ||
-            $row['objective_marks'] < $row['objective_pass'] ||
-            $row['practical_marks'] < $row['practical_pass']) {
-            $status = 'Failed';
-            $gpa = 0.00;
-        }
-    } else {
-        if ($converted < 33) {
-            $status = 'Failed';
-            $gpa = 0.00;
-        }
-    }
-
-    $students[$sid]['marks'][$code] = [
-        'name' => $row['subject_name'],
-        'code' => $code,
-        'total' => $total,
-        'converted' => $converted,
-        'gpa' => $gpa,
-        'status' => $status
-    ];
-
-    // Handle merged
-    if (in_array($code, [101, 102])) {
-        $students[$sid]['merged']['BAN'] ??= ['total' => 0, 'marks' => [], 'full' => 0];
-        $students[$sid]['merged']['BAN']['total'] += $total;
-        $students[$sid]['merged']['BAN']['marks'][] = $total;
-        $students[$sid]['merged']['BAN']['full'] += $row['total_marks'];
-    }
-
-    if (in_array($code, [107, 108])) {
-        $students[$sid]['merged']['ENG'] ??= ['total' => 0, 'marks' => [], 'full' => 0];
-        $students[$sid]['merged']['ENG']['total'] += $total;
-        $students[$sid]['merged']['ENG']['marks'][] = $total;
-        $students[$sid]['merged']['ENG']['full'] += $row['total_marks'];
-    }
+// Build mark matrix [student_id][subject_id] = total_marks
+$marks = [];
+$mark_sql = "SELECT * FROM marks WHERE exam_id = $exam_id";
+$mark_result = mysqli_query($conn, $mark_sql);
+while ($row = mysqli_fetch_assoc($mark_result)) {
+    $marks[$row['student_id']][$row['subject_id']] = $row['creative_marks'] + $row['objective_marks'] + $row['practical_marks'];
 }
 
-// Output table
-echo "<table border='1' cellpadding='4' cellspacing='0'>";
-echo "<tr><th>Roll</th><th>Name</th><th>Subject</th><th>Marks</th><th>GPA</th><th>Status</th></tr>";
-
-foreach ($students as $sid => $data) {
-    $roll = $data['roll'];
-    $name = $data['name'];
-
-    foreach ($data['marks'] as $code => $info) {
-        echo "<tr>
-            <td>{$roll}</td>
-            <td>{$name}</td>
-            <td>{$info['name']} ({$code})</td>
-            <td>{$info['total']}</td>
-            <td>{$info['gpa']}</td>
-            <td>{$info['status']}</td>
-        </tr>";
-    }
-
-    foreach ($data['merged'] as $group => $m) {
-        $converted = ($m['total'] / $m['full']) * 100;
-        $gpa = getGPA($converted);
-        $status = $gpa > 0 ? 'Passed' : 'Failed';
-        echo "<tr style='background:#eef'>
-            <td>{$roll}</td>
-            <td>{$name}</td>
-            <td><strong>{$group} (Merged)</strong></td>
-            <td><strong>{$m['total']}</strong></td>
-            <td><strong>{$gpa}</strong></td>
-            <td><strong>{$status}</strong></td>
-        </tr>";
-    }
-}
-echo "</table>";
+// Begin HTML table
 ?>
+<table border="1" cellpadding="6" cellspacing="0">
+    <thead>
+        <tr>
+            <th>Roll</th>
+            <th>Name</th>
+            <?php foreach ($final_subjects as $sub): ?>
+                <th><?= $sub['subject_name'] ?></th>
+            <?php endforeach; ?>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($students as $std): ?>
+            <tr>
+                <td><?= $std['roll_no'] ?></td>
+                <td><?= $std['student_name'] ?></td>
+                <?php
+                foreach ($final_subjects as $sub) {
+                    $code = $sub['subject_code'];
+
+                    if ($code === 'bangla_combined') {
+                        $mark1 = $marks[$std['student_id']][1] ?? 0;
+                        $mark2 = $marks[$std['student_id']][2] ?? 0;
+                        echo '<td>' . ($mark1 + $mark2) . '</td>';
+                    } elseif ($code === 'english_combined') {
+                        $mark1 = $marks[$std['student_id']][3] ?? 0;
+                        $mark2 = $marks[$std['student_id']][4] ?? 0;
+                        echo '<td>' . ($mark1 + $mark2) . '</td>';
+                    } else {
+                        // Normal subject
+                        $sid = array_search($code, array_column($subjects, 'subject_code'));
+                        $sub_id = $subjects[$sid]['id'] ?? null;
+                        $mark = $marks[$std['student_id']][$sub_id] ?? '-';
+                        echo '<td>' . $mark . '</td>';
+                    }
+                }
+                ?>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
