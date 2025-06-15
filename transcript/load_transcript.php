@@ -1,8 +1,6 @@
 <?php 
 session_start();
-if ($_SESSION['role'] !== 'super_admin') {
-    die('Access Denied');
-}
+if ($_SESSION['role'] !== 'super_admin') die('Access Denied');
 include '../config/db.php';
 
 $student_id = $_POST['student_id'];
@@ -10,23 +8,24 @@ $exam_id = $_POST['exam_id'];
 $class_id = $_POST['class_id'];
 $year = $_POST['year'];
 
-function getGPA($percentage) {
-    if ($percentage >= 80) return 5.00;
-    elseif ($percentage >= 70) return 4.00;
-    elseif ($percentage >= 60) return 3.50;
-    elseif ($percentage >= 50) return 3.00;
-    elseif ($percentage >= 40) return 2.00;
-    elseif ($percentage >= 33) return 1.00;
+function getGPA($marks) {
+    if ($marks >= 80) return 5.00;
+    elseif ($marks >= 70) return 4.00;
+    elseif ($marks >= 60) return 3.50;
+    elseif ($marks >= 50) return 3.00;
+    elseif ($marks >= 40) return 2.00;
+    elseif ($marks >= 33) return 1.00;
     else return 0.00;
 }
 
+// মার্জ বিষয়
 $subject_groups = [
     'Bangla' => ['101', '102'],
     'English' => ['107', '108']
 ];
 
 // Student Info
-$stmt = $conn->prepare("SELECT student_name, roll_no, class_id FROM students WHERE student_id = ?");
+$stmt = $conn->prepare("SELECT student_name, roll_no FROM students WHERE student_id = ?");
 $stmt->bind_param("s", $student_id);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -34,7 +33,7 @@ $student = $stmt->get_result()->fetch_assoc();
 $exam = $conn->query("SELECT exam_name FROM exams WHERE id = $exam_id")->fetch_assoc();
 $class = $conn->query("SELECT class_name FROM classes WHERE id = $class_id")->fetch_assoc();
 
-$sql = "SELECT es.*, s.subject_name, s.subject_code, s.type
+$sql = "SELECT es.*, s.subject_name, s.subject_code 
         FROM exam_subjects es
         JOIN subjects s ON es.subject_id = s.id
         WHERE es.exam_id = $exam_id AND s.class_id = $class_id";
@@ -42,47 +41,67 @@ $subjects = $conn->query($sql);
 
 $grouped_subjects = [];
 $individual_subjects = [];
-$total_marks = 0;
 $total_gpa = 0;
+$total_marks = 0;
 $subject_count = 0;
 $fail_count = 0;
 
-while ($sub = $subjects->fetch_assoc()) {
-    $code = $sub['subject_code'];
-    $subject_id = $sub['subject_id'];
+while ($row = $subjects->fetch_assoc()) {
+    $code = $row['subject_code'];
+    $subject_id = $row['subject_id'];
+    $max_total = $row['total_marks'];
+    $c_pass = $row['creative_pass'];
+    $o_pass = $row['objective_pass'];
+    $p_pass = $row['practical_pass'];
 
     $marks = $conn->query("SELECT creative_marks, objective_marks, practical_marks 
-                           FROM marks 
-                           WHERE student_id='$student_id' AND exam_id=$exam_id AND subject_id=$subject_id")->fetch_assoc();
+                           FROM marks WHERE student_id='$student_id' 
+                           AND exam_id=$exam_id AND subject_id=$subject_id")->fetch_assoc();
 
     $c = $marks['creative_marks'] ?? 0;
     $o = $marks['objective_marks'] ?? 0;
     $p = $marks['practical_marks'] ?? 0;
     $t = $c + $o + $p;
 
-    $key = null;
-    foreach ($subject_groups as $group => $codes) {
+    $group = null;
+    foreach ($subject_groups as $g => $codes) {
         if (in_array($code, $codes)) {
-            $key = $group;
+            $group = $g;
             break;
         }
     }
 
-    if ($key) {
-        if (!isset($grouped_subjects[$key])) {
-            $grouped_subjects[$key] = ['subject_name' => $key, 'creative' => 0, 'objective' => 0, 'practical' => 0, 'total' => 0, 'full_marks' => 0];
+    if ($group) {
+        if (!isset($grouped_subjects[$group])) {
+            $grouped_subjects[$group] = [
+                'subject_name' => $group,
+                'creative' => 0, 'objective' => 0, 'practical' => 0, 'total' => 0,
+                'max_total' => 0,
+                'c_pass' => 0, 'o_pass' => 0, 'p_pass' => 0
+            ];
         }
-        $grouped_subjects[$key]['creative'] += $c;
-        $grouped_subjects[$key]['objective'] += $o;
-        $grouped_subjects[$key]['practical'] += $p;
-        $grouped_subjects[$key]['total'] += $t;
-        $grouped_subjects[$key]['full_marks'] += $sub['total_marks'];
+
+        $grouped_subjects[$group]['creative'] += $c;
+        $grouped_subjects[$group]['objective'] += $o;
+        $grouped_subjects[$group]['practical'] += $p;
+        $grouped_subjects[$group]['total'] += $t;
+        $grouped_subjects[$group]['max_total'] += $max_total;
+        $grouped_subjects[$group]['c_pass'] = max($grouped_subjects[$group]['c_pass'], $c_pass);
+        $grouped_subjects[$group]['o_pass'] = max($grouped_subjects[$group]['o_pass'], $o_pass);
+        $grouped_subjects[$group]['p_pass'] = max($grouped_subjects[$group]['p_pass'], $p_pass);
     } else {
-        $individual_subjects[] = ['subject_name' => $sub['subject_name'], 'subject_code' => $code, 'c' => $c, 'o' => $o, 'p' => $p, 't' => $t, 'original' => $sub];
+        $individual_subjects[] = [
+            'subject_name' => $row['subject_name'],
+            'subject_code' => $code,
+            'creative' => $c, 'objective' => $o, 'practical' => $p, 'total' => $t,
+            'max_total' => $max_total,
+            'c_pass' => $c_pass, 'o_pass' => $o_pass, 'p_pass' => $p_pass
+        ];
     }
 }
 ?>
 
+<!-- HTML Layout -->
 <style>
 .watermark {
     position: absolute;
@@ -95,104 +114,78 @@ while ($sub = $subjects->fetch_assoc()) {
 </style>
 
 <div id="printArea" class="p-4 bg-white border rounded position-relative">
-
-    <!-- Watermark -->
     <div class="watermark">
         <img src="../assets/logo.png" width="400">
     </div>
 
-    <!-- Header with logo on left -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <img src="../assets/logo.png" alt="Logo" height="90">
+        <img src="../assets/logo.png" height="90">
         <div class="text-center w-100" style="margin-left:-90px;">
             <h3 class="mb-0">Jorepukuria Secondary School</h3>
             <small>Gangni, Meherpur</small>
             <h5 class="mt-2">Academic Transcript</h5>
-            <p><strong>Exam:</strong> <?= $exam['exam_name'] ?> |
-               <strong>Class:</strong> <?= $class['class_name'] ?> |
+            <p><strong>Exam:</strong> <?= $exam['exam_name'] ?> | 
+               <strong>Class:</strong> <?= $class['class_name'] ?> | 
                <strong>Year:</strong> <?= $year ?></p>
         </div>
     </div>
 
-    <!-- Student Info -->
     <div class="row mb-3">
         <div class="col-md-6"><strong>Name:</strong> <?= $student['student_name'] ?></div>
         <div class="col-md-3"><strong>Roll:</strong> <?= $student['roll_no'] ?></div>
         <div class="col-md-3"><strong>ID:</strong> <?= $student_id ?></div>
     </div>
 
-    <!-- Marks Table -->
     <table class="table table-bordered text-center">
         <thead class="table-primary">
             <tr>
-                <th>Subject</th>
-                <th>Code</th>
-                <th>Creative</th>
-                <th>Objective</th>
-                <th>Practical</th>
-                <th>Total</th>
-                <th>GPA</th>
-                <th>Status</th>
+                <th>Subject</th><th>Code</th><th>Creative</th><th>Objective</th><th>Practical</th>
+                <th>Total</th><th>GPA</th><th>Status</th>
             </tr>
         </thead>
         <tbody>
             <?php
             foreach ($grouped_subjects as $name => $g) {
-                $percentage = ($g['total'] / $g['full_marks']) * 100;
-                $gpa = getGPA($percentage);
-
-                $codes = $subject_groups[$name];
-                $pass_sql = "SELECT SUM(creative_pass) as cp, SUM(objective_pass) as op, SUM(practical_pass) as pp 
-                             FROM exam_subjects es 
-                             JOIN subjects s ON es.subject_id = s.id 
-                             WHERE es.exam_id = $exam_id AND s.subject_code IN (?, ?)";
-                $stmt = $conn->prepare($pass_sql);
-                $stmt->bind_param("ss", $codes[0], $codes[1]);
-                $stmt->execute();
-                $pass_data = $stmt->get_result()->fetch_assoc();
-
-                $pass = ($class_id >= 9)
-                    ? ($g['creative'] >= $pass_data['cp'] && $g['objective'] >= $pass_data['op'] && $g['practical'] >= $pass_data['pp'])
-                    : ($percentage >= 33);
+                $total = $g['total'];
+                $max = $g['max_total'];
+                $percent = ($total / $max) * 100;
+                $gpa = getGPA($percent);
+                $pass = ($class_id >= 9) ?
+                    ($g['creative'] >= $g['c_pass'] && $g['objective'] >= $g['o_pass'] && $g['practical'] >= $g['p_pass']) :
+                    ($percent >= 33);
 
                 if (!$pass) $fail_count++;
                 else $total_gpa += $gpa;
 
-                $total_marks += $g['total'];
+                $total_marks += $total;
                 $subject_count++;
 
                 echo "<tr class='".(!$pass ? 'table-danger' : '')."'>
                         <td>$name</td><td>-</td>
                         <td>{$g['creative']}</td><td>{$g['objective']}</td><td>{$g['practical']}</td>
-                        <td>{$g['total']}</td>
+                        <td>".round($total)."</td>
                         <td>".number_format($gpa, 2)."</td>
                         <td>".($pass ? 'Pass' : 'Fail')."</td>
                     </tr>";
             }
 
             foreach ($individual_subjects as $s) {
-                $gpa = getGPA(($s['t'] / $s['original']['total_marks']) * 100);
-                $pass = true;
-
-                if ($class_id >= 9) {
-                    if ($s['original']['creative_marks'] > 0 && $s['c'] < $s['original']['creative_pass']) $pass = false;
-                    if ($s['original']['objective_marks'] > 0 && $s['o'] < $s['original']['objective_pass']) $pass = false;
-                    if ($s['original']['practical_marks'] > 0 && $s['p'] < $s['original']['practical_pass']) $pass = false;
-                } else {
-                    if (($s['t'] / $s['original']['total_marks']) * 100 < 33 || $s['c'] == 0 || $s['o'] == 0) $pass = false;
-                }
+                $gpa = getGPA(($s['total'] / $s['max_total']) * 100);
+                $pass = ($class_id >= 9) ?
+                    ($s['creative'] >= $s['c_pass'] && $s['objective'] >= $s['o_pass'] && $s['practical'] >= $s['p_pass']) :
+                    (($s['total'] / $s['max_total']) * 100 >= 33);
 
                 if (!$pass) $fail_count++;
                 else $total_gpa += $gpa;
 
-                $total_marks += $s['t'];
+                $total_marks += $s['total'];
                 $subject_count++;
 
                 echo "<tr class='".(!$pass ? 'table-danger' : '')."'>
                         <td>{$s['subject_name']}</td><td>{$s['subject_code']}</td>
-                        <td>{$s['c']}</td><td>{$s['o']}</td><td>{$s['p']}</td>
-                        <td>{$s['t']}</td>
-                        <td>".number_format($gpa, 2)."</td>
+                        <td>{$s['creative']}</td><td>{$s['objective']}</td><td>{$s['practical']}</td>
+                        <td>{$s['total']}</td>
+                        <td>".number_format($gpa,2)."</td>
                         <td>".($pass ? 'Pass' : 'Fail')."</td>
                     </tr>";
             }
@@ -203,45 +196,12 @@ while ($sub = $subjects->fetch_assoc()) {
                 <th colspan="5">Total</th>
                 <th><?= round($total_marks) ?></th>
                 <th><?= ($fail_count == 0 && $subject_count > 0) ? number_format($total_gpa / $subject_count, 2) : '0.00' ?></th>
-                <th><?= $fail_count > 0 ? 'Failed in '.$fail_count : 'Passed' ?></th>
+                <th><?= $fail_count > 0 ? "Failed in $fail_count" : 'Passed' ?></th>
             </tr>
         </tfoot>
     </table>
-
-    <!-- Comments & Grade Chart -->
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <strong>Comments:</strong>
-            <p><?= $fail_count > 0 ? 'Needs Improvement' : 'Excellent Performance' ?></p>
-        </div>
-        <div class="col-md-6">
-            <strong>Grade Chart:</strong>
-            <table class="table table-sm table-bordered">
-                <thead><tr><th>Marks</th><th>Grade</th><th>GPA</th></tr></thead>
-                <tbody>
-                    <tr><td>80-100</td><td>A+</td><td>5.00</td></tr>
-                    <tr><td>70-79</td><td>A</td><td>4.00</td></tr>
-                    <tr><td>60-69</td><td>A-</td><td>3.50</td></tr>
-                    <tr><td>50-59</td><td>B</td><td>3.00</td></tr>
-                    <tr><td>40-49</td><td>C</td><td>2.00</td></tr>
-                    <tr><td>33-39</td><td>D</td><td>1.00</td></tr>
-                    <tr><td>0-32</td><td>F</td><td>0.00</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Signature -->
-    <div class="row mt-5">
-        <div class="col-md-6"></div>
-        <div class="col-md-6 text-end">
-            <p>.......................................</p>
-            <strong>Class Teacher's Signature</strong>
-        </div>
-    </div>
 </div>
 
-<!-- Print Button -->
 <div class="text-center mt-4">
     <button onclick="printTranscript()" class="btn btn-primary">
         <i class="bi bi-printer"></i> Print
