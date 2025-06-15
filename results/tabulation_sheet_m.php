@@ -66,50 +66,64 @@ function calculate_gpa($total) {
     elseif ($total >= 33) return 1.00;
     else return 0.00;
 }
-
-?><table border="1" cellpadding="6" cellspacing="0">
-    <thead>
+?><!DOCTYPE html><html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tabulation Sheet</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container my-5">
+    <h3 class="text-center mb-4">Student Tabulation Sheet - <?= $year ?></h3>
+    <div class="table-responsive">
+    <table class="table table-bordered table-striped table-sm align-middle text-center">
+        <thead class="table-dark">
         <tr>
             <th rowspan="2">Roll</th>
             <th rowspan="2">Name</th>
-            <?php foreach ($final_subjects as $sub): 
-                $code = $sub['subject_code'];
-                $colspan = 0;
-                if ($sub['has_creative']) $colspan++;
-                if ($sub['has_objective']) $colspan++;
-                if ($sub['has_practical']) $colspan++;
-                $colspan += ($code === 'bangla_combined' || $code === 'english_combined') ? 2 : 2;
+            <?php foreach ($final_subjects as $sub):
+                $colspan = ($sub['has_creative'] ? 1 : 0) + ($sub['has_objective'] ? 1 : 0) + ($sub['has_practical'] ? 1 : 0) + 2;
                 echo '<th colspan="' . $colspan . '">' . $sub['subject_name'] . '</th>';
             endforeach; ?>
+            <th rowspan="2">Total Marks</th>
+            <th rowspan="2">GPA</th>
+            <th rowspan="2">Status</th>
+            <th rowspan="2">Fail Count</th>
         </tr>
         <tr>
             <?php foreach ($final_subjects as $sub):
                 if ($sub['has_creative']) echo '<th>C</th>';
                 if ($sub['has_objective']) echo '<th>O</th>';
                 if ($sub['has_practical']) echo '<th>P</th>';
-                echo '<th>Total</th>';
-                $code = $sub['subject_code'];
-                if (in_array($code, ['bangla_combined', 'english_combined'])) echo '<th>GPA</th>';
-                else echo '<th>GPA</th>';
+                echo '<th>Total</th><th>GPA</th>';
             endforeach; ?>
         </tr>
-    </thead>
-    <tbody>
+        </thead>
+        <tbody>
         <?php foreach ($students as $std): ?>
             <tr>
                 <td><?= $std['roll_no'] ?></td>
-                <td><?= $std['student_name'] ?></td>
+                <td class="text-start ps-2"><?= $std['student_name'] ?></td>
                 <?php
-                foreach ($final_subjects as $sub) {
-                    $code = $sub['subject_code'];
-                    $creative = $objective = $practical = 0;if ($code === 'bangla_combined') {
+                $total_marks_all = 0;
+                $gpa_total = 0;
+                $gpa_subjects = 0;
+                $fail_count = 0;
+                $status = 'Pass';foreach ($final_subjects as $sub) {
+                $code = $sub['subject_code'];
+                $creative = $objective = $practical = 0;
+
+                if ($code === 'bangla_combined') {
                     $b1 = $marks[$std['student_id']][1] ?? ['creative' => 0, 'objective' => 0];
                     $b2 = $marks[$std['student_id']][2] ?? ['creative' => 0, 'objective' => 0];
                     $creative = ($b1['creative'] ?? 0) + ($b2['creative'] ?? 0);
                     $objective = ($b1['objective'] ?? 0) + ($b2['objective'] ?? 0);
                     $total = $creative + $objective;
-                    $gpa = number_format(calculate_gpa($total), 2);
-                    echo "<td>$creative</td><td>$objective</td><td>$total</td><td>$gpa</td>";
+                    $gpa = calculate_gpa($total);
+                    echo "<td>$creative</td><td>$objective</td><td>$total</td><td>" . number_format($gpa, 2) . "</td>";
+                    $total_marks_all += $total;
+                    $gpa_total += $gpa;
+                    $gpa_subjects++;
                     continue;
                 }
 
@@ -119,8 +133,11 @@ function calculate_gpa($total) {
                     $creative = ($e1['creative'] ?? 0) + ($e2['creative'] ?? 0);
                     $objective = ($e1['objective'] ?? 0) + ($e2['objective'] ?? 0);
                     $total = $creative + $objective;
-                    $gpa = number_format(calculate_gpa($total), 2);
-                    echo "<td>$creative</td><td>$objective</td><td>$total</td><td>$gpa</td>";
+                    $gpa = calculate_gpa($total);
+                    echo "<td>$creative</td><td>$objective</td><td>$total</td><td>" . number_format($gpa, 2) . "</td>";
+                    $total_marks_all += $total;
+                    $gpa_total += $gpa;
+                    $gpa_subjects++;
                     continue;
                 }
 
@@ -133,17 +150,31 @@ function calculate_gpa($total) {
                 if ($sub['has_practical'] && $m['practical'] < $sub['practical_pass']) $pass = false;
 
                 $total = $m['creative'] + $m['objective'] + $m['practical'];
-                $gpa = ($code === 'bangla_combined' || $code === 'english_combined') ? number_format(calculate_gpa($total), 2) : '-';
+                $gpa = calculate_gpa($total);
+
+                if (!$pass) {
+                    $fail_count++;
+                    $status = 'Fail';
+                }
 
                 if ($sub['has_creative']) echo '<td>' . $m['creative'] . '</td>';
                 if ($sub['has_objective']) echo '<td>' . $m['objective'] . '</td>';
                 if ($sub['has_practical']) echo '<td>' . $m['practical'] . '</td>';
                 echo '<td>' . $total . '</td>';
-                echo '<td>' . ($gpa === '-' ? ($pass ? number_format(calculate_gpa($total), 2) : '0.00') : $gpa) . '</td>';
+                echo '<td>' . ($pass ? number_format($gpa, 2) : '0.00') . '</td>';
+
+                $total_marks_all += $total;
             }
+
+            $avg_gpa = $gpa_subjects ? number_format($gpa_total / $gpa_subjects, 2) : '0.00';
+            echo "<td>$total_marks_all</td><td>$avg_gpa</td><td>$status</td><td>$fail_count</td>";
             ?>
         </tr>
     <?php endforeach; ?>
-</tbody>
-
+    </tbody>
 </table>
+</div>
+
+</div>
+</body>
+</html>
