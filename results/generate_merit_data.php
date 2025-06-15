@@ -11,6 +11,22 @@ $exam_id = intval($_POST['exam_id']);
 $class_id = intval($_POST['class_id']);
 $year = intval($_POST['year']);
 
+// পরীক্ষার নাম
+$exam_name = '';
+$stmt = $conn->prepare("SELECT exam_name FROM exams WHERE id = ?");
+$stmt->bind_param("i", $exam_id);
+$stmt->execute();
+$res = $stmt->get_result();
+if ($row = $res->fetch_assoc()) $exam_name = $row['exam_name'];
+
+// ক্লাস নাম
+$class_name = '';
+$stmt = $conn->prepare("SELECT class_name FROM classes WHERE id = ?");
+$stmt->bind_param("i", $class_id);
+$stmt->execute();
+$res = $stmt->get_result();
+if ($row = $res->fetch_assoc()) $class_name = $row['class_name'];
+
 // Fetch students
 $sql = "SELECT id, student_id, student_name, roll_no FROM students WHERE class_id = ? AND year = ?";
 $stmt = $conn->prepare($sql);
@@ -138,17 +154,25 @@ foreach ($groups as $group) {
 }
 
 ?>
+<style>
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
 
 <div class="text-end mb-3">
     <button onclick="printMerit()" class="btn btn-sm btn-primary">
         <i class="bi bi-printer"></i> প্রিন্ট  </button>
 </div>
-<div id="printArea">
-    <div class="text-center mb-3">
-        <h4>Jorepukuria Secondary School</h4>
+<div class="container mt-3" id="printArea">
+    <!-- প্রতিষ্ঠানের নাম ও ঠিকানা -->
+    <div class="text-center">
+        <h4 class="fw-bold">Jorepukuria Secondary School</h4>
         <p>Gangni, Meherpur</p>
-        <h3><?= htmlspecialchars($stu['exam_name']) ?></h3>
-        <h5><strong>Merit List</strong></h5>
+        <h5 class="my-3 text-decoration-underline">মেধা তালিকা</h5>
+        <p><strong>পরীক্ষার নাম:</strong> <?= htmlspecialchars($exam_name) ?> | <strong>শ্রেণি:</strong> <?= htmlspecialchars($class_name) ?> | <strong>সাল:</strong> <?= htmlspecialchars($year) ?></p>
     </div>
 
     <!-- Merit List Table -->
