@@ -10,13 +10,13 @@ $exam_id = $_POST['exam_id'];
 $class_id = $_POST['class_id'];
 $year = $_POST['year'];
 
-function getGPA($marks) {
-    if ($marks >= 80) return 5.00;
-    elseif ($marks >= 70) return 4.00;
-    elseif ($marks >= 60) return 3.50;
-    elseif ($marks >= 50) return 3.00;
-    elseif ($marks >= 40) return 2.00;
-    elseif ($marks >= 33) return 1.00;
+function getGPA($percentage) {
+    if ($percentage >= 80) return 5.00;
+    elseif ($percentage >= 70) return 4.00;
+    elseif ($percentage >= 60) return 3.50;
+    elseif ($percentage >= 50) return 3.00;
+    elseif ($percentage >= 40) return 2.00;
+    elseif ($percentage >= 33) return 1.00;
     else return 0.00;
 }
 
@@ -34,7 +34,7 @@ $student = $stmt->get_result()->fetch_assoc();
 $exam = $conn->query("SELECT exam_name FROM exams WHERE id = $exam_id")->fetch_assoc();
 $class = $conn->query("SELECT class_name FROM classes WHERE id = $class_id")->fetch_assoc();
 
-$sql = "SELECT es.*, s.subject_name, s.subject_code, s.type, s.id AS subject_id
+$sql = "SELECT es.*, s.subject_name, s.subject_code, s.type
         FROM exam_subjects es
         JOIN subjects s ON es.subject_id = s.id
         WHERE es.exam_id = $exam_id AND s.class_id = $class_id";
@@ -70,14 +70,13 @@ while ($sub = $subjects->fetch_assoc()) {
 
     if ($key) {
         if (!isset($grouped_subjects[$key])) {
-            $grouped_subjects[$key] = ['subject_name' => $key, 'creative' => 0, 'objective' => 0, 'practical' => 0, 'total' => 0, 'count' => 0, 'subs' => []];
+            $grouped_subjects[$key] = ['subject_name' => $key, 'creative' => 0, 'objective' => 0, 'practical' => 0, 'total' => 0, 'full_marks' => 0];
         }
         $grouped_subjects[$key]['creative'] += $c;
         $grouped_subjects[$key]['objective'] += $o;
         $grouped_subjects[$key]['practical'] += $p;
         $grouped_subjects[$key]['total'] += $t;
-        $grouped_subjects[$key]['count']++;
-        $grouped_subjects[$key]['subs'][] = ['subject_name' => $sub['subject_name'], 'subject_code' => $code, 'c' => $c, 'o' => $o, 'p' => $p, 't' => $t];
+        $grouped_subjects[$key]['full_marks'] += $sub['total_marks'];
     } else {
         $individual_subjects[] = ['subject_name' => $sub['subject_name'], 'subject_code' => $code, 'c' => $c, 'o' => $o, 'p' => $p, 't' => $t, 'original' => $sub];
     }
@@ -102,7 +101,7 @@ while ($sub = $subjects->fetch_assoc()) {
         <img src="../assets/logo.png" width="400">
     </div>
 
-    <!-- Header -->
+    <!-- Header with logo on left -->
     <div class="d-flex justify-content-between align-items-center mb-3">
         <img src="../assets/logo.png" alt="Logo" height="90">
         <div class="text-center w-100" style="margin-left:-90px;">
@@ -138,46 +137,49 @@ while ($sub = $subjects->fetch_assoc()) {
         </thead>
         <tbody>
             <?php
-            // Grouped subjects shown as individual
             foreach ($grouped_subjects as $name => $g) {
-                foreach ($g['subs'] as $s) {
-                    echo "<tr>
-                            <td>{$s['subject_name']}</td><td>{$s['subject_code']}</td>
-                            <td>{$s['c']}</td><td>{$s['o']}</td><td>{$s['p']}</td>
-                            <td>{$s['t']}</td><td>-</td><td>-</td>
-                          </tr>";
-                }
+                $percentage = ($g['total'] / $g['full_marks']) * 100;
+                $gpa = getGPA($percentage);
 
-                $avg = $g['total'] / $g['count'];
-                $gpa = getGPA($avg);
-                $pass = ($class_id >= 9) ? ($g['creative'] >= 16 && $g['objective'] >= 16) : ($avg >= 33);
+                $codes = $subject_groups[$name];
+                $pass_sql = "SELECT SUM(creative_pass) as cp, SUM(objective_pass) as op, SUM(practical_pass) as pp 
+                             FROM exam_subjects es 
+                             JOIN subjects s ON es.subject_id = s.id 
+                             WHERE es.exam_id = $exam_id AND s.subject_code IN (?, ?)";
+                $stmt = $conn->prepare($pass_sql);
+                $stmt->bind_param("ss", $codes[0], $codes[1]);
+                $stmt->execute();
+                $pass_data = $stmt->get_result()->fetch_assoc();
+
+                $pass = ($class_id >= 9)
+                    ? ($g['creative'] >= $pass_data['cp'] && $g['objective'] >= $pass_data['op'] && $g['practical'] >= $pass_data['pp'])
+                    : ($percentage >= 33);
 
                 if (!$pass) $fail_count++;
                 else $total_gpa += $gpa;
 
-                $total_marks += $avg;
+                $total_marks += $g['total'];
                 $subject_count++;
 
-                echo "<tr class='fw-bold ".(!$pass ? 'table-danger' : '')."'>
-                        <td>$name (Merged)</td><td>-</td>
+                echo "<tr class='".(!$pass ? 'table-danger' : '')."'>
+                        <td>$name</td><td>-</td>
                         <td>{$g['creative']}</td><td>{$g['objective']}</td><td>{$g['practical']}</td>
-                        <td>".round($avg)."</td>
-                        <td>".number_format($gpa,2)."</td>
+                        <td>{$g['total']}</td>
+                        <td>".number_format($gpa, 2)."</td>
                         <td>".($pass ? 'Pass' : 'Fail')."</td>
                     </tr>";
             }
 
-            // Individual subjects
             foreach ($individual_subjects as $s) {
-                $gpa = getGPA($s['t']);
+                $gpa = getGPA(($s['t'] / $s['original']['total_marks']) * 100);
                 $pass = true;
 
                 if ($class_id >= 9) {
-                    if ($s['original']['creative_marks'] > 0 && $s['c'] < 8) $pass = false;
-                    if ($s['original']['objective_marks'] > 0 && $s['o'] < 8) $pass = false;
-                    if ($s['original']['practical_marks'] > 0 && $s['p'] < 10) $pass = false;
+                    if ($s['original']['creative_marks'] > 0 && $s['c'] < $s['original']['creative_pass']) $pass = false;
+                    if ($s['original']['objective_marks'] > 0 && $s['o'] < $s['original']['objective_pass']) $pass = false;
+                    if ($s['original']['practical_marks'] > 0 && $s['p'] < $s['original']['practical_pass']) $pass = false;
                 } else {
-                    if ($s['t'] < 33 || $s['c'] == 0 || $s['o'] == 0) $pass = false;
+                    if (($s['t'] / $s['original']['total_marks']) * 100 < 33 || $s['c'] == 0 || $s['o'] == 0) $pass = false;
                 }
 
                 if (!$pass) $fail_count++;
@@ -190,7 +192,7 @@ while ($sub = $subjects->fetch_assoc()) {
                         <td>{$s['subject_name']}</td><td>{$s['subject_code']}</td>
                         <td>{$s['c']}</td><td>{$s['o']}</td><td>{$s['p']}</td>
                         <td>{$s['t']}</td>
-                        <td>".number_format($gpa,2)."</td>
+                        <td>".number_format($gpa, 2)."</td>
                         <td>".($pass ? 'Pass' : 'Fail')."</td>
                     </tr>";
             }
@@ -252,7 +254,6 @@ function printTranscript() {
     const win = window.open('', '', 'height=800,width=1000');
     win.document.write('<html><head><title>Print Transcript</title>');
     win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
-    win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">');
     win.document.write('<style>.watermark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.06;z-index:0;}</style>');
     win.document.write('</head><body>' + printContents + '</body></html>');
     win.document.close();
@@ -262,4 +263,4 @@ function printTranscript() {
         win.close();
     }, 1000);
 }
-</script> 
+</script>

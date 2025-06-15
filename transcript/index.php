@@ -89,3 +89,20 @@ document.getElementById('student_id').addEventListener('change', function () {
     });
 });
 </script>
+<script>
+function printTranscript() {
+    const printContents = document.getElementById('printArea').innerHTML;
+    const win = window.open('', '', 'height=800,width=1000');
+    win.document.write('<html><head><title>Print Transcript</title>');
+    win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
+    win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">');
+    win.document.write('<style>.watermark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.06;z-index:0;}</style>');
+    win.document.write('</head><body>' + printContents + '</body></html>');
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+        win.print();
+        win.close();
+    }, 1000);
+}
+</script> 
