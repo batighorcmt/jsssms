@@ -137,13 +137,10 @@ foreach ($groups as $group) {
 }
 
 // Output with heading and print
-echo '<div class="text-center mb-3" id="printHeader">';
-echo '<h5 class="fw-bold mb-1">Jorepukuria Secondary School</h5>';
-echo '<h6 class="mb-2">Gangni, Meherpur</h6>';
-echo '<h6 class="mb-3">মেধা তালিকা</h6>';
-echo '<button onclick="printMerit()" class="btn btn-primary d-print-none mb-3">প্রিন্ট করুন</button>';
+echo '<div class="d-flex justify-content-between align-items-center mb-3">';
+echo '<h5 class="mb-0">মেরিট লিস্ট</h5>';
+echo '<button class="btn btn-primary" onclick="printMerit()">প্রিন্ট</button>';
 echo '</div>';
-
 
 echo '<div id="printArea">';
 echo '<div class="text-center mb-3">';
