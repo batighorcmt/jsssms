@@ -58,6 +58,7 @@ include '../includes/header.php';
 
     <div id="transcript_result" class="mt-4"></div>
 </div>
+</div>
 
 <script>
 document.getElementById('class_id').addEventListener('change', loadStudents);
