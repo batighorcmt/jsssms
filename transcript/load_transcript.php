@@ -1,21 +1,18 @@
-
-<?php
+<?php 
+// load_transcript.php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    die("Access Denied");
-}
-
+if ($_SESSION['role'] !== 'super_admin') die('Access Denied');
 include '../config/db.php';
 
-$exam_id = $_GET['exam_id'] ?? null;
-$class_id = $_GET['class_id'] ?? null;
-$year = $_GET['year'] ?? null;
+$student_id = $_POST['student_id'] ?? null;
+$exam_id = $_POST['exam_id'] ?? null;
+$class_id = $_POST['class_id'] ?? null;
+$year = $_POST['year'] ?? null;
 
-if (!$exam_id || !$class_id || !$year) {
+if (!$exam_id || !$class_id || !$year || !$student_id) {
     die("Invalid request");
 }
 
-// Helper functions
 function getGPA($percentage) {
     if ($percentage >= 80) return 5.00;
     elseif ($percentage >= 70) return 4.00;
@@ -23,139 +20,115 @@ function getGPA($percentage) {
     elseif ($percentage >= 50) return 3.00;
     elseif ($percentage >= 40) return 2.00;
     elseif ($percentage >= 33) return 1.00;
-    return 0.00;
+    else return 0.00;
 }
 
-function getGrade($gpa) {
-    if ($gpa == 5.00) return "A+";
-    elseif ($gpa >= 4.00) return "A";
-    elseif ($gpa >= 3.50) return "A-";
-    elseif ($gpa >= 3.00) return "B";
-    elseif ($gpa >= 2.00) return "C";
-    elseif ($gpa >= 1.00) return "D";
-    return "F";
-}
-
-function isGroupMergedSubject($code) {
-    return in_array($code, [101, 102, 107, 108]);
-}
-
-// Fetch students
-$sql = "SELECT DISTINCT s.student_id, s.student_name, s.roll_no
-        FROM students s
-        JOIN marks m ON s.student_id = m.student_id
-        WHERE s.class = ? AND s.year = ?
-        ORDER BY s.roll_no ASC";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("is", $class_id, $year);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$students = [];
-while ($row = $result->fetch_assoc()) {
-    $students[$row['student_id']] = [
-        'name' => $row['student_name'],
-        'roll' => $row['roll_no'],
-        'marks' => [],
-        'merged' => []
-    ];
-}
-
-// Fetch marks
-$sql = "SELECT m.student_id, m.subject_id, s.subject_code, s.subject_name,
-               es.total_marks, es.creative_pass, es.objective_pass, es.practical_pass,
-               m.creative_marks, m.objective_marks, m.practical_marks
+// Begin rendering transcript
+?>
+<div id="printArea">
+    <h4 class="text-center mb-4">Student Transcript</h4>
+    <table class="table table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>Subject Code</th>
+                <th>Subject</th>
+                <th>Creative</th>
+                <th>Objective</th>
+                <th>Practical</th>
+                <th>Total Marks</th>
+                <th>GPA</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+<?php
+$sql = "SELECT m.*, s.subject_code, s.subject_name, es.total_marks, es.creative_pass, es.objective_pass, es.practical_pass
         FROM marks m
         JOIN subjects s ON m.subject_id = s.id
         JOIN exam_subjects es ON m.subject_id = es.subject_id AND es.exam_id = ?
-        WHERE m.exam_id = ?";
-
+        WHERE m.exam_id = ? AND m.class_id = ? AND m.year = ? AND m.student_id = ?";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("ii", $exam_id, $exam_id);
+$stmt->bind_param("iiiii", $exam_id, $exam_id, $class_id, $year, $student_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
+$total_marks = 0;
+$total_gpa = 0;
+$subject_count = 0;
+$fail_count = 0;
+
 while ($row = $result->fetch_assoc()) {
-    $sid = $row['student_id'];
-    $code = $row['subject_code'];
+    $subject_code = $row['subject_code'];
+    $subject_name = $row['subject_name'];
+    $creative = $row['creative_marks'];
+    $objective = $row['objective_marks'];
+    $practical = $row['practical_marks'];
+    $total = $creative + $objective + $practical;
+    $percentage = ($total / $row['total_marks']) * 100;
+    $gpa = getGPA($percentage);
 
-    $total = $row['creative_marks'] + $row['objective_marks'] + $row['practical_marks'];
-    $converted = ($total / $row['total_marks']) * 100;
-    $gpa = getGPA($converted);
     $status = 'Passed';
-
-    if ($class_id >= 9) {
-        if ($row['creative_marks'] < $row['creative_pass'] ||
-            $row['objective_marks'] < $row['objective_pass'] ||
-            $row['practical_marks'] < $row['practical_pass']) {
-            $status = 'Failed';
+    $classCheck = ($class_id >= 9) ? true : false;
+    if ($classCheck) {
+        if ($creative < $row['creative_pass'] || $objective < $row['objective_pass'] || $practical < $row['practical_pass']) {
+            $status = 'Fail';
             $gpa = 0.00;
+            $fail_count++;
         }
     } else {
-        if ($converted < 33) {
-            $status = 'Failed';
+        if ($percentage < 33) {
+            $status = 'Fail';
             $gpa = 0.00;
+            $fail_count++;
         }
     }
 
-    $students[$sid]['marks'][$code] = [
-        'name' => $row['subject_name'],
-        'code' => $code,
-        'total' => $total,
-        'converted' => $converted,
-        'gpa' => $gpa,
-        'status' => $status
-    ];
+    echo "<tr>
+        <td>{$subject_code}</td>
+        <td>{$subject_name}</td>
+        <td>{$creative}</td>
+        <td>{$objective}</td>
+        <td>{$practical}</td>
+        <td>{$total}</td>
+        <td>" . number_format($gpa, 2) . "</td>
+        <td>{$status}</td>
+    </tr>";
 
-    // Handle merged
-    if (in_array($code, [101, 102])) {
-        $students[$sid]['merged']['BAN'] ??= ['total' => 0, 'marks' => [], 'full' => 0];
-        $students[$sid]['merged']['BAN']['total'] += $total;
-        $students[$sid]['merged']['BAN']['marks'][] = $total;
-        $students[$sid]['merged']['BAN']['full'] += $row['total_marks'];
-    }
-
-    if (in_array($code, [107, 108])) {
-        $students[$sid]['merged']['ENG'] ??= ['total' => 0, 'marks' => [], 'full' => 0];
-        $students[$sid]['merged']['ENG']['total'] += $total;
-        $students[$sid]['merged']['ENG']['marks'][] = $total;
-        $students[$sid]['merged']['ENG']['full'] += $row['total_marks'];
-    }
+    $total_marks += $total;
+    $total_gpa += $gpa;
+    $subject_count++;
 }
+?> 
+        </tbody>
+        <tfoot class="table-secondary">
+            <tr>
+                <th colspan="5">Total</th>
+                <th><?= round($total_marks) ?></th>
+                <th><?= ($fail_count == 0 && $subject_count > 0) ? number_format($total_gpa / $subject_count, 2) : '0.00' ?></th>
+                <th><?= $fail_count > 0 ? 'Failed in '.$fail_count : 'Passed' ?></th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
 
-// Output table
-echo "<table border='1' cellpadding='4' cellspacing='0'>";
-echo "<tr><th>Roll</th><th>Name</th><th>Subject</th><th>Marks</th><th>GPA</th><th>Status</th></tr>";
+<div class="text-center mt-4">
+    <button onclick="printTranscript()" class="btn btn-primary">
+        <i class="bi bi-printer"></i> Print
+    </button>
+</div>
 
-foreach ($students as $sid => $data) {
-    $roll = $data['roll'];
-    $name = $data['name'];
-
-    foreach ($data['marks'] as $code => $info) {
-        echo "<tr>
-            <td>{$roll}</td>
-            <td>{$name}</td>
-            <td>{$info['name']} ({$code})</td>
-            <td>{$info['total']}</td>
-            <td>{$info['gpa']}</td>
-            <td>{$info['status']}</td>
-        </tr>";
-    }
-
-    foreach ($data['merged'] as $group => $m) {
-        $converted = ($m['total'] / $m['full']) * 100;
-        $gpa = getGPA($converted);
-        $status = $gpa > 0 ? 'Passed' : 'Failed';
-        echo "<tr style='background:#eef'>
-            <td>{$roll}</td>
-            <td>{$name}</td>
-            <td><strong>{$group} (Merged)</strong></td>
-            <td><strong>{$m['total']}</strong></td>
-            <td><strong>{$gpa}</strong></td>
-            <td><strong>{$status}</strong></td>
-        </tr>";
-    }
+<script>
+function printTranscript() {
+    const printContents = document.getElementById('printArea').innerHTML;
+    const win = window.open('', '', 'height=800,width=1000');
+    win.document.write('<html><head><title>Print Transcript</title>');
+    win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
+    win.document.write('</head><body>' + printContents + '</body></html>');
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+        win.print();
+        win.close();
+    }, 1000);
 }
-echo "</table>";
-?>
+</script>
