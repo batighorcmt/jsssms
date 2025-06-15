@@ -347,7 +347,7 @@ function subjectGPA($total, $max) {
                 echo preg_replace('/<td><\/td>/', "<td>" . ($i + 1) . "</td>", $stu['row'], 1);
             }
             ?>
-        </tbody> 
+        </tbody>
     </table>
 </div>
 </body>
