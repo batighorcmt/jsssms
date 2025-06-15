@@ -136,12 +136,13 @@ foreach ($groups as $group) {
     foreach ($group as $stu) $merit_list[] = $stu;
 }
 
-// Output with heading and print
-echo '<div class="d-flex justify-content-between align-items-center mb-3">';
-echo '<h5 class="mb-0">মেরিট লিস্ট</h5>';
-echo '<button class="btn btn-primary" onclick="printMerit()">প্রিন্ট</button>';
-echo '</div>';
 ?>
+
+<div class="text-end mb-3">
+    <button onclick="printMerit()" class="btn btn-sm btn-primary">
+        <i class="bi bi-printer"></i> প্রিন্ট
+    </button>
+</div>
 <div id="printArea">
     <div class="text-center mb-3">
         <h4>Jorepukuria Secondary School</h4>
