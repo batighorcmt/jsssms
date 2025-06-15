@@ -5,8 +5,10 @@ if ($_SESSION['role'] !== 'super_admin') {
 }
 include '../config/db.php';
 include '../includes/header.php';
-include '../includes/sidebar.php';
 ?>
+<div class="d-flex">
+    <?php include '../includes/sidebar.php'; ?>
+</div>
 
 <div class="container mt-4">
     <h4 class="mb-4">🎓 Student Transcript Viewer</h4>
