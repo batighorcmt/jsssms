@@ -182,3 +182,4 @@ foreach ($groups as $group) {
         </table>
     </div>
 </div>
+</div>
