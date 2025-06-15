@@ -170,9 +170,9 @@ foreach ($groups as $group) {
     <!-- প্রতিষ্ঠানের নাম ও ঠিকানা -->
     <div class="text-center">
         <h2 class="fw-bold">Jorepukuria Secondary School</h2>
-        <p>Gangni, Meherpur</p>
+        <div>Gangni, Meherpur</div>
         <h4 class="my-3 text-decoration-underline">Class Wise Merit List</h4>
-        <p><strong>Exam Name:</strong> <?= htmlspecialchars($exam_name) ?> | <strong>Class:</strong> <?= htmlspecialchars($class_name) ?> | <strong>Year:</strong> <?= htmlspecialchars($year) ?></p>
+        <div><strong>Exam Name:</strong> <?= htmlspecialchars($exam_name) ?> | <strong>Class:</strong> <?= htmlspecialchars($class_name) ?> | <strong>Year:</strong> <?= htmlspecialchars($year) ?></div>
     </div>
 
     <!-- Merit List Table -->
