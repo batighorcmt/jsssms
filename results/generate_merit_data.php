@@ -163,7 +163,7 @@ foreach ($groups as $group) {
 
 <div class="text-center my-3 no-print">
     <button onclick="printMerit()" class="btn btn-primary">
-        <i class="bi bi-printer"></i> প্রিন্ট করুন
+        <i class="bi bi-printer"></i> Print
     </button>
 </div>
 <div class="container mt-3" id="printArea">
@@ -176,7 +176,7 @@ foreach ($groups as $group) {
     </div>
 
     <!-- Merit List Table -->
-    <div class="">
+    <div class="align-middle">
         <table class="table table-bordered text-center align-middle table-sm" width="100%">
             <thead class="table-success">
                 <tr>
@@ -184,7 +184,7 @@ foreach ($groups as $group) {
                     <th>Roll No</th>
                     <th>Student ID</th>
                     <th width="40%">Student Name</th>
-                    <th width="20%">Total Marks</th>
+                    <th>Total Marks</th>
                     <th>GPA</th>
                     <th>Fail Subj.</th>
                     <th>Merit Position</th>
@@ -206,5 +206,4 @@ foreach ($groups as $group) {
             </tbody>
         </table>
     </div>
-</div>
 </div>
