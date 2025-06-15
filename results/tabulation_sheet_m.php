@@ -1,5 +1,5 @@
 <?php
-include 'db.php'; // DB connection
+include '../config/db.php'; // DB connection
 
 $class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 1;
 $exam_id = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : 1;
