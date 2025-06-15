@@ -97,21 +97,24 @@ document.getElementById('meritForm').addEventListener('submit', function(e) {
     });
 });
 
-// ✅ প্রিন্ট ফাংশন
-function printMerit() {
-    var printContents = document.getElementById('printArea').innerHTML;
-    var newWindow = window.open('', '', 'height=800,width=1000');
-    newWindow.document.write('<html><head><title>Merit List</title>');
-    newWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
-    newWindow.document.write('</head><body>');
-    newWindow.document.write(printContents);
-    newWindow.document.write('</body></html>');
-    newWindow.document.close();
-    newWindow.focus();
-    newWindow.print();
-    newWindow.close();
-}
 
+</script>
+
+// ✅ প্রিন্ট ফাংশন 
+<script>
+function printMerit() {
+    const printContents = document.getElementById('printArea').innerHTML;
+    const printWindow = window.open('', '', 'height=800,width=1000');
+    printWindow.document.write('<html><head><title>Merit List</title>');
+    printWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(printContents);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+}
 </script>
 
 <?php include '../includes/footer.php'; ?>
