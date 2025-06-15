@@ -12,7 +12,7 @@ $class_id = intval($_POST['class_id']);
 $year = intval($_POST['year']);
 
 // Fetch students
-$sql = "SELECT id, student_id, student_name FROM students WHERE class_id = ? AND year = ?";
+$sql = "SELECT id, student_id, student_name, roll_no FROM students WHERE class_id = ? AND year = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $class_id, $year);
 $stmt->execute();
@@ -23,6 +23,7 @@ while ($row = $result->fetch_assoc()) {
     $students[$row['student_id']] = [
         'student_id' => $row['student_id'],
         'student_name' => $row['student_name'],
+        'roll_no' => $row['roll_no'],
         'total_marks' => 0,
         'total_gpa' => 0,
         'subject_count' => 0,
@@ -45,12 +46,16 @@ while ($row = $subject_result->fetch_assoc()) {
     $subjects[] = $row;
 }
 
-// Fetch marks for all relevant students and subjects
+// Fetch marks
 $subject_ids = array_column($subjects, 'subject_id');
+if (empty($subject_ids)) {
+    echo '<div class="alert alert-warning">এই পরীক্ষার জন্য কোনো বিষয় পাওয়া যায়নি।</div>';
+    exit;
+}
 $placeholders = implode(',', array_fill(0, count($subject_ids), '?'));
 $params = array_merge([$exam_id], $subject_ids);
-
 $types = str_repeat('i', count($params));
+
 $sql = "SELECT m.student_id, m.subject_id, m.creative_marks, m.objective_marks, m.practical_marks
         FROM marks m
         WHERE m.exam_id = ? AND m.subject_id IN ($placeholders)";
@@ -64,7 +69,6 @@ while ($row = $mark_result->fetch_assoc()) {
     $marks_by_student[$row['student_id']][$row['subject_id']] = $row;
 }
 
-// GPA calculation function
 function calculateGPA($total) {
     if ($total >= 80) return 5.00;
     elseif ($total >= 70) return 4.00;
@@ -75,7 +79,7 @@ function calculateGPA($total) {
     return 0.00;
 }
 
-// Process student results
+// Process results
 foreach ($students as $sid => &$student) {
     $fail = 0;
     $total_marks = 0;
@@ -84,8 +88,6 @@ foreach ($students as $sid => &$student) {
 
     foreach ($subjects as $sub) {
         $sub_id = $sub['subject_id'];
-        $type = $sub['type'];
-
         if (!isset($marks_by_student[$sid][$sub_id])) continue;
 
         $m = $marks_by_student[$sid][$sub_id];
@@ -121,7 +123,7 @@ foreach ($students as $sid => &$student) {
 }
 unset($student);
 
-// Group students by fail count, then sort by total marks
+// Grouping & Sorting
 $groups = [];
 foreach ($students as $stu) {
     $groups[$stu['fail_count']][] = $stu;
@@ -129,26 +131,35 @@ foreach ($students as $stu) {
 ksort($groups);
 
 $merit_list = [];
-foreach ($groups as $fail_count => $group) {
-    usort($group, function($a, $b) {
-        return $b['total_marks'] <=> $a['total_marks'];
-    });
-    foreach ($group as $stu) {
-        $merit_list[] = $stu;
-    }
+foreach ($groups as $group) {
+    usort($group, fn($a, $b) => $b['total_marks'] <=> $a['total_marks']);
+    foreach ($group as $stu) $merit_list[] = $stu;
 }
 
-// Show table
+// Output with heading and print
+echo '<div class="d-flex justify-content-between align-items-center mb-3">';
+echo '<h5 class="mb-0">মেরিট লিস্ট</h5>';
+echo '<button class="btn btn-primary" onclick="printMerit()">প্রিন্ট</button>';
+echo '</div>';
+
+echo '<div id="printArea">';
+echo '<div class="text-center mb-3">';
+echo '<h4 class="mb-1">Jorepukuria Secondary School</h4>';
+echo '<p class="mb-1">Gangni, Meherpur</p>';
+echo '<h5 class="mb-3">Merit List</h5>';
+echo '</div>';
+
 echo '<div class="table-responsive">';
 echo '<table class="table table-bordered table-striped text-center">';
 echo '<thead class="table-dark">';
-echo '<tr><th>ক্রমিক</th><th>আইডি</th><th>নাম</th><th>মোট নাম্বার</th><th>GPA</th><th>ফেল সংখ্যা</th><th>মেধা স্থান</th></tr>';
+echo '<tr><th>ক্রমিক</th><th>রোল</th><th>আইডি</th><th>নাম</th><th>মোট নাম্বার</th><th>GPA</th><th>ফেল সংখ্যা</th><th>মেধা স্থান</th></tr>';
 echo '</thead><tbody>';
 
 $serial = 1;
 foreach ($merit_list as $stu) {
     echo "<tr>";
     echo "<td>{$serial}</td>";
+    echo "<td>" . htmlspecialchars($stu['roll_no']) . "</td>";
     echo "<td>" . htmlspecialchars($stu['student_id']) . "</td>";
     echo "<td>" . htmlspecialchars($stu['student_name']) . "</td>";
     echo "<td>{$stu['total_marks']}</td>";
@@ -158,4 +169,24 @@ foreach ($merit_list as $stu) {
     echo "</tr>";
     $serial++;
 }
-echo '</tbody></table></div>';
+echo '</tbody></table></div></div>';
+
+// Print script
+echo <<<SCRIPT
+<script>
+function printMerit() {
+    var printContents = document.getElementById('printArea').innerHTML;
+    var newWindow = window.open('', '', 'height=800,width=1000');
+    newWindow.document.write('<html><head><title>Merit List</title>');
+    newWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
+    newWindow.document.write('</head><body>');
+    newWindow.document.write(printContents);
+    newWindow.document.write('</body></html>');
+    newWindow.document.close();
+    newWindow.focus();
+    newWindow.print();
+    newWindow.close();
+}
+</script>
+SCRIPT;
+?>
