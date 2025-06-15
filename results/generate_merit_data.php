@@ -168,15 +168,15 @@ foreach ($groups as $group) {
 <div class="container mt-3" id="printArea">
     <!-- প্রতিষ্ঠানের নাম ও ঠিকানা -->
     <div class="text-center">
-        <h4 class="fw-bold">Jorepukuria Secondary School</h4>
+        <h2 class="fw-bold">Jorepukuria Secondary School</h2>
         <p>Gangni, Meherpur</p>
-        <h5 class="my-3 text-decoration-underline">মেধা তালিকা</h5>
-        <p><strong>পরীক্ষার নাম:</strong> <?= htmlspecialchars($exam_name) ?> | <strong>শ্রেণি:</strong> <?= htmlspecialchars($class_name) ?> | <strong>সাল:</strong> <?= htmlspecialchars($year) ?></p>
+        <h4 class="my-3 text-decoration-underline">Class Wise Merit List</h4>
+        <p><strong>Exam Name:</strong> <?= htmlspecialchars($exam_name) ?> | <strong>Class:</strong> <?= htmlspecialchars($class_name) ?> | <strong>Year:</strong> <?= htmlspecialchars($year) ?></p>
     </div>
 
     <!-- Merit List Table -->
     <div class="">
-        <table class="table table-bordered table-striped table-sm text-center">
+        <table class="table table-bordered table-striped table-sm text-center" width="100%">
             <thead class="table-success">
                 <tr>
                     <th>#</th>
