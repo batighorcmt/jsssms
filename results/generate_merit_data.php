@@ -170,6 +170,7 @@ foreach ($merit_list as $stu) {
     $serial++;
 }
 echo '</tbody></table></div></div>';
+?>
 
 // Print script
 <script>
@@ -188,4 +189,3 @@ function printMerit() {
 }
 </script>
 
-?>
