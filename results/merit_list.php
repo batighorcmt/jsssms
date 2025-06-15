@@ -1,143 +1,90 @@
 <?php
 session_start();
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
+    header("Location: ../auth/login.php");
+    exit();
+}
+
 include '../config/db.php';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $exam_id = intval($_POST['exam_id']);
-    $class_id = intval($_POST['class_id']);
-    $year = intval($_POST['year']);
-
-    // 1. Load all students for that class & year
-    $students = [];
-    $sql = "SELECT student_id, student_name FROM students WHERE class_id = ? AND year = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ii", $class_id, $year);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-        $students[$row['student_id']] = [
-            'student_id' => $row['student_id'],
-            'student_name' => $row['student_name'],
-            'total_marks' => 0,
-            'total_gpa' => 0,
-            'fail_count' => 0,
-        ];
-    }
-
-    // 2. Load all subjects for this exam and class
-    $subjects = [];
-    $sql = "SELECT es.subject_id, s.subject_name, s.pass_type, s.group, s.has_creative, s.has_objective, s.has_practical,
-                   es.creative_marks, es.objective_marks, es.practical_marks
-            FROM exam_subjects es
-            JOIN subjects s ON es.subject_id = s.id
-            WHERE es.exam_id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $exam_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-        $subjects[$row['subject_id']] = $row;
-    }
-
-    // 3. Load all marks
-    $sql = "SELECT * FROM marks WHERE exam_id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $exam_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-
-    while ($row = $res->fetch_assoc()) {
-        $sid = $row['student_id'];
-        $sub_id = $row['subject_id'];
-        if (!isset($students[$sid]) || !isset($subjects[$sub_id])) continue;
-
-        $sub = $subjects[$sub_id];
-        $total = $row['creative_marks'] + $row['objective_marks'] + $row['practical_marks'];
-
-        $is_fail = false;
-        if ($sub['pass_type'] === 'total') {
-            if ($total < 33 || $row['creative_marks'] == 0 || $row['objective_marks'] == 0) $is_fail = true;
-        } else {
-            $cpass = ($sub['creative_marks'] > 0) ? ceil($sub['creative_marks'] * 0.33) : 0;
-            $opass = ($sub['objective_marks'] > 0) ? ceil($sub['objective_marks'] * 0.33) : 0;
-            $ppass = ($sub['practical_marks'] > 0) ? ceil($sub['practical_marks'] * 0.33) : 0;
-
-            if (($sub['has_creative'] && $row['creative_marks'] < $cpass) ||
-                ($sub['has_objective'] && $row['objective_marks'] < $opass) ||
-                ($sub['has_practical'] && $row['practical_marks'] < $ppass)) {
-                $is_fail = true;
-            }
-        }
-
-        if ($is_fail) {
-            $students[$sid]['fail_count']++;
-        }
-
-        $students[$sid]['total_marks'] += $total;
-        $students[$sid]['total_gpa'] += getGPA($total);
-    }
-
-    // 4. Calculate merit position
-    $data = [];
-    foreach ($students as $stu) {
-        $subject_count = count($subjects);
-        $gpa = ($stu['fail_count'] > 0 || $subject_count == 0) ? 0.00 : round($stu['total_gpa'] / $subject_count, 2);
-        $data[] = [
-            'student_id' => $stu['student_id'],
-            'student_name' => $stu['student_name'],
-            'total_marks' => $stu['total_marks'],
-            'total_gpa' => $gpa,
-            'fail_count' => $stu['fail_count']
-        ];
-    }
-
-    // Sort by fail_count ASC, then total_marks DESC
-    usort($data, function ($a, $b) {
-        return [$a['fail_count'], -$a['total_marks']] <=> [$b['fail_count'], -$b['total_marks']];
-    });
-
-    // Add merit position
-    $position = 1;
-    foreach ($data as $index => $row) {
-        $data[$index]['merit_position'] = $position++;
-    }
-
-    // Output as Table
-    echo '<div class="table-responsive"><table class="table table-bordered mt-4">';
-    echo '<thead><tr><th>ক্রমিক</th><th>আইডি</th><th>নাম</th><th>মোট নম্বর</th><th>GPA</th><th>ফেল</th><th>Merit Position</th></tr></thead><tbody>';
-    $i = 1;
-    foreach ($data as $row) {
-        $failStyle = $row['fail_count'] > 0 ? 'style="color:red;font-weight:bold;"' : '';
-        echo "<tr>
-                <td>{$i}</td>
-                <td>{$row['student_id']}</td>
-                <td>{$row['student_name']}</td>
-                <td>{$row['total_marks']}</td>
-                <td>{$row['total_gpa']}</td>
-                <td {$failStyle}>{$row['fail_count']}</td>
-                <td>{$row['merit_position']}</td>
-              </tr>";
-        $i++;
-    }
-    echo '</tbody></table></div>';
-    exit;
-}
-
-function getGPA($mark) {
-    if ($mark >= 80) return 5.00;
-    if ($mark >= 70) return 4.00;
-    if ($mark >= 60) return 3.50;
-    if ($mark >= 50) return 3.00;
-    if ($mark >= 40) return 2.00;
-    if ($mark >= 33) return 1.00;
-    return 0.00;
-}
+include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
 
-<!-- Simple Form UI to test merit list -->
-<form method="POST" class="p-3 bg-light">
-    <label>Exam ID: <input type="number" name="exam_id" required></label>
-    <label>Class ID: <input type="number" name="class_id" required></label>
-    <label>Year: <input type="number" name="year" required></label>
-    <button type="submit" class="btn btn-primary">Generate Merit List</button>
-</form>
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">মেরিট লিস্ট রিপোর্ট</h5>
+        </div>
+        <div class="card-body">
+            <form id="meritForm" method="POST">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">পরীক্ষা</label>
+                        <select class="form-select" name="exam_id" required>
+                            <option value="">-- নির্বাচন করুন --</option>
+                            <?php
+                            $res = $conn->query("SELECT id, exam_name FROM exams ORDER BY id DESC");
+                            while ($row = $res->fetch_assoc()):
+                            ?>
+                                <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['exam_name']) ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">শ্রেণি</label>
+                        <select class="form-select" name="class_id" required>
+                            <option value="">-- নির্বাচন করুন --</option>
+                            <?php
+                            $res = $conn->query("SELECT id, class_name FROM classes ORDER BY id ASC");
+                            while ($row = $res->fetch_assoc()):
+                            ?>
+                                <option value="<?= $row['id'] ?>"><?= htmlspecialchars($row['class_name']) ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">সাল</label>
+                        <select class="form-select" name="year" required>
+                            <option value="">-- নির্বাচন করুন --</option>
+                            <?php
+                            $res = $conn->query("SELECT DISTINCT year FROM students ORDER BY year DESC");
+                            while ($row = $res->fetch_assoc()):
+                            ?>
+                                <option value="<?= $row['year'] ?>"><?= $row['year'] ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">মেরিট লিস্ট তৈরি করুন</button>
+                </div>
+            </form>
+
+            <div id="resultArea" class="mt-5"></div>
+        </div>
+    </div>
+</div>
+
+<?php include '../includes/footer.php'; ?>
+
+<script>
+document.getElementById('meritForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    fetch('generate_merit_data.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.text())
+    .then(data => {
+        document.getElementById('resultArea').innerHTML = data;
+    })
+    .catch(err => {
+        document.getElementById('resultArea').innerHTML = '<div class="alert alert-danger">লোড করতে সমস্যা হয়েছে!</div>';
+    });
+});
+</script>
