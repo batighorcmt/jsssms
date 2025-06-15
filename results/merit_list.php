@@ -76,6 +76,9 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 
 include '../config/db.php';
 include '../includes/header.php';
+?>
+<div class="d-flex">
+<?php
 include '../includes/sidebar.php';
 ?>
 
@@ -181,24 +184,5 @@ function printMerit() {
 
 <?php include '../includes/footer.php'; ?>
 
-
-<script>
-document.getElementById('meritForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-
-    const formData = new FormData(this);
-    fetch('generate_merit_data.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(res => res.text())
-    .then(data => {
-        document.getElementById('resultArea').innerHTML = data;
-    })
-    .catch(err => {
-        document.getElementById('resultArea').innerHTML = '<div class="alert alert-danger">লোড করতে সমস্যা হয়েছে!</div>';
-    });
-});
-</script>
 
 
