@@ -14,7 +14,7 @@ if (!$student_id || !$exam_id || !$year) {
 }
 
 // Fetch student info
-$sql = "SELECT s.*, c.class_name, g.group_name FROM students s 
+$sql = "SELECT s.*, c.class_name, g.student_group FROM students s 
         LEFT JOIN classes c ON s.class_id = c.id
         LEFT JOIN groups g ON s.group_id = g.id
         WHERE s.student_id = ?";
