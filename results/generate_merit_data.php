@@ -141,34 +141,43 @@ echo '<div class="d-flex justify-content-between align-items-center mb-3">';
 echo '<h5 class="mb-0">মেরিট লিস্ট</h5>';
 echo '<button class="btn btn-primary" onclick="printMerit()">প্রিন্ট</button>';
 echo '</div>';
-
-echo '<div id="printArea">';
-echo '<div class="text-center mb-3">';
-echo '<h4 class="mb-1">Jorepukuria Secondary School</h4>';
-echo '<p class="mb-1">Gangni, Meherpur</p>';
-echo '<h5 class="mb-3">Merit List</h5>';
-echo '</div>';
-
-echo '<div class="table-responsive">';
-echo '<table class="table table-bordered table-striped text-center">';
-echo '<thead class="table-dark">';
-echo '<tr><th>ক্রমিক</th><th>রোল</th><th>আইডি</th><th>নাম</th><th>মোট নাম্বার</th><th>GPA</th><th>ফেল সংখ্যা</th><th>মেধা স্থান</th></tr>';
-echo '</thead><tbody>';
-
-$serial = 1;
-foreach ($merit_list as $stu) {
-    echo "<tr>";
-    echo "<td>{$serial}</td>";
-    echo "<td>" . htmlspecialchars($stu['roll_no']) . "</td>";
-    echo "<td>" . htmlspecialchars($stu['student_id']) . "</td>";
-    echo "<td>" . htmlspecialchars($stu['student_name']) . "</td>";
-    echo "<td>{$stu['total_marks']}</td>";
-    echo "<td>{$stu['total_gpa']}</td>";
-    echo "<td>{$stu['fail_count']}</td>";
-    echo "<td>{$serial}</td>";
-    echo "</tr>";
-    $serial++;
-}
-echo '</tbody></table></div></div>';
-
 ?>
+<div id="printArea">
+    <div class="text-center mb-3">
+        <h4>Jorepukuria Secondary School</h4>
+        <p>Gangni, Meherpur</p>
+        <h5><strong>Merit List</strong></h5>
+    </div>
+
+    <!-- Merit List Table -->
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped text-center">
+            <thead class="table-dark">
+                <tr>
+                    <th>ক্রমিক</th>
+                    <th>Roll No</th>
+                    <th>আইডি</th>
+                    <th>নাম</th>
+                    <th>মোট নাম্বার</th>
+                    <th>GPA</th>
+                    <th>ফেল সংখ্যা</th>
+                    <th>মেধা স্থান</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $serial = 1; foreach ($merit_list as $stu): ?>
+                <tr>
+                    <td><?= $serial ?></td>
+                    <td><?= htmlspecialchars($stu['roll_no']) ?></td>
+                    <td><?= htmlspecialchars($stu['student_id']) ?></td>
+                    <td><?= htmlspecialchars($stu['student_name']) ?></td>
+                    <td><?= $stu['total_marks'] ?></td>
+                    <td><?= number_format($stu['total_gpa'], 2) ?></td>
+                    <td><?= $stu['fail_count'] ?></td>
+                    <td><?= $serial ?></td>
+                </tr>
+                <?php $serial++; endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
