@@ -182,7 +182,7 @@ foreach ($groups as $group) {
                     <th>#</th>
                     <th>Roll No</th>
                     <th>Student ID</th>
-                    <th>Student Name</th>
+                    <th width="40%">Student Name</th>
                     <th>Total Obtained Marks</th>
                     <th>GPA</th>
                     <th>Fail Subj.</th>
