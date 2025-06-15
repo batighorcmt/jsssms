@@ -172,7 +172,6 @@ foreach ($merit_list as $stu) {
 echo '</tbody></table></div></div>';
 
 // Print script
-echo <<<SCRIPT
 <script>
 function printMerit() {
     var printContents = document.getElementById('printArea').innerHTML;
@@ -188,5 +187,5 @@ function printMerit() {
     newWindow.close();
 }
 </script>
-SCRIPT;
+
 ?>
