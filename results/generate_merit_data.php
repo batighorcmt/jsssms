@@ -140,13 +140,13 @@ foreach ($groups as $group) {
 
 <div class="text-end mb-3">
     <button onclick="printMerit()" class="btn btn-sm btn-primary">
-        <i class="bi bi-printer"></i> প্রিন্ট
-    </button>
+        <i class="bi bi-printer"></i> প্রিন্ট  </button>
 </div>
 <div id="printArea">
     <div class="text-center mb-3">
         <h4>Jorepukuria Secondary School</h4>
         <p>Gangni, Meherpur</p>
+        <h3><?= htmlspecialchars($stu['exam_name']) ?></h3>
         <h5><strong>Merit List</strong></h5>
     </div>
 
@@ -155,14 +155,14 @@ foreach ($groups as $group) {
         <table class="table table-bordered table-striped text-center">
             <thead class="table-dark">
                 <tr>
-                    <th>ক্রমিক</th>
+                    <th>#</th>
                     <th>Roll No</th>
-                    <th>আইডি</th>
-                    <th>নাম</th>
-                    <th>মোট নাম্বার</th>
+                    <th>Student ID</th>
+                    <th>Student Name</th>
+                    <th>Total Obtained Marks</th>
                     <th>GPA</th>
-                    <th>ফেল সংখ্যা</th>
-                    <th>মেধা স্থান</th>
+                    <th>Fail Subj.</th>
+                    <th>Merit Position</th>
                 </tr>
             </thead>
             <tbody>

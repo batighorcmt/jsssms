@@ -100,7 +100,6 @@ document.getElementById('meritForm').addEventListener('submit', function(e) {
 
 </script>
 
-// ✅ প্রিন্ট ফাংশন 
 <script>
 function printMerit() {
     const printContents = document.getElementById('printArea').innerHTML;
