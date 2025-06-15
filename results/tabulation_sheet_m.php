@@ -1,8 +1,9 @@
 <?php
-include 'db.php'; // DB connection
+include '../config/db.php'; // DB connection
 
-$class_id = 1; // Static for now
-$exam_id = 1;
+$class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 1;
+$exam_id = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : 1;
+$year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 
 // Load subjects for the class & exam
 $subjects = [];
@@ -15,22 +16,22 @@ while ($row = mysqli_fetch_assoc($result)) {
     $subjects[] = $row;
 }
 
-// Inject custom subject columns
+// Inject custom subject columns after 102 and 108
 $final_subjects = [];
-foreach ($subjects as $index => $subject) {
+foreach ($subjects as $subject) {
     $final_subjects[] = $subject;
 
-    if ($subject['subject_code'] == '102') {
+    if ($subject['subject_code'] === '102') {
         $final_subjects[] = ['subject_name' => 'Bangla', 'subject_code' => 'bangla_combined'];
     }
-    if ($subject['subject_code'] == '108') {
+    if ($subject['subject_code'] === '108') {
         $final_subjects[] = ['subject_name' => 'English', 'subject_code' => 'english_combined'];
     }
 }
 
 // Fetch all students in class
 $students = [];
-$student_sql = "SELECT student_id, roll_no, student_name FROM students WHERE class_id = $class_id AND status = 'Active' ORDER BY roll_no ASC";
+$student_sql = "SELECT student_id, roll_no, student_name FROM students WHERE class_id = $class_id AND year = $year AND status = 'Active' ORDER BY roll_no ASC";
 $student_result = mysqli_query($conn, $student_sql);
 while ($row = mysqli_fetch_assoc($student_result)) {
     $students[] = $row;
@@ -74,10 +75,14 @@ while ($row = mysqli_fetch_assoc($mark_result)) {
                         $mark2 = $marks[$std['student_id']][4] ?? 0;
                         echo '<td>' . ($mark1 + $mark2) . '</td>';
                     } else {
-                        // Normal subject
-                        $sid = array_search($code, array_column($subjects, 'subject_code'));
-                        $sub_id = $subjects[$sid]['id'] ?? null;
-                        $mark = $marks[$std['student_id']][$sub_id] ?? '-';
+                        $subject_id = null;
+                        foreach ($subjects as $s) {
+                            if ($s['subject_code'] === $code) {
+                                $subject_id = $s['id'];
+                                break;
+                            }
+                        }
+                        $mark = $subject_id ? ($marks[$std['student_id']][$subject_id] ?? '-') : '-';
                         echo '<td>' . $mark . '</td>';
                     }
                 }
