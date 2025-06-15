@@ -171,7 +171,7 @@ foreach ($groups as $group) {
     <div class="text-center">
         <h2 class="fw-bold">Jorepukuria Secondary School</h2>
         <div>Gangni, Meherpur</div>
-        <h4 class="my-3 text-decoration-underline">Class Wise Merit List</h4>
+        <h4 class="my-3 text-decoration-underline"><strong>Class Wise Merit List</strong></h4>
         <div><strong>Exam Name:</strong> <?= htmlspecialchars($exam_name) ?> | <strong>Class:</strong> <?= htmlspecialchars($class_name) ?> | <strong>Year:</strong> <?= htmlspecialchars($year) ?></div>
     </div>
 
