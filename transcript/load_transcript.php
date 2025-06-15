@@ -25,17 +25,15 @@ $subject_groups = [
     'English' => ['107', '108']
 ];
 
-// Student info
+// Student Info
 $stmt = $conn->prepare("SELECT student_name, roll_no, class_id FROM students WHERE student_id = ?");
 $stmt->bind_param("s", $student_id);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
 
-// Exam, class info
 $exam = $conn->query("SELECT exam_name FROM exams WHERE id = $exam_id")->fetch_assoc();
 $class = $conn->query("SELECT class_name FROM classes WHERE id = $class_id")->fetch_assoc();
 
-// Subjects
 $sql = "SELECT es.*, s.subject_name, s.subject_code, s.type
         FROM exam_subjects es
         JOIN subjects s ON es.subject_id = s.id
@@ -49,7 +47,6 @@ $total_gpa = 0;
 $subject_count = 0;
 $fail_count = 0;
 
-// Subject grouping
 while ($sub = $subjects->fetch_assoc()) {
     $code = $sub['subject_code'];
     $subject_id = $sub['subject_id'];
@@ -89,33 +86,42 @@ while ($sub = $subjects->fetch_assoc()) {
 <style>
 .watermark {
     position: absolute;
-    top: 100px;
-    left: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     opacity: 0.06;
-    width: 100%;
-    text-align: center;
     z-index: 0;
 }
 </style>
 
 <div id="printArea" class="p-4 bg-white border rounded position-relative">
+
+    <!-- Watermark -->
     <div class="watermark">
         <img src="../assets/logo.png" width="400">
     </div>
-    <div class="text-center mb-4">
-        <img src="../assets/logo.png" alt="Logo" height="80">
-        <h3 class="mb-0">Jorepukuria Secondary School</h3>
-        <small>Gangni, Meherpur</small>
-        <h5 class="mt-3">Academic Transcript</h5>
-        <p><strong>Exam:</strong> <?= $exam['exam_name'] ?> | <strong>Class:</strong> <?= $class['class_name'] ?> | <strong>Year:</strong> <?= $year ?></p>
+
+    <!-- Header with logo on left -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <img src="../assets/logo.png" alt="Logo" height="90">
+        <div class="text-center w-100" style="margin-left:-90px;">
+            <h3 class="mb-0">Jorepukuria Secondary School</h3>
+            <small>Gangni, Meherpur</small>
+            <h5 class="mt-2">Academic Transcript</h5>
+            <p><strong>Exam:</strong> <?= $exam['exam_name'] ?> |
+               <strong>Class:</strong> <?= $class['class_name'] ?> |
+               <strong>Year:</strong> <?= $year ?></p>
+        </div>
     </div>
 
+    <!-- Student Info -->
     <div class="row mb-3">
         <div class="col-md-6"><strong>Name:</strong> <?= $student['student_name'] ?></div>
         <div class="col-md-3"><strong>Roll:</strong> <?= $student['roll_no'] ?></div>
         <div class="col-md-3"><strong>ID:</strong> <?= $student_id ?></div>
     </div>
 
+    <!-- Marks Table -->
     <table class="table table-bordered text-center">
         <thead class="table-primary">
             <tr>
@@ -189,6 +195,7 @@ while ($sub = $subjects->fetch_assoc()) {
         </tfoot>
     </table>
 
+    <!-- Comments & Grade Chart -->
     <div class="row mt-4">
         <div class="col-md-6">
             <strong>Comments:</strong>
@@ -211,6 +218,7 @@ while ($sub = $subjects->fetch_assoc()) {
         </div>
     </div>
 
+    <!-- Signature -->
     <div class="row mt-5">
         <div class="col-md-6"></div>
         <div class="col-md-6 text-end">
@@ -220,6 +228,7 @@ while ($sub = $subjects->fetch_assoc()) {
     </div>
 </div>
 
+<!-- Print Button -->
 <div class="text-center mt-4">
     <button onclick="printTranscript()" class="btn btn-primary">
         <i class="bi bi-printer"></i> Print
@@ -228,15 +237,17 @@ while ($sub = $subjects->fetch_assoc()) {
 
 <script>
 function printTranscript() {
-    var content = document.getElementById('printArea').innerHTML;
-    var win = window.open('', '', 'width=1000,height=1000');
-    win.document.write('<html><head><title>Transcript</title>');
+    const printContents = document.getElementById('printArea').innerHTML;
+    const win = window.open('', '', 'height=800,width=1000');
+    win.document.write('<html><head><title>Print Transcript</title>');
     win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
-    win.document.write('<style>.watermark{position:absolute;top:100px;left:0;opacity:0.06;width:100%;text-align:center;z-index:0;}</style>');
-    win.document.write('</head><body>' + content + '</body></html>');
+    win.document.write('<style>.watermark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.06;z-index:0;}</style>');
+    win.document.write('</head><body>' + printContents + '</body></html>');
     win.document.close();
     win.focus();
-    win.print();
-    win.close();
+    setTimeout(() => {
+        win.print();
+        win.close();
+    }, 1000);
 }
 </script>
