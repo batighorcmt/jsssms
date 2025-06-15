@@ -175,9 +175,9 @@ foreach ($groups as $group) {
     </div>
 
     <!-- Merit List Table -->
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped text-center">
-            <thead class="table-dark">
+    <div class="">
+        <table class="table table-bordered table-striped table-sm text-center">
+            <thead class="table-success">
                 <tr>
                     <th>#</th>
                     <th>Roll No</th>
