@@ -1,7 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 session_start();
 include '../config/db.php';
 
@@ -11,18 +8,15 @@ $subject_id = intval($_POST['subject_id']);
 $year = intval($_POST['year']);
 
 // Subject Details
-$sql = "SELECT es.subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
+$sql = "SELECT es.id AS s.subject_id, s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
         FROM exam_subjects es 
         JOIN subjects s ON es.subject_id = s.id
         WHERE es.exam_id = ? AND es.subject_id = ?";
 
-$stmt1 = $conn->prepare($sql);
-if (!$stmt1) {
-    die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
-}
-$stmt1->bind_param("ii", $exam_id, $subject_id);
-$stmt1->execute();
-$subject = $stmt1->get_result()->fetch_assoc();
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ii", $exam_id, $subject_id);
+$stmt->execute();
+$subject = $stmt->get_result()->fetch_assoc();
 
 if (!$subject) {
     echo '<div class="alert alert-warning">এই বিষয়টি পরীক্ষার সাথে যুক্ত নয়।</div>';
@@ -34,15 +28,19 @@ $creativeMax = $subject['creative_marks'];
 $objectiveMax = $subject['objective_marks'];
 $practicalMax = $subject['practical_marks'];
 
-// Students List
-$sql2 = "SELECT id, student_name, father_name, roll_no, student_id FROM students WHERE class_id = ? AND year = ? ORDER BY roll_no ASC";
+// Students who selected this subject
+$sql2 = "SELECT s.id, s.student_name, s.father_name, s.roll_no, s.student_id
+         FROM students s
+         JOIN student_subjects ss ON s.student_id = ss.student_id
+         WHERE s.class_id = ? AND s.year = ? AND ss.subject_id = ?
+         ORDER BY s.roll_no ASC";
 $stmt2 = $conn->prepare($sql2);
-$stmt2->bind_param('ii', $class_id, $year);
+$stmt2->bind_param('iii', $class_id, $year, $subject_id);
 $stmt2->execute();
 $students = $stmt2->get_result();
 
 if ($students->num_rows === 0) {
-    echo '<div class="alert alert-warning">এই শ্রেণি ও সালের ছাত্র পাওয়া যায়নি।</div>';
+    echo '<div class="alert alert-warning">এই বিষয়ে নির্বাচিত কোনো ছাত্র পাওয়া যায়নি।</div>';
     exit;
 }
 
