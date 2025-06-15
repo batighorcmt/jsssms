@@ -1,5 +1,5 @@
 <?php
-include '../config/db.php'; // DB connection
+include 'd../config/php'; // DB connection
 
 $class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 1;
 $exam_id = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : 1;
@@ -67,8 +67,7 @@ function calculate_gpa($total) {
     else return 0.00;
 }
 
-?>
-<table border="1" cellpadding="6" cellspacing="0">
+?><table border="1" cellpadding="6" cellspacing="0">
     <thead>
         <tr>
             <th rowspan="2">Roll</th>
@@ -103,49 +102,48 @@ function calculate_gpa($total) {
                 <?php
                 foreach ($final_subjects as $sub) {
                     $code = $sub['subject_code'];
-                    $creative = $objective = $practical = 0;
-
-                    if ($code === 'bangla_combined') {
-                        $b1 = $marks[$std['student_id']][1] ?? ['creative' => 0, 'objective' => 0];
-                        $b2 = $marks[$std['student_id']][2] ?? ['creative' => 0, 'objective' => 0];
-                        $creative = ($b1['creative'] ?? 0) + ($b2['creative'] ?? 0);
-                        $objective = ($b1['objective'] ?? 0) + ($b2['objective'] ?? 0);
-                        $total = $creative + $objective;
-                        $gpa = number_format(calculate_gpa($total), 2);
-                        echo "<td>$creative</td><td>$objective</td><td>$total</td><td>$gpa</td>";
-                        continue;
-                    }
-
-                    if ($code === 'english_combined') {
-                        $e1 = $marks[$std['student_id']][3] ?? ['creative' => 0, 'objective' => 0];
-                        $e2 = $marks[$std['student_id']][4] ?? ['creative' => 0, 'objective' => 0];
-                        $creative = ($e1['creative'] ?? 0) + ($e2['creative'] ?? 0);
-                        $objective = ($e1['objective'] ?? 0) + ($e2['objective'] ?? 0);
-                        $total = $creative + $objective;
-                        $gpa = number_format(calculate_gpa($total), 2);
-                        echo "<td>$creative</td><td>$objective</td><td>$total</td><td>$gpa</td>";
-                        continue;
-                    }
-
-                    $sub_id = $sub['id'] ?? 0;
-                    $m = $marks[$std['student_id']][$sub_id] ?? ['creative' => 0, 'objective' => 0, 'practical' => 0];
-                    $pass = true;
-
-                    if ($sub['has_creative'] && $m['creative'] < $sub['creative_pass']) $pass = false;
-                    if ($sub['has_objective'] && $m['objective'] < $sub['objective_pass']) $pass = false;
-                    if ($sub['has_practical'] && $m['practical'] < $sub['practical_pass']) $pass = false;
-
-                    $total = $m['creative'] + $m['objective'] + $m['practical'];
-                    $gpa = ($code === 'bangla_combined' || $code === 'english_combined') ? number_format(calculate_gpa($total), 2) : '-';
-
-                    if ($sub['has_creative']) echo '<td>' . $m['creative'] . '</td>';
-                    if ($sub['has_objective']) echo '<td>' . $m['objective'] . '</td>';
-                    if ($sub['has_practical']) echo '<td>' . $m['practical'] . '</td>';
-                    echo '<td>' . $total . '</td>';
-                    echo '<td>' . ($gpa === '-' ? ($pass ? number_format(calculate_gpa($total), 2) : '0.00') : $gpa) . '</td>';
+                    $creative = $objective = $practical = 0;if ($code === 'bangla_combined') {
+                    $b1 = $marks[$std['student_id']][1] ?? ['creative' => 0, 'objective' => 0];
+                    $b2 = $marks[$std['student_id']][2] ?? ['creative' => 0, 'objective' => 0];
+                    $creative = ($b1['creative'] ?? 0) + ($b2['creative'] ?? 0);
+                    $objective = ($b1['objective'] ?? 0) + ($b2['objective'] ?? 0);
+                    $total = $creative + $objective;
+                    $gpa = number_format(calculate_gpa($total), 2);
+                    echo "<td>$creative</td><td>$objective</td><td>$total</td><td>$gpa</td>";
+                    continue;
                 }
-                ?>
-            </tr>
-        <?php endforeach; ?>
-    </tbody>
+
+                if ($code === 'english_combined') {
+                    $e1 = $marks[$std['student_id']][3] ?? ['creative' => 0, 'objective' => 0];
+                    $e2 = $marks[$std['student_id']][4] ?? ['creative' => 0, 'objective' => 0];
+                    $creative = ($e1['creative'] ?? 0) + ($e2['creative'] ?? 0);
+                    $objective = ($e1['objective'] ?? 0) + ($e2['objective'] ?? 0);
+                    $total = $creative + $objective;
+                    $gpa = number_format(calculate_gpa($total), 2);
+                    echo "<td>$creative</td><td>$objective</td><td>$total</td><td>$gpa</td>";
+                    continue;
+                }
+
+                $sub_id = $sub['id'] ?? 0;
+                $m = $marks[$std['student_id']][$sub_id] ?? ['creative' => 0, 'objective' => 0, 'practical' => 0];
+                $pass = true;
+
+                if ($sub['has_creative'] && $m['creative'] < $sub['creative_pass']) $pass = false;
+                if ($sub['has_objective'] && $m['objective'] < $sub['objective_pass']) $pass = false;
+                if ($sub['has_practical'] && $m['practical'] < $sub['practical_pass']) $pass = false;
+
+                $total = $m['creative'] + $m['objective'] + $m['practical'];
+                $gpa = ($code === 'bangla_combined' || $code === 'english_combined') ? number_format(calculate_gpa($total), 2) : '-';
+
+                if ($sub['has_creative']) echo '<td>' . $m['creative'] . '</td>';
+                if ($sub['has_objective']) echo '<td>' . $m['objective'] . '</td>';
+                if ($sub['has_practical']) echo '<td>' . $m['practical'] . '</td>';
+                echo '<td>' . $total . '</td>';
+                echo '<td>' . ($gpa === '-' ? ($pass ? number_format(calculate_gpa($total), 2) : '0.00') : $gpa) . '</td>';
+            }
+            ?>
+        </tr>
+    <?php endforeach; ?>
+</tbody>
+
 </table>
