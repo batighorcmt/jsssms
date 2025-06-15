@@ -1,4 +1,4 @@
-<?php 
+<?php  
 session_start();
 if ($_SESSION['role'] !== 'super_admin') {
     die('Access Denied');
@@ -77,189 +77,96 @@ while ($sub = $subjects->fetch_assoc()) {
         $grouped_subjects[$key]['practical'] += $p;
         $grouped_subjects[$key]['total'] += $t;
         $grouped_subjects[$key]['count']++;
-        $grouped_subjects[$key]['subs'][] = ['subject_name' => $sub['subject_name'], 'subject_code' => $code, 'c' => $c, 'o' => $o, 'p' => $p, 't' => $t];
+        $grouped_subjects[$key]['subs'][] = ['subject_name' => $sub['subject_name'], 'subject_code' => $code, 'c' => $c, 'o' => $o, 'p' => $p, 't' => $t, 'original' => $sub];
     } else {
         $individual_subjects[] = ['subject_name' => $sub['subject_name'], 'subject_code' => $code, 'c' => $c, 'o' => $o, 'p' => $p, 't' => $t, 'original' => $sub];
     }
 }
+
 ?>
+<div class="container">
+    <h2>Transcript for <?php echo $student['student_name']; ?> (Roll: <?php echo $student['roll_no']; ?>)</h2>
+    <p>Exam: <?php echo $exam['exam_name']; ?> | Class: <?php echo $class['class_name']; ?> | Year: <?php echo $year; ?></p>
 
-<style>
-.watermark {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    opacity: 0.06;
-    z-index: 0;
-}
-</style>
-
-<div id="printArea" class="p-4 bg-white border rounded position-relative">
-
-    <!-- Watermark -->
-    <div class="watermark">
-        <img src="../assets/logo.png" width="400">
-    </div>
-
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <img src="../assets/logo.png" alt="Logo" height="90">
-        <div class="text-center w-100" style="margin-left:-90px;">
-            <h3 class="mb-0">Jorepukuria Secondary School</h3>
-            <small>Gangni, Meherpur</small>
-            <h5 class="mt-2">Academic Transcript</h5>
-            <p><strong>Exam:</strong> <?= $exam['exam_name'] ?> |
-               <strong>Class:</strong> <?= $class['class_name'] ?> |
-               <strong>Year:</strong> <?= $year ?></p>
-        </div>
-    </div>
-
-    <!-- Student Info -->
-    <div class="row mb-3">
-        <div class="col-md-6"><strong>Name:</strong> <?= $student['student_name'] ?></div>
-        <div class="col-md-3"><strong>Roll:</strong> <?= $student['roll_no'] ?></div>
-        <div class="col-md-3"><strong>ID:</strong> <?= $student_id ?></div>
-    </div>
-
-    <!-- Marks Table -->
-    <table class="table table-bordered text-center">
-        <thead class="table-primary">
+    <table class="table table-bordered">
+        <thead>
             <tr>
                 <th>Subject</th>
-                <th>Code</th>
-                <th>Creative</th>
-                <th>Objective</th>
-                <th>Practical</th>
-                <th>Total</th>
+                <th>Creative Marks</th>
+                <th>Objective Marks</th>
+                <th>Practical Marks</th>
+                <th>Total Marks</th>
                 <th>GPA</th>
-                <th>Status</th>
             </tr>
         </thead>
         <tbody>
-            <?php
-            // Grouped subjects shown as individual
-            foreach ($grouped_subjects as $name => $g) {
-                foreach ($g['subs'] as $s) {
-                    echo "<tr>
-                            <td>{$s['subject_name']}</td><td>{$s['subject_code']}</td>
-                            <td>{$s['c']}</td><td>{$s['o']}</td><td>{$s['p']}</td>
-                            <td>{$s['t']}</td><td>-</td><td>-</td>
-                          </tr>";
+            <?php foreach ($grouped_subjects as $group): ?>
+                <tr>
+                    <td colspan="6" class="bg-light"><strong><?php echo $group['subject_name']; ?></strong></td>
+                </tr>
+                <?php foreach ($group['subs'] as $sub): ?>
+                    <?php
+                    $total = $sub['c'] + $sub['o'] + $sub['p'];
+                    $converted = ($total / 100) * 100; // Assuming total marks is 100
+                    $gpa = getGPA($converted);
+                    ?>
+                    <tr>
+                        <td><?php echo $sub['subject_name']; ?> (<?php echo $sub['subject_code']; ?>)</td>
+                        <td><?php echo $sub['c']; ?></td>
+                        <td><?php echo $sub['o']; ?></td>
+                        <td><?php echo $sub['p']; ?></td>
+                        <td><?php echo $total; ?></td>
+                        <td><?php echo number_format($gpa, 2); ?></td>
+                    </tr>
+                    <?php
+                    $total_marks += $total;
+                    $total_gpa += $gpa;
+                    if ($gpa == 0) {
+                        $fail_count++;
+                    }
+                    ?>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+
+            <?php foreach ($individual_subjects as $sub): ?>
+                <?php
+                $total = $sub['c'] + $sub['o'] + $sub['p'];
+                $converted = ($total / 100) * 100; // Assuming total marks is 100
+                $gpa = getGPA($converted);  
+                ?>
+                <tr>
+                    <td><?php echo $sub['subject_name']; ?> (<?php echo $sub['subject_code']; ?>)</td>
+                    <td><?php echo $sub['c']; ?></td>
+                    <td><?php echo $sub['o']; ?></td>
+                    <td><?php echo $sub['p']; ?></td>
+                    <td><?php echo $total; ?></td>
+                    <td><?php echo number_format($gpa, 2); ?></td>
+                </tr>
+                <?php
+                $total_marks += $total;
+                $total_gpa += $gpa;
+                if ($gpa == 0) {
+                    $fail_count++;
                 }
-
-                $avg = $g['total'] / $g['count'];
-                $gpa = getGPA($avg);
-                $pass = ($class_id >= 9) ? ($g['creative'] >= 16 && $g['objective'] >= 16) : ($avg >= 33);
-
-                if (!$pass) $fail_count++;
-                else $total_gpa += $gpa;
-
-                $total_marks += $avg;
-                $subject_count++;
-
-                echo "<tr class='fw-bold ".(!$pass ? 'table-danger' : '')."'>
-                        <td>$name (Merged)</td><td>-</td>
-                        <td>{$g['creative']}</td><td>{$g['objective']}</td><td>{$g['practical']}</td>
-                        <td>".round($avg)."</td>
-                        <td>".number_format($gpa,2)."</td>
-                        <td>".($pass ? 'Pass' : 'Fail')."</td>
-                    </tr>";
-            }
-
-            // Individual subjects
-            foreach ($individual_subjects as $s) {
-                $gpa = getGPA($s['t']);
-                $pass = true;
-
-                if ($class_id >= 9) {
-                    if ($s['original']['creative_marks'] > 0 && $s['c'] < 8) $pass = false;
-                    if ($s['original']['objective_marks'] > 0 && $s['o'] < 8) $pass = false;
-                    if ($s['original']['practical_marks'] > 0 && $s['p'] < 10) $pass = false;
-                } else {
-                    if ($s['t'] < 33 || $s['c'] == 0 || $s['o'] == 0) $pass = false;
-                }
-
-                if (!$pass) $fail_count++;
-                else $total_gpa += $gpa;
-
-                $total_marks += $s['t'];
-                $subject_count++;
-
-                echo "<tr class='".(!$pass ? 'table-danger' : '')."'>
-                        <td>{$s['subject_name']}</td><td>{$s['subject_code']}</td>
-                        <td>{$s['c']}</td><td>{$s['o']}</td><td>{$s['p']}</td>
-                        <td>{$s['t']}</td>
-                        <td>".number_format($gpa,2)."</td>
-                        <td>".($pass ? 'Pass' : 'Fail')."</td>
-                    </tr>";
-            }
-            ?>
+                ?>      
+            <?php endforeach; ?>
         </tbody>
-        <tfoot class="table-secondary">
+        <tfoot>
             <tr>
-                <th colspan="5">Total</th>
-                <th><?= round($total_marks) ?></th>
-                <th><?= ($fail_count == 0 && $subject_count > 0) ? number_format($total_gpa / $subject_count, 2) : '0.00' ?></th>
-                <th><?= $fail_count > 0 ? 'Failed in '.$fail_count : 'Passed' ?></th>
+                <td><strong>Total</strong></td>
+                <td colspan="4"><?php echo $total_marks; ?></td>
+                <td><?php echo number_format($total_gpa / count($grouped_subjects) + count($individual_subjects), 2); ?></td>
             </tr>
+            <tr>
+                <td colspan="5"><strong>Fail Subjects</strong></td>
+                <td><?php echo $fail_count; ?></td>
+            </tr>       
         </tfoot>
-    </table>
-
-    <!-- Comments & Grade Chart -->
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <strong>Comments:</strong>
-            <p><?= $fail_count > 0 ? 'Needs Improvement' : 'Excellent Performance' ?></p>
-        </div>
-        <div class="col-md-6">
-            <strong>Grade Chart:</strong>
-            <table class="table table-sm table-bordered">
-                <thead><tr><th>Marks</th><th>Grade</th><th>GPA</th></tr></thead>
-                <tbody>
-                    <tr><td>80-100</td><td>A+</td><td>5.00</td></tr>
-                    <tr><td>70-79</td><td>A</td><td>4.00</td></tr>
-                    <tr><td>60-69</td><td>A-</td><td>3.50</td></tr>
-                    <tr><td>50-59</td><td>B</td><td>3.00</td></tr>
-                    <tr><td>40-49</td><td>C</td><td>2.00</td></tr>
-                    <tr><td>33-39</td><td>D</td><td>1.00</td></tr>
-                    <tr><td>0-32</td><td>F</td><td>0.00</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Signature -->
-    <div class="row mt-5">
-        <div class="col-md-6"></div>
-        <div class="col-md-6 text-end">
-            <p>.......................................</p>
-            <strong>Class Teacher's Signature</strong>
-        </div>
-    </div>
+    </table>    
+    <button class="btn btn-primary" onclick="printTranscript()">Print Transcript</button>
+    <script>
+        function printTranscript() {
+            window.print();
+        }
+    </script>
 </div>
-
-<!-- Print Button -->
-<div class="text-center mt-4">
-    <button onclick="printTranscript()" class="btn btn-primary">
-        <i class="bi bi-printer"></i> Print
-    </button>
-</div>
-
-<script>
-function printTranscript() {
-    const printContents = document.getElementById('printArea').innerHTML;
-    const win = window.open('', '', 'height=800,width=1000');
-    win.document.write('<html><head><title>Print Transcript</title>');
-    win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
-    win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">');
-    win.document.write('<style>.watermark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.06;z-index:0;}</style>');
-    win.document.write('</head><body>' + printContents + '</body></html>');
-    win.document.close();
-    win.focus();
-    setTimeout(() => {
-        win.print();
-        win.close();
-    }, 1000);
-}
-</script> 
