@@ -1,6 +1,6 @@
-<?php
+<?php 
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'teacher') {
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
     header("Location: ../auth/login.php");
     exit();
 }
@@ -41,11 +41,22 @@ include '../includes/header.php';
             </select>
         </div>
 
-        <!-- section_id সিলেক্ট বাদ দেয়া হলো -->
+        <div class="col-md-3">
+            <label>গ্রুপ</label>
+            <select name="group" id="group" class="form-control" required>
+                <option value="">গ্রুপ নির্বাচন করুন</option>
+                <option value="none">কোন গ্রুপ নই</option>
+                <option value="Science">বিজ্ঞান</option>
+                <option value="Humanities">মানবিক</option>
+                <option value="Business Studies">ব্যবসায় শিক্ষা</option>
+            </select>
+        </div>
 
         <div class="col-md-3">
             <label>বিষয়</label>
-            <select name="subject_id" id="subject_id" class="form-control" required></select>
+            <select name="subject_id" id="subject_id" class="form-control" required>
+                <option value="">বিষয় নির্বাচন করুন</option>
+            </select>
         </div>
 
         <div class="col-md-3">
@@ -74,11 +85,16 @@ include '../includes/header.php';
 <script>
 $(document).ready(function() {
 
-    // ক্লাস পরিবর্তন করলে বিষয় লোড হবে
-    $('#class_id').change(function() {
-        var class_id = $(this).val();
-        if(class_id) {
-            $.post('fetch_subjects.php', {class_id: class_id}, function(data) {
+    // শ্রেণি অথবা গ্রুপ পরিবর্তন করলে বিষয় লোড হবে
+    $('#class_id, #group').change(function() {
+        var class_id = $('#class_id').val();
+        var group = $('#group').val();
+
+        if (class_id && group) {
+            $.post('fetch_subjects.php', {
+                class_id: class_id,
+                group: group
+            }, function(data) {
                 $('#subject_id').html(data);
             });
         } else {
@@ -86,14 +102,15 @@ $(document).ready(function() {
         }
     });
 
-    // লোড বাটন ক্লিক করলে ছাত্র ও মার্ক এন্ট্রি ফর্ম লোড হবে
+    // লোড বাটনে ক্লিক করলে মার্ক এন্ট্রি ফর্ম লোড হবে
     $('#loadStudents').click(function() {
         var exam_id = $('#exam_id').val();
         var class_id = $('#class_id').val();
+        var group = $('#group').val();
         var subject_id = $('#subject_id').val();
         var year = $('#year').val();
 
-        if(!exam_id || !class_id || !subject_id || !year) {
+        if (!exam_id || !class_id || !group || !subject_id || !year) {
             alert('সব ফিল্ড সিলেক্ট করুন');
             return;
         }
@@ -104,6 +121,7 @@ $(document).ready(function() {
             data: {
                 exam_id: exam_id,
                 class_id: class_id,
+                group: group,
                 subject_id: subject_id,
                 year: year
             },
@@ -128,7 +146,7 @@ function saveMark(student_id, exam_subject_id, field, value) {
     }, function(res) {
         try {
             var resp = JSON.parse(res);
-            if(resp.status === 'error') alert(resp.message);
+            if (resp.status === 'error') alert(resp.message);
         } catch {
             alert('সার্ভার থেকে অজানা উত্তর এসেছে।');
         }

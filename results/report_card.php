@@ -1,169 +1,113 @@
 <?php
-session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    exit('Access Denied');
-}
 include '../config/db.php';
 
 $student_id = $_GET['student_id'] ?? '';
 $exam_id = $_GET['exam_id'] ?? '';
+$year = $_GET['year'] ?? '';
 
-if (!$student_id || !$exam_id) {
-    exit('Missing Parameters');
+if (!$student_id || !$exam_id || !$year) {
+    echo "<div class='alert alert-danger'>অনুগ্রহ করে ছাত্রের ID, পরীক্ষা ও সাল নির্ধারণ করুন।</div>";
+    exit;
 }
 
-// Student Info
-$stmt = $conn->prepare("SELECT s.*, c.class_name, g.group_name FROM students s
-                        JOIN classes c ON s.class_id = c.id
-                        LEFT JOIN groups g ON s.group_id = g.id
-                        WHERE s.student_id = ?");
-$stmt->bind_param("s", $student_id);
-$stmt->execute();
-$student = $stmt->get_result()->fetch_assoc();
+$student = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM students WHERE student_id='$student_id'"));
+$class = mysqli_fetch_assoc(mysqli_query($conn, "SELECT class_name FROM classes WHERE id='{$student['class_id']}'"))['class_name'];
+$section = mysqli_fetch_assoc(mysqli_query($conn, "SELECT section_name FROM sections WHERE id='{$student['section_id']}'"))['section_name'];
+$exam = mysqli_fetch_assoc(mysqli_query($conn, "SELECT exam_name FROM exams WHERE id='$exam_id'"))['exam_name'];
 
-if (!$student) {
-    exit('Student not found');
+$school_name = "Jorepukuria Secondary School";
+$school_address = "Gangni, Meherpur";
+$school_logo = "../assets/logo.png";
+
+$class_id = $student['class_id'];
+$all_students = [];
+$students_q = mysqli_query($conn, "SELECT * FROM students WHERE class_id = $class_id AND year = $year");
+while ($stu = mysqli_fetch_assoc($students_q)) {
+    $id = $stu['student_id'];
+    $total = 0;
+
+    foreach ([ 'Bangla' => ['101', '102'], 'English' => ['107', '108'] ] as $group => $codes) {
+        $m_total = 0;
+        foreach ($codes as $code) {
+            $q = mysqli_query($conn, "SELECT creative_marks, objective_marks, practical_marks FROM marks m JOIN subjects s ON m.subject_id = s.id WHERE m.student_id='$id' AND m.exam_id='$exam_id' AND s.subject_code='$code'");
+            $m = mysqli_fetch_assoc($q);
+            $m_total += ($m['creative_marks'] + $m['objective_marks'] + $m['practical_marks']);
+        }
+        $total += $m_total;
+    }
+
+    $ind_q = mysqli_query($conn, "SELECT m.creative_marks, m.objective_marks, m.practical_marks FROM marks m JOIN subjects s ON m.subject_id = s.id WHERE m.student_id='$id' AND m.exam_id='$exam_id' AND s.subject_code NOT IN ('101','102','107','108')");
+    while ($row = mysqli_fetch_assoc($ind_q)) {
+        $total += ($row['creative_marks'] + $row['objective_marks'] + $row['practical_marks']);
+    }
+
+    $all_students[] = ['id' => $id, 'total' => $total];
 }
-
-// Subjects & Marks
-$stmt = $conn->prepare("SELECT sub.subject_name, sub.subject_code, sub.type,
-    es.creative_marks AS creative_max, es.objective_marks AS objective_max, es.practical_marks AS practical_max,
-    m.creative_marks, m.objective_marks, m.practical_marks
-    FROM marks m
-    JOIN exam_subjects es ON m.subject_id = es.subject_id AND es.exam_id = ?
-    JOIN subjects sub ON m.subject_id = sub.id
-    WHERE m.student_id = ? AND m.exam_id = ?");
-$stmt->bind_param("isi", $exam_id, $student_id, $exam_id);
-$stmt->execute();
-$subjects = $stmt->get_result();
-
-// GPA Calculation
-function calculateGPA($total) {
-    if ($total >= 80) return 5.00;
-    elseif ($total >= 70) return 4.00;
-    elseif ($total >= 60) return 3.50;
-    elseif ($total >= 50) return 3.00;
-    elseif ($total >= 40) return 2.00;
-    elseif ($total >= 33) return 1.00;
-    return 0.00;
+usort($all_students, fn($a, $b) => $b['total'] <=> $a['total']);
+$merit_pos = 0;
+foreach ($all_students as $index => $s) {
+    if ($s['id'] == $student_id) {
+        $merit_pos = $index + 1;
+        break;
+    }
 }
-
-$total_marks = 0;
-$total_gpa = 0;
-$fail_count = 0;
-$subject_count = 0;
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Report Card</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { font-family: 'Kalpurush', sans-serif; }
-        .header { text-align: center; border-bottom: 3px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
-        .school-name { font-size: 26px; color: #2c3e50; font-weight: bold; }
-        .school-info { font-size: 14px; color: #555; }
-        .report-title { background-color: #f39c12; color: white; padding: 5px; font-size: 20px; margin-top: 10px; }
-        .table th, .table td { vertical-align: middle !important; }
-        .footer-note { margin-top: 30px; font-size: 13px; color: #666; text-align: center; }
-        .print-btn { position: fixed; top: 20px; right: 30px; z-index: 9999; }
-        .school-logo { height: 80px; }
-        @media print {
-            .print-btn { display: none; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Report Card</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #fdfdfd; padding: 30px; font-family: 'Segoe UI'; }
+    .marksheet { border: 1px solid #ddd; border-radius: 12px; padding: 20px; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.08); }
+    .school-header img { height: 60px; margin-right: 15px; }
+    .school-header { text-align: center; margin-bottom: 20px; }
+    .school-header h4 { margin: 0; }
+    table th, table td { text-align: center; }
+    .fail { color: red; font-weight: bold; }
+    .pass { color: green; font-weight: bold; }
+    @media print {.no-print { display: none; }}
+  </style>
 </head>
 <body>
-<button class="btn btn-primary print-btn" onclick="window.print()">
-    <i class="bi bi-printer"></i> Print
-</button>
+<div class="container marksheet">
+  <div class="school-header">
+    <img src="<?= $school_logo ?>">
+    <h4><?= $school_name ?><br><small><?= $school_address ?></small></h4>
+  </div>
 
-<div class="container mt-4" id="printArea">
-    <div class="header d-flex justify-content-between align-items-center">
-        <img src="../assets/logo.png" class="school-logo" alt="Logo">
-        <div class="text-center flex-grow-1">
-            <div class="school-name">Jorepukuria Secondary School</div>
-            <div class="school-info">Gangni, Meherpur</div>
-            <div class="report-title">Academic Transcript</div>
-        </div>
-        <div style="width:80px;"></div>
-    </div>
+  <h5 class="text-center mb-3">Report Card - <?= $exam ?> (<?= $year ?>)</h5>
 
-    <div class="row mb-3">
-        <div class="col-md-6">
-            <strong>Name:</strong> <?= htmlspecialchars($student['student_name']) ?><br>
-            <strong>Student ID:</strong> <?= htmlspecialchars($student['student_id']) ?><br>
-            <strong>Class:</strong> <?= htmlspecialchars($student['class_name']) ?>
-        </div>
-        <div class="col-md-6">
-            <strong>Group:</strong> <?= htmlspecialchars($student['group_name']) ?><br>
-            <strong>Roll No:</strong> <?= htmlspecialchars($student['roll_no']) ?><br>
-            <strong>Year:</strong> <?= htmlspecialchars($student['year']) ?>
-        </div>
-    </div>
+  <table class="table table-bordered small">
+    <tr><th>Student ID</th><td><?= $student['student_id'] ?></td><th>Roll</th><td><?= $student['roll_no'] ?></td></tr>
+    <tr><th>Name</th><td><?= $student['student_name'] ?></td><th>Group</th><td><?= $student['student_group'] ?></td></tr>
+    <tr><th>Father's Name</th><td><?= $student['father_name'] ?></td><th>Mother's Name</th><td><?= $student['mother_name'] ?></td></tr>
+    <tr><th>Class</th><td><?= $class ?></td><th>Section</th><td><?= $section ?></td></tr>
+    <tr><th>Merit Position</th><td colspan="3"><?= $merit_pos ?></td></tr>
+  </table>
 
-    <table class="table table-bordered text-center">
-        <thead class="table-primary">
-            <tr>
-                <th>Subject</th>
-                <th>Creative</th>
-                <th>Objective</th>
-                <th>Practical</th>
-                <th>Total</th>
-                <th>GPA</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php while ($row = $subjects->fetch_assoc()):
-            $c = floatval($row['creative_marks']);
-            $o = floatval($row['objective_marks']);
-            $p = floatval($row['practical_marks']);
-            $total = $c + $o + $p;
-            $gpa = calculateGPA($total);
-            $pass = true;
+  <table class="table table-bordered table-striped">
+    <thead class="table-light">
+      <tr>
+        <th>Subject Code</th>
+        <th>Subject</th>
+        <th>Creative</th>
+        <th>MCQ</th>
+        <th>Practical</th>
+        <th>Total</th>
+        <th>GPA</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php include 'report_card_subjects_logic.php'; ?>
+    </tbody>
+  </table>
 
-            if ($student['class_id'] >= 9) {
-                if ($row['creative_max'] > 0 && $c < 8) $pass = false;
-                if ($row['objective_max'] > 0 && $o < 8) $pass = false;
-                if ($row['practical_max'] > 0 && $p < 10) $pass = false;
-            } else {
-                if ($total < 33 || $c == 0 || $o == 0) $pass = false;
-            }
-
-            if (!$pass) $fail_count++;
-            else $total_gpa += $gpa;
-
-            $total_marks += $total;
-            $subject_count++;
-        ?>
-        <tr>
-            <td><?= htmlspecialchars($row['subject_name']) ?></td>
-            <td><?= $c ?></td>
-            <td><?= $o ?></td>
-            <td><?= $p ?></td>
-            <td><?= $total ?></td>
-            <td><?= number_format($gpa, 2) ?></td>
-            <td class="<?= $pass ? 'text-success' : 'text-danger' ?>">
-                <?= $pass ? 'Pass' : 'Fail' ?>
-            </td>
-        </tr>
-        <?php endwhile; ?>
-        </tbody>
-        <tfoot class="table-warning">
-            <tr>
-                <th colspan="4">Total</th>
-                <th><?= $total_marks ?></th>
-                <th><?= ($fail_count == 0 && $subject_count > 0) ? number_format($total_gpa / $subject_count, 2) : '0.00' ?></th>
-                <th><?= $fail_count == 0 ? 'Pass' : 'Fail' ?></th>
-            </tr>
-        </tfoot>
-    </table>
-
-    <div class="footer-note">This transcript is computer-generated and does not require signature.</div>
+  <div class="text-center no-print">
+    <button onclick="window.print()" class="btn btn-primary">Print Report Card</button>
+  </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.js"></script>
 </body>
 </html>

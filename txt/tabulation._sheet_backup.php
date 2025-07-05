@@ -33,12 +33,13 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
     $placeholders = implode(',', array_fill(0, count($sub_codes), '?'));
 
     $sql = "SELECT m.student_id, m.subject_id, s.subject_code, 
-                   m.creative_marks, m.objective_marks, m.practical_marks
+                   m.creative_marks, m.objective_marks, m.practical_marks, gm.type, gm.group_name
             FROM marks m
             JOIN subjects s ON m.subject_id = s.id
             JOIN students stu ON m.student_id = stu.student_id
+            JOIN subject_group_map gm ON gm.subject_id = s.id
             WHERE m.exam_id = ?
-            AND stu.class_id = ?
+            AND gm.class_id = ?
             AND stu.year = ?
             AND s.subject_code IN ($placeholders)";
 
@@ -80,7 +81,6 @@ $subjects_q = mysqli_query($conn, "
         s.id as subject_id,
         s.subject_name,
         s.subject_code, 
-        gm.type, 
         s.has_creative,
         s.has_objective,
         s.has_practical,
@@ -88,21 +88,34 @@ $subjects_q = mysqli_query($conn, "
         es.objective_pass,
         es.practical_pass,
         es.total_marks as max_marks,
-        gm.group_name
+        gm.group_name,
+        gm.class_id,
+        es.pass_type
     FROM exam_subjects es 
     JOIN subjects s ON es.subject_id = s.id
-    JOIN subject_group_map gm ON gm.subject_id = s.id AND gm.class_id = s.class_id
+    JOIN subject_group_map gm ON gm.subject_id = s.id 
     WHERE es.exam_id = '$exam_id' 
-      AND s.class_id = '$class_id'
-      AND (gm.group_name = '$group_name' OR gm.group_name = 'none')
-    ORDER BY FIELD(gm.type, 'Compulsory', 'Optional'), s.subject_name
+      AND gm.class_id = '$class_id'
+        ORDER BY FIELD(gm.type, 'Compulsory', 'Optional'), s.subject_code
 ");
 
 
 $subjects = [];
+$subject_codes = [];
+$shown_subjects = []; // যেগুলো একবার দেখানো হয়েছে
+
 while ($row = mysqli_fetch_assoc($subjects_q)) {
-    $subjects[] = $row;
+    $subject_id = $row['subject_id'];
+
+    // যদি subject_id আগে থেকে দেখানো না হয়, তাহলে দেখাও
+    if (!in_array($subject_id, $shown_subjects)) {
+        $subjects[] = $row; // শুধু ইউনিক subject রাখবো
+        $subject_codes[] = $row['subject_code'];
+
+        $shown_subjects[] = $subject_id; // স্মরণে রাখবো
+    }
 }
+
 
 $display_subjects = [];
 $merged_pass_marks = [];
@@ -198,6 +211,22 @@ function subjectGPA($marks, $full_marks) {
     elseif ($percentage >= 33) return 1.00;
     else return 0.00;
 }
+// ✅ পাস স্ট্যাটাস চেক ফাংশন
+function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
+    // মোট মার্কস
+    $total = ($marks['creative'] ?? 0) + ($marks['objective'] ?? 0) + ($marks['practical'] ?? 0);
+
+    if ($pass_type === 'total') {
+        return $total >= 33; // সাধারণভাবে মোট 33 পেলেই পাস
+    } else {
+        // প্রতিটি অংশে আলাদা পাস লাগবে
+        if (isset($pass_marks['creative']) && ($marks['creative'] < $pass_marks['creative'] || $marks['creative'] == 0)) return false;
+        if (isset($pass_marks['objective']) && ($marks['objective'] < $pass_marks['objective'] || $marks['objective'] == 0)) return false;
+        if (isset($pass_marks['practical']) && $pass_marks['practical'] > 0 && ($marks['practical'] < $pass_marks['practical'] || $marks['practical'] == 0)) return false;
+
+        return true;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -282,125 +311,128 @@ function subjectGPA($marks, $full_marks) {
                 <?php endforeach; ?>
             </tr>
         </thead>
-        <tbody>
-            <?php
-            $all_students = [];
-            $query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year";
-            $students_q = mysqli_query($conn, $query);
-            if (!$students_q) {
-                echo "<tr><td colspan='100%' class='text-danger'>Error fetching students: " . mysqli_error($conn) . "</td></tr>";
-                exit;
+<tbody>
+<?php
+$all_students = [];
+$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year";
+$students_q = mysqli_query($conn, $query);
+if (!$students_q) {
+    echo "<tr><td colspan='100%' class='text-danger'>Error fetching students: " . mysqli_error($conn) . "</td></tr>";
+    exit;
+}
+
+$excluded_subject_codes = [101, 102, 107, 108];
+
+while ($stu = mysqli_fetch_assoc($students_q)) {
+    $total_marks = 0;
+    $fail_count = 0;
+    $row_data = "";
+
+    $compulsory_gpa_total = 0;
+    $compulsory_gpa_subjects = 0;
+    $optional_gpas = [];
+
+    foreach ($display_subjects as $sub) {
+        $subject_code = $sub['subject_code'] ?? null;
+        if (!$subject_code) continue;
+
+        $fail = false;
+        $sub_total = 0;
+        $c = $o = $p = 0;
+
+        if ($sub['is_merged']) {
+            $group = $sub['subject_name'];
+            $c = $merged_marks[$stu['student_id']][$group]['creative'] ?? 0;
+            $o = $merged_marks[$stu['student_id']][$group]['objective'] ?? 0;
+            $p = $merged_marks[$stu['student_id']][$group]['practical'] ?? 0;
+        } else {
+            $c = $sub['has_creative'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'creative') : 0;
+            $o = $sub['has_objective'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'objective') : 0;
+            $p = $sub['has_practical'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'practical') : 0;
+        }
+
+         $sub_total = $c + $o + $p;
+
+        // Show marks
+        if ($sub['has_creative']) $row_data .= "<td>" . (isFail($c, $sub['creative_pass']) ? "<span class='fail-mark'>$c</span>" : $c) . "</td>";
+        if ($sub['has_objective']) $row_data .= "<td>" . (isFail($o, $sub['objective_pass']) ? "<span class='fail-mark'>$o</span>" : $o) . "</td>";
+        if ($sub['has_practical']) $row_data .= "<td>" . (isFail($p, $sub['practical_pass']) ? "<span class='fail-mark'>$p</span>" : $p) . "</td>";
+        $row_data .= "<td>$sub_total</td>";
+
+        if (!in_array($subject_code, $excluded_subject_codes)) {
+            // ✅ সঠিক নাম ব্যবহার করুন
+            $creative = $c;
+            $objective = $o;
+            $practical = $p;
+
+            // ✅ pass_type চেক করুন, না থাকলে ধরে নিন 'total'
+            $pass_type = $sub['pass_type'] ?? 'total';
+
+            if ($pass_type === 'total') {
+                $required_total = ($sub['creative_pass'] ?? 0) + ($sub['objective_pass'] ?? 0) + ($sub['practical_pass'] ?? 0);
+                if ($sub_total < $required_total) {
+                    $fail_count++;
+                    $fail = true;
+                }
+            } else {
+                if (($sub['has_creative'] && $creative < ($sub['creative_pass'] ?? 0)) ||
+                    ($sub['has_objective'] && $objective < ($sub['objective_pass'] ?? 0)) ||
+                    ($sub['has_practical'] && $practical < ($sub['practical_pass'] ?? 0))) {
+                    $fail_count++;
+                    $fail = true;
+                }
             }
 
-            $excluded_subject_codes = [101, 102, 107, 108];
+            $gpa = subjectGPA($sub_total, $sub['max_marks']);
+            $row_data .= "<td>" . number_format($gpa, 2) . "</td>";
 
-            while ($stu = mysqli_fetch_assoc($students_q)) {
-                $total_marks = 0;
-                $fail_count = 0;
-                $row_data = "";
-
-                // GPA Calculation Variables
-                $compulsory_gpa_total = 0;
-                $compulsory_gpa_subjects = 0;
-                $optional_gpas = [];
-
-                foreach ($display_subjects as $sub) {
-                    $subject_code = $sub['subject_code'] ?? null;
-                    if (!$subject_code) continue;
-
-                    $fail = false;
-                    $sub_total = 0;
-                    $c = $o = $p = 0;
-
-                    if ($sub['is_merged']) {
-                        $group = $sub['subject_name'];
-                        $c = $merged_marks[$stu['student_id']][$group]['creative'] ?? 0;
-                        $o = $merged_marks[$stu['student_id']][$group]['objective'] ?? 0;
-                        $p = $merged_marks[$stu['student_id']][$group]['practical'] ?? 0;
-                    } else {
-                        $c = $sub['has_creative'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'creative') : 0;
-                        $o = $sub['has_objective'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'objective') : 0;
-                        $p = $sub['has_practical'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'practical') : 0;
-                    }
-
-                    $sub_total = $c + $o + $p;
-
-                    // Show marks
-                    if ($sub['has_creative']) $row_data .= "<td>" . (isFail($c, $sub['creative_pass']) ? "<span class='fail-mark'>$c</span>" : $c) . "</td>";
-                    if ($sub['has_objective']) $row_data .= "<td>" . (isFail($o, $sub['objective_pass']) ? "<span class='fail-mark'>$o</span>" : $o) . "</td>";
-                    if ($sub['has_practical']) $row_data .= "<td>" . (isFail($p, $sub['practical_pass']) ? "<span class='fail-mark'>$p</span>" : $p) . "</td>";
-                    $row_data .= "<td>$sub_total</td>";
-
-                    // Determine Fail
-                    if (!in_array($subject_code, $excluded_subject_codes)) {
-                        if (in_array($class_id, [1, 2, 3])) {
-                            if ($sub_total < 33) $fail = true;
-                        } else {
-                            if ($sub['has_creative'] && isFail($c, $sub['creative_pass'])) $fail = true;
-                            if ($sub['has_objective'] && isFail($o, $sub['objective_pass'])) $fail = true;
-                            if ($sub['has_practical'] && isFail($p, $sub['practical_pass'])) $fail = true;
-                        }
-
-                        $gpa = subjectGPA($sub_total, $sub['max_marks']);
-                        $row_data .= "<td>" . number_format($gpa, 2) . "</td>";
-
-                        if ($fail) $fail_count++;
-
-                        if (($sub['type'] ?? 'Compulsory') === 'Compulsory') {
-                            $compulsory_gpa_total += $gpa;
-                            $compulsory_gpa_subjects++;
-                        } elseif (($sub['type'] ?? 'Optional') === 'Optional') {
-                            $optional_gpas[] = $gpa;
-                        }
-
-                        $total_marks += $sub_total;
-                    } else {
-                        $row_data .= "<td>-</td>"; // GPA not shown for excluded subjects
-                    }
-                }
-
-                // Optional GPA Bonus
-                $optional_bonus = 0.00;
-                if (!empty($optional_gpas)) {
-                    $max_optional = max($optional_gpas);
-                    if ($max_optional > 2.00) {
-                        $optional_bonus = $max_optional - 2.00;
-                    }
-                }
-
-                // Final GPA calculation
-                $final_gpa = 0.00;
-                if ($compulsory_gpa_subjects > 0) {
-                    $final_gpa = $compulsory_gpa_total + $optional_bonus;
-                    $final_gpa /= $compulsory_gpa_subjects;
-                }
-
-                if ($fail_count > 0) $final_gpa = 0.00;
-                $final_gpa = number_format(min($final_gpa, 5.00), 2);
-                $fail_display = $fail_count > 0 ? $fail_count : "";
-
-                // Status display
-                if ($fail_count == 0) {
-                    $status = '<i class="bi bi-check-circle-fill text-success"></i> Passed';
-                } else {
-                    $status = '<i class="bi bi-x-circle-fill text-danger"></i> Failed';
-                }
-                
-
-                $all_students[] = [
-                    'fail' => $fail_count,
-                    'total' => $total_marks,
-                    'row' => "<tr><td></td><td>{$stu['student_name']}</td><td>{$stu['roll_no']}</td>$row_data<td>$total_marks</td><td>$final_gpa</td><td>$status</td><td>$fail_display</td></tr>"
-                ];
+            if (($sub['type'] ?? 'Compulsory') === 'Compulsory') {
+                $compulsory_gpa_total += $gpa;
+                $compulsory_gpa_subjects++;
+            } elseif (($sub['type'] ?? 'Optional') === 'Optional') {
+                $optional_gpas[] = $gpa;
             }
 
-            foreach ($all_students as $i => $stu) {
-                echo preg_replace('/<td><\/td>/', "<td>" . ($i + 1) . "</td>", $stu['row'], 1);
-            }
-            ?>
-        </tbody>
+            $total_marks += $sub_total;
+        } else {
+            $row_data .= "<td>-</td>"; // GPA not applicable
+        }
+    }
 
-    </table>
+    $optional_bonus = 0.00;
+    if (!empty($optional_gpas)) {
+        $max_optional = max($optional_gpas);
+        if ($max_optional > 2.00) {
+            $optional_bonus = $max_optional - 2.00;
+        }
+    }
+
+    $final_gpa = 0.00;
+    if ($compulsory_gpa_subjects > 0) {
+        $final_gpa = ($compulsory_gpa_total + $optional_bonus) / $compulsory_gpa_subjects;
+    }
+    if ($fail_count > 0) $final_gpa = 0.00;
+
+    $final_gpa = number_format(min($final_gpa, 5.00), 2);
+    $fail_display = $fail_count > 0 ? $fail_count : "";
+
+    $status = ($fail_count == 0)
+        ? '<i class="bi bi-check-circle-fill text-success"></i> Passed'
+        : '<i class="bi bi-x-circle-fill text-danger"></i> Failed';
+
+    $all_students[] = [
+        'fail' => $fail_count,
+        'total' => $total_marks,
+        'row' => "<tr><td></td><td>{$stu['student_name']}</td><td>{$stu['roll_no']}</td>$row_data<td>$total_marks</td><td>$final_gpa</td><td>$status</td><td>$fail_display</td></tr>"
+    ];
+}
+
+foreach ($all_students as $i => $stu) {
+    echo preg_replace('/<td><\\/td>/', "<td>" . ($i + 1) . "</td>", $stu['row'], 1);
+}
+?>
+</tbody>
+   </table>
 </div>
 </body>
 </html>

@@ -23,8 +23,16 @@ if ($student_id) {
         $class_id = $student['class_id'];
         $group = $student['student_group'];
 
-        $stmt = $conn->prepare("SELECT * FROM subjects WHERE class_id = ? AND (`group` = ? OR `group` = '' OR `group` IS NULL)");
-        $stmt->bind_param("is", $class_id, $group);
+$stmt = $conn->prepare("
+    SELECT s.*, gm.type, gm.class_id, c.class_name
+    FROM subjects s
+    JOIN subject_group_map gm ON gm.subject_id = s.id AND gm.group_name = ?
+    JOIN classes c ON gm.class_id = c.id
+    WHERE gm.class_id = ? AND s.status = 'Active'
+");
+$stmt->bind_param("si", $group, $class_id);
+
+
         $stmt->execute();
         $subjects_result = $stmt->get_result();
         while ($row = $subjects_result->fetch_assoc()) {
@@ -45,22 +53,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $student_id = $_POST['student_id'];
     $selected_subjects = $_POST['subjects'] ?? [];
 
-    // পূর্বের বিষয়গুলো মুছে ফেলুন
     $del = $conn->prepare("DELETE FROM student_subjects WHERE student_id = ?");
     $del->bind_param("s", $student_id);
     $del->execute();
 
-    // নতুন বিষয় যুক্ত করুন
     $stmt = $conn->prepare("INSERT INTO student_subjects (student_id, subject_id) VALUES (?, ?)");
     foreach ($selected_subjects as $sub_id) {
         $stmt->bind_param("si", $student_id, $sub_id);
         $stmt->execute();
     }
 
-    header("Location: ../manage_students.php?success=1");
+    header("Location: add_subjects.php?student_id=$student_id&success=1");
     exit();
 }
 ?>
+
 <?php include '../includes/header.php'; ?>
 <div class="d-flex"><?php include '../includes/sidebar.php'; ?>
 <div class="container mt-4">
@@ -89,23 +96,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="student_id" value="<?= $student_id ?>">
             <div class="card p-3">
                 <h5>বিষয় তালিকা</h5>
-                <?php foreach ($subjects as $sub): ?>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>ক্রমিক</th>
+                            <th>বিষয় কোড</th>
+                            <th>বিষয়ের নাম</th>
+                            <th>ধরণ</th>
+                            <th>নির্বাচন</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                     <?php
-                        $is_compulsory = $sub['type'] === 'Compulsory';
-                        $is_checked = in_array($sub['id'], $assigned_subjects) || $is_compulsory;
+                        $i = 1;
+                        foreach ($subjects as $sub):
+                            $is_checked = in_array($sub['id'], $assigned_subjects) || $sub['type'] === 'Compulsory';
+                            $is_compulsory = $sub['type'] === 'Compulsory';
                     ?>
-                    <div class="form-check">
-                        <input class="form-check-input optional-subject" type="checkbox"
-                            <?= $is_checked ? 'checked' : '' ?>
-                            <?= $is_compulsory ? 'readonly' : '' ?>
-                            name="subjects[]" value="<?= $sub['id'] ?>"
-                            id="subject_<?= $sub['id'] ?>">
-                        <label class="form-check-label" for="subject_<?= $sub['id'] ?>">
-                            <?= htmlspecialchars($sub['subject_name']) ?> (<?= $sub['type'] ?>)
-                        </label>
-                    </div>
-                <?php endforeach; ?>
-                <button type="submit" class="btn btn-success mt-3">Save Subjects</button>
+                        <tr>
+                            <td><?= $i++ ?></td>
+                            <td><?= htmlspecialchars($sub['subject_code']) ?></td>
+                            <td><?= htmlspecialchars($sub['subject_name']) ?></td>
+                            <td><?= $sub['type'] ?></td>
+                            <td>
+                                <input class="form-check-input subject-checkbox"
+                                       type="checkbox"
+                                       name="subjects[]"
+                                       value="<?= $sub['id'] ?>"
+                                       id="subject_<?= $sub['id'] ?>"
+                                       data-subject-code="<?= $sub['subject_code'] ?>"
+                                       data-type="<?= $sub['type'] ?>"
+                                       <?= $is_checked ? 'checked' : '' ?>
+                                       <?= $is_compulsory ? 'readonly' : '' ?>>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <button type="submit" class="btn btn-success mt-3">সংরক্ষণ করুন</button>
             </div>
         </form>
     <?php elseif ($student_id): ?>
@@ -116,16 +144,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    let optionalSubjects = document.querySelectorAll(".optional-subject:not([readonly])");
-    optionalSubjects.forEach(cb => {
-        cb.addEventListener("change", function () {
-            let selected = Array.from(optionalSubjects).filter(c => c.checked);
-            if (selected.length > 1) {
-                alert("শুধুমাত্র একটি ঐচ্ছিক বিষয় নির্বাচন করা যাবে!");
-                cb.checked = false;
+    const checkboxes = document.querySelectorAll(".subject-checkbox");
+
+    function updateDisabling() {
+        const selectedByCode = {};
+
+        checkboxes.forEach(cb => {
+            const code = cb.dataset.subjectCode;
+            const type = cb.dataset.type;
+
+            if (!selectedByCode[code]) selectedByCode[code] = {};
+
+            if (cb.checked) {
+                selectedByCode[code][type] = cb;
             }
         });
+
+        checkboxes.forEach(cb => {
+            const code = cb.dataset.subjectCode;
+            const type = cb.dataset.type;
+            const oppositeType = (type === 'Compulsory') ? 'Optional' : 'Compulsory';
+
+            if (
+                selectedByCode[code] &&
+                selectedByCode[code][oppositeType]
+            ) {
+                cb.disabled = (selectedByCode[code][oppositeType] !== cb);
+            } else {
+                cb.disabled = false;
+            }
+        });
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener("change", updateDisabling);
     });
+
+    updateDisabling(); // Initial check
 });
 </script>
 
