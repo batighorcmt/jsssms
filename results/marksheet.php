@@ -113,6 +113,43 @@ $insert_after_codes = [
     'English' => '108'
 ];
 
+// Fetch highest marks for each subject
+$subject_highest_marks = [];
+foreach ($subjects as $sub) {
+    $subject_id = $sub['subject_id'];
+    $query = "SELECT 
+                SUM(creative_marks + objective_marks + practical_marks) as total 
+              FROM marks 
+              WHERE subject_id = '$subject_id' AND exam_id = '$exam_id'
+              GROUP BY student_id
+              ORDER BY total DESC
+              LIMIT 1";
+    $result = mysqli_query($conn, $query);
+    if ($result && mysqli_num_rows($result) > 0) {
+        $row = mysqli_fetch_assoc($result);
+        $subject_highest_marks[$sub['subject_code']] = $row['total'];
+    } else {
+        $subject_highest_marks[$sub['subject_code']] = 0;
+    }
+}
+
+// Calculate highest marks for merged subjects
+foreach ($merged_subjects as $group_name => $sub_codes) {
+    $highest = 0;
+    foreach ($students as $stu) {
+        $student_id = $stu['student_id'];
+        if (isset($merged_marks[$student_id][$group_name])) {
+            $total = $merged_marks[$student_id][$group_name]['creative'] + 
+                     $merged_marks[$student_id][$group_name]['objective'] + 
+                     $merged_marks[$student_id][$group_name]['practical'];
+            if ($total > $highest) {
+                $highest = $total;
+            }
+        }
+    }
+    $subject_highest_marks[$group_name] = $highest;
+}
+
 foreach ($subjects as $sub) {
     $code = $sub['subject_code'];
     $display_subjects[] = array_merge($sub, ['is_merged' => false]);
@@ -291,6 +328,8 @@ foreach ($students as $stu) {
             $total_marks += $sub_total;
         }
         
+        $highest_in_class = $subject_highest_marks[$subject_code] ?? 0;
+        
         $student_subjects[] = [
             'name' => $sub['subject_name'],
             'code' => $subject_code,
@@ -298,6 +337,7 @@ foreach ($students as $stu) {
             'o_marks' => $o,
             'p_marks' => $p,
             'total' => $sub_total,
+            'highest_in_class' => $highest_in_class,
             'gpa' => $gpa,
             'is_fail' => $is_fail,
             'is_merged' => $sub['is_merged'] ?? false,
@@ -574,6 +614,10 @@ unset($student);
             right: 20px;
             z-index: 1000;
         }
+        .highest-mark {
+            font-weight: bold;
+            color: #27ae60;
+        }
     </style>
 </head>
 <body>
@@ -658,6 +702,7 @@ unset($student);
                         <th>অবজেক্টিভ</th>
                         <th>প্র্যাকটিক্যাল</th>
                         <th>মোট</th>
+                        <th>সর্বোচ্চ প্রাপ্ত নম্বর</th>
                         <th>পাস মার্ক</th>
                         <th>জিপিএ</th>
                         <th>স্ট্যাটাস</th>
@@ -706,6 +751,7 @@ unset($student);
                                 <?php endif; ?>
                             </td>
                             <td><strong><?= $subject['total'] ?></strong></td>
+                            <td class="highest-mark"><?= $subject['highest_in_class'] ?></td>
                             <td><?= $subject['c_pass'] + $subject['o_pass'] + $subject['p_pass'] ?></td>
                             <td><strong><?= $subject['gpa'] > 0 ? number_format($subject['gpa'], 2) : '-' ?></strong></td>
                             <td>
@@ -826,6 +872,10 @@ unset($student);
                 }
                 .no-print {
                     display: none;
+                }
+                .highest-mark {
+                    font-weight: bold;
+                    color: #27ae60;
                 }
             </style>
             ${marksheet}
