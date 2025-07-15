@@ -686,12 +686,12 @@ unset($student);
                         <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
                     </tr>
                     <tr>                        
-                        <td colspan="3" style="text-align: right;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
+                        <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
                     </tr>
                     <tr>
-                        <td style="text-align: center;">রোল নং:</strong> <?= $student['roll'] ?></td>
-                        <td style="text-align: center;"><strong>শ্রেণি:</strong> <?= $class ?></td>
-                        <td style="text-align: center;"><strong>শাখা:</strong> <?= $section ?></td>
+                        <td style="text-align: left;">রোল নং:</strong> <?= $student['roll'] ?></td>
+                        <td style="text-align: left;"><strong>শ্রেণি:</strong> <?= $class ?></td>
+                        <td style="text-align: left;"><strong>শাখা:</strong> <<?= $student['section'] ?></td>
                     </tr>
                 </table>
             </div>
@@ -807,12 +807,12 @@ unset($student);
                     <tr>
                         <td style="text-align: left;"> প্রিন্টের তারিখ: <?= date('d/m/Y') ?> </td>
                         <td style="text-align: right;"></td>
-                        <td style="text-align: center;"> <div><img src="../assets/hm_sig.jpg" alt="HM Signature" style="vertical-align: middle;"></div>
+                        <td style="text-align: center;"> <div><img src="../assets/hm_sign.jpg" alt="HM Signature" style="vertical-align: middle;"></div>
                             <div> প্রধান শিক্ষকের স্বাক্ষর </div>
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="3" style="text-align: center;">মার্কশিট প্রস্তুতকারী: বাতিঘর কম্পিউটার’স, জোড়পুকুরিয়া</td>
+                        <td colspan="3" style="text-align: center;">মার্কশিট প্রস্তুতকারী: বাতিঘর কম্পিউটার’স, জোড়পুকুরিয়া, গাংনী, মেহেরপুর।</td>
                     </tr>
                 </table>
             </div>
