@@ -805,7 +805,7 @@ unset($student);
                     <tr>
                         <td style="text-align: left;"></td>
                         <td style="text-align: right;">তারিখ: <?= date('d/m/Y') ?></td>
-                        <td style="text-align: center;"> <img src="/assets/hm_sig.jpg" alt="HM Signature" style="vertical-align: middle;">
+                        <td style="text-align: center;"> <img src="../assets/hm_sig.jpg" alt="HM Signature" style="vertical-align: middle;">
                             <span> প্রধান শিক্ষকের স্বাক্ষর </span>
                         </td>
                     </tr>
