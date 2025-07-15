@@ -14,6 +14,7 @@ if (!$exam_id || !$class_id || !$year) {
 // প্রতিষ্ঠানের তথ্য
 $institute_name = "Jorepukuria Secondary School";
 $institute_address = "Gangni, Meherpur";
+$institute_logo = "../assets/logo.png";
 
 // পরীক্ষার নাম
 $exam = mysqli_fetch_assoc(mysqli_query($conn, "SELECT exam_name FROM exams WHERE id='$exam_id'"))['exam_name'];
@@ -504,6 +505,24 @@ unset($student);
             color: #7f8c8d;
             margin-bottom: 5px;
         }
+        .institute-header img {
+        max-height: 60px;
+        width: auto;
+        object-fit: contain;
+        } 
+
+        .institute-header .d-flex {
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        @media print {
+            .institute-header img {
+                max-height: 40px;
+            }
+        }
         .student-info {
             background-color: #e3f2fd;
             padding: 10px;
@@ -664,10 +683,17 @@ unset($student);
     <?php foreach ($all_students as $index => $student): ?>
         <div class="marksheet-container">
             <div class="institute-header">
-                <h4><?= $institute_name ?></h4>
-                <p><?= $institute_address ?></p>
-                <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
-            </div>
+    <div class="d-flex align-items-center justify-content-center">
+        <?php if(file_exists($institute_logo)): ?>
+            <img src="<?= $institute_logo ?>" alt="Logo" style="height: 50px; margin-right: 15px;">
+        <?php endif; ?>
+        <div>
+            <h4><?= $institute_name ?></h4>
+            <p><?= $institute_address ?></p>
+            <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
+        </div>
+    </div>
+</div>
             
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="merit-badge">
