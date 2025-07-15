@@ -250,9 +250,14 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
 }
 
 // Fetch students
-$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year AND section_id= (SELECT id FROM sections WHERE class_id = $class_id)";
+// Fetch students with section information
+$query = "SELECT s.*, sec.section_name 
+          FROM students s
+          LEFT JOIN sections sec ON s.section_id = sec.id
+          WHERE s.class_id = $class_id AND s.year = $year";
+          
 if (!empty($search_roll)) {
-    $query .= " AND roll_no = '$search_roll'";
+    $query .= " AND s.roll_no = '$search_roll'";
 }
 
 $students_q = mysqli_query($conn, $query);
