@@ -721,7 +721,7 @@ unset($student);
                     <tr>
                         <td style="text-align: left;">রোল নং:</strong> <?= $student['roll'] ?></td>
                         <td style="text-align: left;"><strong>শ্রেণি:</strong> <?= $class ?></td>
-                        <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section_name'] ?? 'N/A' ?></td>
+                        <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section_id'] ?? 'N/A' ?></td>
                     </tr>
                 </table>
             </div>
