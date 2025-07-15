@@ -250,7 +250,7 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
 }
 
 // Fetch students
-$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year";
+$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year AND section_id= (SELECT id FROM sections WHERE class_id = $class_id)";
 if (!empty($search_roll)) {
     $query .= " AND roll_no = '$search_roll'";
 }
@@ -690,7 +690,7 @@ unset($student);
         <div>
             <h4><?= $institute_name ?></h4>
             <p><?= $institute_address ?></p>
-            <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
+            <h4><?= $exam ?></h4>
         </div>
     </div>
 </div>
