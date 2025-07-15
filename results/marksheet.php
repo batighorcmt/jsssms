@@ -249,11 +249,10 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
     return $total_obtained >= $total_pass_marks;
 }
 
-// Fetch students
 // Fetch students with section information
 $query = "SELECT s.*, sec.section_name 
           FROM students s
-          LEFT JOIN sections sec ON s.section_id = sec.id
+          JOIN sections sec ON s.section_id = sec.id
           WHERE s.class_id = $class_id AND s.year = $year";
           
 if (!empty($search_roll)) {
