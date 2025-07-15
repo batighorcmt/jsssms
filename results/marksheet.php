@@ -801,8 +801,21 @@ unset($student);
             </div>
             
             <div class="footer-note">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="text-align: left;"></td>
+                        <td style="text-align: right;">তারিখ: <?= date('d/m/Y') ?></td>
+                        <td style="text-align: center;"> <img src="assets/hm_sig.jpg" alt="HM Signature" style="vertical-align: middle;">
+                            <span> প্রধান শিক্ষকের স্বাক্ষর </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="3" style="text-align: center;">মার্কশিট প্রস্তুতকারী: বাতিঘর কম্পিউটার’স, জোড়পুকুরিয়া</td>
+                    </tr>
+                </table>
+            </div>
                 <p>এই মার্কশিটটি <?= date('d/m/Y') ?> তারিখে প্রিন্ট করা হয়েছে</p>
-                <p>প্রধান শিক্ষকের স্বাক্ষর: ________________________</p>
+                <p></p>
             </div>
         </div>
     <?php endforeach; ?>
