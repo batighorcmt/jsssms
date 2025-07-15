@@ -724,7 +724,7 @@ unset($student);
             <div class="student-info">
                 <table style="width: 100%;">
                     <tr>
-                        <td colspan="3" style="text-align: left; font-family: 'Kalpurush'><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
+                        <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
                     </tr>
                     <tr>                        
                         <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
@@ -741,11 +741,11 @@ unset($student);
                 <thead>
                     <tr>
                         <th>বিষয়</th>
-                        <th>ক্রিয়েটিভ</th>
-                        <th>অবজেক্টিভ</th>
-                        <th>প্র্যাকটিক্যাল</th>
-                        <th>মোট প্রাপ্ত নম্বর</th>
+                        <th>সৃজনশীল</th>
                         <th>সর্বোচ্চ প্রাপ্ত নম্বর</th>
+                        <th>বহুনির্বাচনী</th>
+                        <th>ব্যবহারিক</th>
+                        <th>মোট প্রাপ্ত নম্বর</th>
                         <th>পাস মার্ক</th>
                         <th>জিপিএ</th>
                         <th>স্ট্যাটাস</th>
@@ -760,6 +760,7 @@ unset($student);
                                     <br><small class="text-muted">(মার্জড সাবজেক্ট)</small>
                                 <?php endif; ?>
                             </td>
+                            <td class="highest-mark"><?= $subject['highest_in_class'] ?></td>
                             <td>
                                 <?php if ($subject['has_creative']): ?>
                                     <?php if (isFail($subject['c_marks'], $subject['c_pass'])): ?>
@@ -794,7 +795,6 @@ unset($student);
                                 <?php endif; ?>
                             </td>
                             <td><strong><?= $subject['total'] ?></strong></td>
-                            <td class="highest-mark"><?= $subject['highest_in_class'] ?></td>
                             <td><?= $subject['c_pass'] + $subject['o_pass'] + $subject['p_pass'] ?></td>
                             <td><strong><?= $subject['gpa'] > 0 ? number_format($subject['gpa'], 2) : '-' ?></strong></td>
                             <td>
