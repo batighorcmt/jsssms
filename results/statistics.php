@@ -25,25 +25,30 @@ while ($row = mysqli_fetch_assoc($section_result)) {
     $sections[$row['id']] = $row['section_name'];
 }
 
-// মার্কশিট বিশ্লেষণ ফাংশন
+// GPA ক্যালকুলেশন ফাংশন (মার্কশিট পৃষ্ঠার মতোই)
+function calculateStudentResult($conn, $exam_id, $student_id) {
+    // মার্কশিট পৃষ্ঠার মতো একই লজিক
+    // ...
+    return [
+        'gpa' => $final_gpa,
+        'status' => $status,
+        'fail_count' => $fail_count
+    ];
+}
+
+// পরিসংখ্যান বিশ্লেষণ
 function analyzeMarksheets($conn, $exam_id, $class_id, $year, $sections) {
     $analysis = [
         'total_students' => 0,
         'passed' => 0,
         'failed' => 0,
         'pass_rate' => 0,
-        'gpa_distribution' => [],
+        'gpa_distribution' => array_fill(0, 11, 0), // 0.0 থেকে 5.0 (0.5 ব্যবধানে)
         'subject_stats' => [],
         'section_stats' => []
     ];
 
-    // GPA ডিস্ট্রিবিউশন ইনিশিয়ালাইজ
-    for ($i = 0; $i <= 5; $i += 0.5) {
-        $analysis['gpa_distribution'][(string)$i] = 0;
-    }
-
     // শিক্ষার্থী ডাটা fetch
-    $students = [];
     $query = "SELECT s.*, sec.section_name 
               FROM students s
               LEFT JOIN sections sec ON s.section_id = sec.id
@@ -52,12 +57,10 @@ function analyzeMarksheets($conn, $exam_id, $class_id, $year, $sections) {
 
     while ($stu = mysqli_fetch_assoc($result)) {
         $analysis['total_students']++;
-        
-        // প্রতিটি শিক্ষার্থীর মার্কশিট বিশ্লেষণ
         $student_id = $stu['student_id'];
         $section_id = $stu['section_id'];
         
-        // সেকশন স্ট্যাট ইনিশিয়ালাইজ (যদি না থাকে)
+        // সেকশন স্ট্যাট
         if (!isset($analysis['section_stats'][$section_id])) {
             $analysis['section_stats'][$section_id] = [
                 'name' => $sections[$section_id] ?? 'N/A',
@@ -68,68 +71,26 @@ function analyzeMarksheets($conn, $exam_id, $class_id, $year, $sections) {
         }
         $analysis['section_stats'][$section_id]['total']++;
         
-        // শিক্ষার্থীর বিষয়ভিত্তিক মার্কস fetch
-        $marks_query = "SELECT m.*, s.subject_name, s.subject_code 
-                        FROM marks m
-                        JOIN subjects s ON m.subject_id = s.id
-                        WHERE m.exam_id = $exam_id AND m.student_id = '$student_id'";
-        $marks_result = mysqli_query($conn, $marks_query);
+        // ফলাফল ক্যালকুলেট
+        $result = calculateStudentResult($conn, $exam_id, $student_id);
         
-        $student_failed = false;
-        $total_marks = 0;
-        $compulsory_subjects = 0;
-        $compulsory_gpa = 0;
-        
-        while ($mark = mysqli_fetch_assoc($marks_result)) {
-            $subject_code = $mark['subject_code'];
-            $total = $mark['creative_marks'] + $mark['objective_marks'] + $mark['practical_marks'];
-            
-            // বিষয়ভিত্তিক স্ট্যাট ইনিশিয়ালাইজ (যদি না থাকে)
-            if (!isset($analysis['subject_stats'][$subject_code])) {
-                $analysis['subject_stats'][$subject_code] = [
-                    'name' => $mark['subject_name'],
-                    'passed' => 0,
-                    'failed' => 0,
-                    'max_marks' => 0,
-                    'min_marks' => 100,
-                    'total_marks' => 0,
-                    'count' => 0
-                ];
-            }
-            
-            // বিষয়ভিত্তিক স্ট্যাট আপডেট
-            $analysis['subject_stats'][$subject_code]['total_marks'] += $total;
-            $analysis['subject_stats'][$subject_code]['count']++;
-            
-            if ($total > $analysis['subject_stats'][$subject_code]['max_marks']) {
-                $analysis['subject_stats'][$subject_code]['max_marks'] = $total;
-            }
-            
-            if ($total < $analysis['subject_stats'][$subject_code]['min_marks']) {
-                $analysis['subject_stats'][$subject_code]['min_marks'] = $total;
-            }
-            
-            // পাস/ফেল চেক
-            $pass_marks = 33; // ডিফল্ট পাস মার্ক (আপনার লজিক অনুযায়ী পরিবর্তন করুন)
-            if ($total >= $pass_marks) {
-                $analysis['subject_stats'][$subject_code]['passed']++;
-            } else {
-                $analysis['subject_stats'][$subject_code]['failed']++;
-                $student_failed = true;
-            }
+        // জিপিএ ডিস্ট্রিবিউশন
+        $gpa_index = (int)($result['gpa'] * 2);
+        if ($gpa_index >= 0 && $gpa_index <= 10) {
+            $analysis['gpa_distribution'][$gpa_index]++;
         }
         
-        // শিক্ষার্থীর স্ট্যাটাস আপডেট
-        if ($student_failed) {
-            $analysis['failed']++;
-            $analysis['section_stats'][$section_id]['failed']++;
-        } else {
+        // স্ট্যাটাস
+        if ($result['status'] === 'Passed') {
             $analysis['passed']++;
             $analysis['section_stats'][$section_id]['passed']++;
+        } else {
+            $analysis['failed']++;
+            $analysis['section_stats'][$section_id]['failed']++;
         }
     }
     
-    // পাশের হার ক্যালকুলেট
+    // পাশের হার
     if ($analysis['total_students'] > 0) {
         $analysis['pass_rate'] = round(($analysis['passed'] / $analysis['total_students']) * 100, 2);
     }
