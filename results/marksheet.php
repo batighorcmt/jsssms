@@ -249,14 +249,18 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
     return $total_obtained >= $total_pass_marks;
 }
 
-// Fetch students with section information
-$query = "SELECT s.*, sec.section_name 
-          FROM students s
-          JOIN sections sec ON s.section_id = sec.id
-          WHERE s.class_id = $class_id AND s.year = $year";
-          
+// প্রথমে সেকশন ডাটা fetch করুন
+$section_query = "SELECT id, section_name FROM sections";
+$section_result = mysqli_query($conn, $section_query);
+$sections = [];
+while ($row = mysqli_fetch_assoc($section_result)) {
+    $sections[$row['id']] = $row['section_name'];
+}
+
+// শিক্ষার্থী ডাটা fetch করার সময়
+$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year";
 if (!empty($search_roll)) {
-    $query .= " AND s.roll_no = '$search_roll'";
+    $query .= " AND roll_no = '$search_roll'";
 }
 
 $students_q = mysqli_query($conn, $query);
@@ -378,7 +382,8 @@ foreach ($students as $stu) {
         'id' => $student_id,
         'name' => $stu['student_name'],
         'roll' => $stu['roll_no'],
-        'section' => $stu['section_id'],
+        'section_id' => $stu['section_id'],
+        'section_name' => $sections[$stu['section_id']] ?? 'N/A',
         'subjects' => $student_subjects,
         'total_marks' => $total_marks,
         'gpa' => $final_gpa,
@@ -722,7 +727,7 @@ unset($student);
                     <tr>
                         <td style="text-align: left;">রোল নং:</strong> <?= $student['roll'] ?></td>
                         <td style="text-align: left;"><strong>শ্রেণি:</strong> <?= $class ?></td>
-                        <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section'] ?? 'N/A' ?></td>
+                        <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section_name'] ?? 'N/A' ?></td>
                     </tr>
                 </table>
             </div>
