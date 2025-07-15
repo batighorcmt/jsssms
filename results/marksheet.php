@@ -685,7 +685,7 @@ unset($student);
             <div class="institute-header">
     <div class="d-flex align-items-center justify-content-center">
         <?php if(file_exists($institute_logo)): ?>
-            <img src="<?= $institute_logo ?>" alt="Logo" style="height: 50px; margin-right: 15px;">
+            <img src="<?= $institute_logo ?>" alt="Logo" style="height: 70px; margin-right: 15px;">
         <?php endif; ?>
         <div>
             <h4><?= $institute_name ?></h4>
@@ -717,7 +717,7 @@ unset($student);
                     <tr>
                         <td style="text-align: left;">রোল নং:</strong> <?= $student['roll'] ?></td>
                         <td style="text-align: left;"><strong>শ্রেণি:</strong> <?= $class ?></td>
-                        <td style="text-align: left;"><strong>শাখা:</strong> <<?= $student['section'] ?></td>
+                        <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section_name'] ?></td>
                     </tr>
                 </table>
             </div>
