@@ -683,10 +683,12 @@ unset($student);
             <div class="student-info">
                 <table style="width: 100%;">
                     <tr>
-                        <td style="text-align: left;"><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
+                        <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
                     </tr>
                     <tr>                        
-                        <td style="text-align: right;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
+                        <td colspan="3" style="text-align: right;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
+                    </tr>
+                    <tr>
                         <td style="text-align: center;">রোল নং:</strong> <?= $student['roll'] ?></td>
                         <td style="text-align: center;"><strong>শ্রেণি:</strong> <?= $class ?></td>
                         <td style="text-align: center;"><strong>শাখা:</strong> <?= $section ?></td>
@@ -701,7 +703,7 @@ unset($student);
                         <th>ক্রিয়েটিভ</th>
                         <th>অবজেক্টিভ</th>
                         <th>প্র্যাকটিক্যাল</th>
-                        <th>মোট</th>
+                        <th>মোট প্রাপ্ত নম্বর</th>
                         <th>সর্বোচ্চ প্রাপ্ত নম্বর</th>
                         <th>পাস মার্ক</th>
                         <th>জিপিএ</th>
