@@ -742,10 +742,10 @@ unset($student);
                     <tr>
                         <th>বিষয়</th>
                         <th>সৃজনশীল</th>
-                        <th>সর্বোচ্চ প্রাপ্ত নম্বর</th>
                         <th>বহুনির্বাচনী</th>
                         <th>ব্যবহারিক</th>
                         <th>মোট প্রাপ্ত নম্বর</th>
+                        <th>সর্বোচ্চ প্রাপ্ত নম্বর</th>
                         <th>পাস মার্ক</th>
                         <th>জিপিএ</th>
                         <th>স্ট্যাটাস</th>
@@ -760,7 +760,6 @@ unset($student);
                                     <br><small class="text-muted">(মার্জড সাবজেক্ট)</small>
                                 <?php endif; ?>
                             </td>
-                            <td class="highest-mark"><?= $subject['highest_in_class'] ?></td>
                             <td>
                                 <?php if ($subject['has_creative']): ?>
                                     <?php if (isFail($subject['c_marks'], $subject['c_pass'])): ?>
@@ -795,6 +794,7 @@ unset($student);
                                 <?php endif; ?>
                             </td>
                             <td><strong><?= $subject['total'] ?></strong></td>
+                            <td class="highest-mark"><?= $subject['highest_in_class'] ?></td>
                             <td><?= $subject['c_pass'] + $subject['o_pass'] + $subject['p_pass'] ?></td>
                             <td><strong><?= $subject['gpa'] > 0 ? number_format($subject['gpa'], 2) : '-' ?></strong></td>
                             <td>
@@ -838,7 +838,7 @@ unset($student);
                 
                 <div class="mt-3">
                     <div class="status-display <?= $student['status'] === 'Passed' ? 'status-passed' : 'status-failed' ?>">
-                        <?= $student['status'] === 'Passed' ? '<i class="bi bi-check-circle"></i> পাস' : '<i class="bi bi-x-circle"></i> ফেল' ?>
+                        <?= $student['status'] === 'Passed' ? '<i class="bi bi-check-circle"></i> অভিনন্দন! তোমার পরিশ্রমের ফল এসেছে সাফল্যের রূপে।' : '<i class="bi bi-x-circle"></i> দুঃখীত! তুমি ফেল করেছো। ভুল থেকে শেখো, ভবিষ্যৎ তোমার হাতে' ?>
                     </div>
                 </div>
             </div>
