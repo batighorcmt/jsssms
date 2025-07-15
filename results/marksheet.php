@@ -420,9 +420,14 @@ unset($student);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
     <style>
+        @font-face {
+        font-family: 'BenSenHandwriting';
+        src: url('fonts/BenSenHandwriting.ttf') format('truetype');
+        }
+
         body {
             background-color: #f0f8ff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'BenSenHandwriting', Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
         }
         
         @media print {
@@ -725,7 +730,7 @@ unset($student);
                         <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
                     </tr>
                     <tr>
-                        <td style="text-align: left;">রোল নং:</strong> <?= $student['roll'] ?></td>
+                        <td style="text-align: left;"><strong>রোল নং:</strong> <?= $student['roll'] ?></td>
                         <td style="text-align: left;"><strong>শ্রেণি:</strong> <?= $class ?></td>
                         <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section_name'] ?? 'N/A' ?></td>
                     </tr>
