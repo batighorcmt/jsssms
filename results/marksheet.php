@@ -378,6 +378,7 @@ foreach ($students as $stu) {
         'id' => $student_id,
         'name' => $stu['student_name'],
         'roll' => $stu['roll_no'],
+        'section_name' => $stu['section_name'],
         'subjects' => $student_subjects,
         'total_marks' => $total_marks,
         'gpa' => $final_gpa,
