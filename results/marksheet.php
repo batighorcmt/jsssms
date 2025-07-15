@@ -681,17 +681,17 @@ unset($student);
             </div>
             
             <div class="student-info">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></p>
-                    </div>
-                    <div class="col-md-3">
-                        <p><strong>রোল নং:</strong> <?= $student['roll'] ?></p>
-                    </div>
-                    <div class="col-md-3">
-                        <p><strong>শ্রেণি:</strong> <?= $class ?></p>
-                    </div>
-                </div>
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="text-align: left;"><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
+                    </tr>
+                    <tr>                        
+                        <td style="text-align: right;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
+                        <td style="text-align: center;">রোল নং:</strong> <?= $student['roll'] ?></td>
+                        <td style="text-align: center;"><strong>শ্রেণি:</strong> <?= $class ?></td>
+                        <td style="text-align: center;"><strong>শাখা:</strong> <?= $section ?></td>
+                    </tr>
+                </table>
             </div>
             
             <table class="subject-table compact-table">
@@ -780,9 +780,9 @@ unset($student);
                         <td class="mb-2"><strong>ফেল সাবজেক্ট:</strong></td>
                     </tr>
                     <tr>
-                        <td class="fs-4"><?= $student['total_marks'] ?></td>
-                        <td class="gpa-display"><?= $student['gpa'] ?></td>
-                        <td class="fs-4"><?= $student['fail_count'] > 0 ? $student['fail_count'] : '0' ?></td>
+                        <td class="fs-4"><strong><?= $student['total_marks'] ?></strong></td>
+                        <td class="gpa-display"><strong><?= $student['gpa'] ?></strong></td>
+                        <td class="fs-4"><strong><?= $student['fail_count'] > 0 ? $student['fail_count'] : '0' ?></strong></td>
                     </tr>
                     <tr>
                         
@@ -803,8 +803,8 @@ unset($student);
             <div class="footer-note">
                 <table style="width: 100%;">
                     <tr>
-                        <td style="text-align: left;"></td>
-                        <td style="text-align: right;">তারিখ: <?= date('d/m/Y') ?></td>
+                        <td style="text-align: left;"> প্রিন্টের তারিখ: <?= date('d/m/Y') ?> </td>
+                        <td style="text-align: right;"></td>
                         <td style="text-align: center;"> <div><img src="../assets/hm_sig.jpg" alt="HM Signature" style="vertical-align: middle;"></div>
                             <div> প্রধান শিক্ষকের স্বাক্ষর </div>
                         </td>
@@ -814,7 +814,9 @@ unset($student);
                     </tr>
                 </table>
             </div>
-    
+               
+            </div>
+        </div>
     <?php endforeach; ?>
 </div>
 
@@ -831,7 +833,7 @@ unset($student);
                 }
                 body {
                     font-family: Arial, sans-serif;
-                    font-size: 10px;
+                    font-size: 14px;
                     padding: 0;
                     margin: 0;
                 }
@@ -846,7 +848,7 @@ unset($student);
                 .subject-table th,
                 .subject-table td {
                     padding: 3px;
-                    font-size: 12px;
+                    font-size: 124px;
                 }
                 .student-info,
                 .summary-card {
