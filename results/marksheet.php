@@ -199,21 +199,16 @@ function subjectGPA($marks, $full_marks) {
     else return 0.00;
 }
 
-// ✅ পাস স্ট্যাটাস চেক ফাংশন
+// ✅ পাস স্ট্যাটাস চেক ফাংশন - UPDATED TO NEW CONDITION
 function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
-    // মোট মার্কস
-    $total = ($marks['creative'] ?? 0) + ($marks['objective'] ?? 0) + ($marks['practical'] ?? 0);
-
-    if ($pass_type === 'total') {
-        return $total >= 33; // সাধারণভাবে মোট 33 পেলেই পাস
-    } else {
-        // প্রতিটি অংশে আলাদা পাস লাগবে
-        if (isset($pass_marks['creative']) && ($marks['creative'] < $pass_marks['creative'] || $marks['creative'] == 0)) return false;
-        if (isset($pass_marks['objective']) && ($marks['objective'] < $pass_marks['objective'] || $marks['objective'] == 0)) return false;
-        if (isset($pass_marks['practical']) && $pass_marks['practical'] > 0 && ($marks['practical'] < $pass_marks['practical'] || $marks['practical'] == 0)) return false;
-
-        return true;
-    }
+    // Calculate total obtained marks
+    $total_obtained = ($marks['creative'] ?? 0) + ($marks['objective'] ?? 0) + ($marks['practical'] ?? 0);
+    
+    // Calculate total pass marks required
+    $total_pass_marks = ($pass_marks['creative'] ?? 0) + ($pass_marks['objective'] ?? 0) + ($pass_marks['practical'] ?? 0);
+    
+    // New condition: total obtained marks must be >= total pass marks
+    return $total_obtained >= $total_pass_marks;
 }
 
 // Fetch students
