@@ -805,8 +805,8 @@ unset($student);
                     <tr>
                         <td style="text-align: left;"></td>
                         <td style="text-align: right;">তারিখ: <?= date('d/m/Y') ?></td>
-                        <td style="text-align: center;"> <img src="../assets/hm_sig.jpg" alt="HM Signature" style="vertical-align: middle;">
-                            <span> প্রধান শিক্ষকের স্বাক্ষর </span>
+                        <td style="text-align: center;"> <div><img src="../assets/hm_sig.jpg" alt="HM Signature" style="vertical-align: middle;"></div>
+                            <div> প্রধান শিক্ষকের স্বাক্ষর </div>
                         </td>
                     </tr>
                     <tr>
@@ -814,10 +814,7 @@ unset($student);
                     </tr>
                 </table>
             </div>
-                <p>এই মার্কশিটটি <?= date('d/m/Y') ?> তারিখে প্রিন্ট করা হয়েছে</p>
-                <p></p>
-            </div>
-        </div>
+    
     <?php endforeach; ?>
 </div>
 
