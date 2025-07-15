@@ -378,7 +378,7 @@ foreach ($students as $stu) {
         'id' => $student_id,
         'name' => $stu['student_name'],
         'roll' => $stu['roll_no'],
-        'section_name' => $stu['section_name'],
+        'section' => $stu['section_id'],
         'subjects' => $student_subjects,
         'total_marks' => $total_marks,
         'gpa' => $final_gpa,
@@ -722,7 +722,7 @@ unset($student);
                     <tr>
                         <td style="text-align: left;">রোল নং:</strong> <?= $student['roll'] ?></td>
                         <td style="text-align: left;"><strong>শ্রেণি:</strong> <?= $class ?></td>
-                        <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section_id'] ?? 'N/A' ?></td>
+                        <td style="text-align: left;"><strong>শাখা:</strong> <?= $student['section'] ?? 'N/A' ?></td>
                     </tr>
                 </table>
             </div>
