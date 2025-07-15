@@ -422,7 +422,7 @@ unset($student);
     <style>
         @font-face {
         font-family: 'BenSenHandwriting';
-        src: url('fonts/BenSenHandwriting.ttf') format('truetype');
+        src: url('../assets/fonts/BenSenHandwriting.ttf') format('truetype');
         }
 
         body {
@@ -724,7 +724,7 @@ unset($student);
             <div class="student-info">
                 <table style="width: 100%;">
                     <tr>
-                        <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
+                        <td colspan="3" style="text-align: left; font-family: 'Kalpurush'><strong>শিক্ষার্থীর আইডি:</strong> <?= $student['id'] ?></td>
                     </tr>
                     <tr>                        
                         <td colspan="3" style="text-align: left;"><strong>শিক্ষার্থীর নাম:</strong> <?= $student['name'] ?></td>
