@@ -96,7 +96,6 @@ $subjects_q = mysqli_query($conn, "
     JOIN subject_group_map gm ON gm.subject_id = s.id 
     WHERE es.exam_id = '$exam_id' 
       AND gm.class_id = '$class_id'
-        
     ORDER BY FIELD(gm.type, 'Compulsory', 'Optional'), s.subject_code
 ");
 
@@ -304,7 +303,7 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
 <tbody>
 <?php
 $all_students = [];
-$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year";
+$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year" . " ORDER BY roll_no";
 $students_q = mysqli_query($conn, $query);
 if (!$students_q) {
     echo "<tr><td colspan='100%' class='text-danger'>Error fetching students: " . mysqli_error($conn) . "</td></tr>";
