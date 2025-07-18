@@ -162,8 +162,8 @@ document.addEventListener('DOMContentLoaded', function () {
         ${subject.subject_name}
         <input type="hidden" name="subject_id[]" value="1">
     </td>
-    <td><input type="date" name="exam_date[]" class="form-control" required></td>
-    <td><input type="time" name="exam_time[]" class="form-control" required></td>
+    <td><input type="date" name="exam_date[]" class="form-control" ></td>
+    <td><input type="time" name="exam_time[]" class="form-control" ></td>
     <td><input type="number" name="creative_marks[]" class="form-control creative_marks" min="0" value="0" required></td>
     <td><input type="number" name="objective_marks[]" class="form-control objective_marks" min="0" value="0" required></td>
     <td><input type="number" name="practical_marks[]" class="form-control practical_marks" min="0" value="0" required></td>
