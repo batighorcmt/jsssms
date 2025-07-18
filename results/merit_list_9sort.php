@@ -106,20 +106,28 @@ while ($row = mysqli_fetch_assoc($subjects_q)) {
 // Calculate merged pass marks
 $merged_pass_marks = [];
 foreach ($merged_subjects as $group_name => $sub_codes) {
-    $total_pass = 0;
+    $creative_pass = 0;
+    $objective_pass = 0;
+    $practical_pass = 0;
     $max_marks = 0;
+    $pass_type = 'total';
 
     foreach ($subjects as $s) {
         if (in_array($s['subject_code'], $sub_codes)) {
-            // Calculate total pass marks (c+o+p)
-            $total_pass += ($s['creative_pass'] ?? 0) + ($s['objective_pass'] ?? 0) + ($s['practical_pass'] ?? 0);
+            $creative_pass += $s['creative_pass'] ?? 0;
+            $objective_pass += $s['objective_pass'] ?? 0;
+            $practical_pass += $s['practical_pass'] ?? 0;
             $max_marks += $s['max_marks'] ?? 0;
+            $pass_type = $s['pass_type'] ?? 'total';
         }
     }
 
     $merged_pass_marks[$group_name] = [
-        'total_pass' => $total_pass,
-        'max_marks' => $max_marks
+        'creative_pass' => $creative_pass,
+        'objective_pass' => $objective_pass,
+        'practical_pass' => $practical_pass,
+        'max_marks' => $max_marks,
+        'pass_type' => $pass_type
     ];
 }
 ?>
@@ -128,7 +136,7 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Tabulation Sheet</title>
+    <title>Merit List <?= $exam ?> - <?= $class ?> (<?= $year ?>)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
     <style>
@@ -207,6 +215,20 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
             else return 0.00;
         }
 
+        // ✅ পাস স্ট্যাটাস চেক ফাংশন
+        function getPassStatus($marks, $pass_marks, $pass_type = 'total') {
+            $total = ($marks['creative'] ?? 0) + ($marks['objective'] ?? 0) + ($marks['practical'] ?? 0);
+            
+            if ($pass_type === 'total') {
+                return $total >= 33;
+            } else {
+                if (isset($pass_marks['creative']) && ($marks['creative'] < $pass_marks['creative'] || $marks['creative'] == 0)) return false;
+                if (isset($pass_marks['objective']) && ($marks['objective'] < $pass_marks['objective'] || $marks['objective'] == 0)) return false;
+                if (isset($pass_marks['practical']) && $pass_marks['practical'] > 0 && ($marks['practical'] < $pass_marks['practical'] || $marks['practical'] == 0)) return false;
+                return true;
+            }
+        }
+
         $all_students = [];
         $query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year" . " ORDER BY roll_no";
         $students_q = mysqli_query($conn, $query);
@@ -230,11 +252,17 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
                 $p = $merged_marks[$stu['student_id']][$group_name]['practical'] ?? 0;
                 $sub_total = $c + $o + $p;
                 
-                // Get total pass marks for merged subject (c+o+p)
-                $total_pass = $merged_pass_marks[$group_name]['total_pass'] ?? 0;
+                $pass_marks = [
+                    'creative' => $merged_pass_marks[$group_name]['creative_pass'],
+                    'objective' => $merged_pass_marks[$group_name]['objective_pass'],
+                    'practical' => $merged_pass_marks[$group_name]['practical_pass']
+                ];
                 
-                // Check fail status based on total marks
-                if ($sub_total < $total_pass) {
+                $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
+                $pass_type = $merged_pass_marks[$group_name]['pass_type'] ?? 'total';
+                
+                // Check fail status for merged subject
+                if (!getPassStatus($marks_arr, $pass_marks, $pass_type)) {
                     $fail_count++;
                 }
                 
@@ -257,12 +285,18 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
                 $o = $sub['has_objective'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'objective') : 0;
                 $p = $sub['has_practical'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'practical') : 0;
                 $sub_total = $c + $o + $p;
+
+                $pass_marks = [
+                    'creative' => $sub['creative_pass'] ?? 0,
+                    'objective' => $sub['objective_pass'] ?? 0,
+                    'practical' => $sub['practical_pass'] ?? 0
+                ];
                 
-                // Calculate total pass marks (c+o+p)
-                $total_pass = ($sub['creative_pass'] ?? 0) + ($sub['objective_pass'] ?? 0) + ($sub['practical_pass'] ?? 0);
+                $pass_type = $sub['pass_type'] ?? 'total';
+                $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
                 
-                // Check fail status based on total marks
-                if ($sub_total < $total_pass) {
+                // Check fail status
+                if (!getPassStatus($marks_arr, $pass_marks, $pass_type)) {
                     $fail_count++;
                 }
 
