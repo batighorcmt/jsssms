@@ -1,13 +1,13 @@
 <?php
 session_start();
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: auth/login.php");
+    header("Location: ../auth/login.php");
     exit();
 }
-include 'config/db.php';
-include 'includes/header.php'; ?>
+include '../config/db.php';
+include '../includes/header.php'; ?>
 <div class="d-flex">
-<?php include 'includes/sidebar.php';
+<?php include '../includes/sidebar.php';
 
 // শিক্ষার্থীদের তথ্য আনো
 $query = "SELECT s.*, c.class_name, sec.section_name 
@@ -21,7 +21,7 @@ $result = $conn->query($query);
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4>ছাত্র/ছাত্রী তালিকা</h4>
-        <a href="students/add_student.php" class="btn btn-success">+ Add Student</a>
+        <a href="add_student.php" class="btn btn-success">+ Add Student</a>
     </div>
 
     <table class="table table-bordered table-hover">
@@ -81,7 +81,7 @@ $subject_codes = rtrim($subject_codes, ', ');
               </td>
                 <td>
                     <?php if ($row['photo']): ?>
-                        <img src="uploads/students/<?= htmlspecialchars($row['photo']); ?>" width="50" height="50">
+                        <img src="../uploads/students/<?= htmlspecialchars($row['photo']); ?>" width="50" height="50">
                     <?php else: ?>
                         <span>No Photo</span>
                     <?php endif; ?>
@@ -92,9 +92,9 @@ $subject_codes = rtrim($subject_codes, ', ');
                             Action
                         </button>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="students/edit_student.php?id=<?= $row['id']; ?>">Edit</a></li>
-                            <li><a class="dropdown-item" href="students/add_subjects.php?student_id=<?= $row['student_id']; ?>">Select Subject</a></li>
-                            <li><a class="dropdown-item text-danger" href="students/delete_student.php?id=<?= $row['id']; ?>" onclick="return confirm('Are you sure?');">Delete</a></li>
+                            <li><a class="dropdown-item" href="edit_student.php?student_id=<?= $row['student_id']; ?>">Edit</a></li>
+                            <li><a class="dropdown-item" href="add_subjects.php?student_id=<?= $row['student_id']; ?>">Select Subject</a></li>
+                            <li><a class="dropdown-item text-danger" href="delete_student.php?id=<?= $row['id']; ?>" onclick="return confirm('Are you sure?');">Delete</a></li>
                         </ul>
                     </div>
                 </td>

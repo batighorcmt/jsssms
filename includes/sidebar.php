@@ -26,7 +26,7 @@ $current = basename($_SERVER['PHP_SELF']);
       </a>
     </li>
     <li>
-      <a href="<?= $BASE_URL ?>manage_students.php" class="nav-link <?= ($current == 'manage_students.php') ? 'active' : 'text-dark' ?>">
+      <a href="<?= $BASE_URL ?>students/manage_students.php" class="nav-link <?= ($current == 'manage_students.php') ? 'active' : 'text-dark' ?>">
         🎓 Manage Students
       </a>
     </li>
