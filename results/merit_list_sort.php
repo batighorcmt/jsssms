@@ -28,7 +28,7 @@ $merged_marks = [];
 $individual_subjects = [];
 $excluded_subject_codes = ['101', '102', '107', '108'];
 
-// Load individual subject marks (calculation only, no display)
+// Load individual subject marks
 foreach ($merged_subjects as $group_name => $sub_codes) {
     $placeholders = implode(',', array_fill(0, count($sub_codes), '?'));
 
@@ -74,7 +74,7 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
     }
 }
 
-// Load subjects for calculation (not display)
+// Load subjects for calculation
 $subjects_q = mysqli_query($conn, "
     SELECT 
         s.id as subject_id,
@@ -101,6 +101,34 @@ $subjects_q = mysqli_query($conn, "
 $subjects = [];
 while ($row = mysqli_fetch_assoc($subjects_q)) {
     $subjects[] = $row;
+}
+
+// Calculate merged pass marks
+$merged_pass_marks = [];
+foreach ($merged_subjects as $group_name => $sub_codes) {
+    $creative_pass = 0;
+    $objective_pass = 0;
+    $practical_pass = 0;
+    $max_marks = 0;
+    $pass_type = 'total';
+
+    foreach ($subjects as $s) {
+        if (in_array($s['subject_code'], $sub_codes)) {
+            $creative_pass += $s['creative_pass'] ?? 0;
+            $objective_pass += $s['objective_pass'] ?? 0;
+            $practical_pass += $s['practical_pass'] ?? 0;
+            $max_marks += $s['max_marks'] ?? 0;
+            $pass_type = $s['pass_type'] ?? 'total';
+        }
+    }
+
+    $merged_pass_marks[$group_name] = [
+        'creative_pass' => $creative_pass,
+        'objective_pass' => $objective_pass,
+        'practical_pass' => $practical_pass,
+        'max_marks' => $max_marks,
+        'pass_type' => $pass_type
+    ];
 }
 ?>
 
@@ -188,7 +216,7 @@ while ($row = mysqli_fetch_assoc($subjects_q)) {
         }
 
         // ✅ পাস স্ট্যাটাস চেক ফাংশন
-        function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
+        function getPassStatus($marks, $pass_marks, $pass_type = 'total') {
             $total = ($marks['creative'] ?? 0) + ($marks['objective'] ?? 0) + ($marks['practical'] ?? 0);
             
             if ($pass_type === 'total') {
@@ -217,30 +245,58 @@ while ($row = mysqli_fetch_assoc($subjects_q)) {
             $compulsory_gpa_subjects = 0;
             $optional_gpas = [];
 
-            // Calculate marks and fails (no display)
+            // Process merged subjects (Bangla and English)
+            foreach ($merged_subjects as $group_name => $sub_codes) {
+                $c = $merged_marks[$stu['student_id']][$group_name]['creative'] ?? 0;
+                $o = $merged_marks[$stu['student_id']][$group_name]['objective'] ?? 0;
+                $p = $merged_marks[$stu['student_id']][$group_name]['practical'] ?? 0;
+                $sub_total = $c + $o + $p;
+                
+                $pass_marks = [
+                    'creative' => $merged_pass_marks[$group_name]['creative_pass'],
+                    'objective' => $merged_pass_marks[$group_name]['objective_pass'],
+                    'practical' => $merged_pass_marks[$group_name]['practical_pass']
+                ];
+                
+                $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
+                $pass_type = $merged_pass_marks[$group_name]['pass_type'] ?? 'total';
+                
+                // Check fail status for merged subject
+                if (!getPassStatus($marks_arr, $pass_marks, $pass_type)) {
+                    $fail_count++;
+                }
+                
+                // Calculate GPA for merged subject
+                $gpa = subjectGPA($sub_total, $merged_pass_marks[$group_name]['max_marks']);
+                $compulsory_gpa_total += $gpa;
+                $compulsory_gpa_subjects++;
+                
+                $total_marks += $sub_total;
+            }
+
+            // Process other subjects
             foreach ($subjects as $sub) {
                 $subject_code = $sub['subject_code'] ?? null;
-                if (!$subject_code) continue;
-
-                if (in_array($subject_code, $excluded_subject_codes)) continue;
+                if (!$subject_code || in_array($subject_code, $excluded_subject_codes)) {
+                    continue;
+                }
 
                 $c = $sub['has_creative'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'creative') : 0;
                 $o = $sub['has_objective'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'objective') : 0;
                 $p = $sub['has_practical'] ? getMarks($stu['student_id'], $sub['subject_id'], $exam_id, 'practical') : 0;
                 $sub_total = $c + $o + $p;
 
-                $total_marks += $sub_total;
-
-                // Check fail status
-                $pass_type = $sub['pass_type'] ?? 'total';
                 $pass_marks = [
                     'creative' => $sub['creative_pass'] ?? 0,
                     'objective' => $sub['objective_pass'] ?? 0,
                     'practical' => $sub['practical_pass'] ?? 0
                 ];
                 
+                $pass_type = $sub['pass_type'] ?? 'total';
                 $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
-                if (!getPassStatus($class_id, $marks_arr, $pass_marks, $pass_type)) {
+                
+                // Check fail status
+                if (!getPassStatus($marks_arr, $pass_marks, $pass_type)) {
                     $fail_count++;
                 }
 
@@ -252,6 +308,8 @@ while ($row = mysqli_fetch_assoc($subjects_q)) {
                 } elseif (($sub['type'] ?? 'Optional') === 'Optional') {
                     $optional_gpas[] = $gpa;
                 }
+
+                $total_marks += $sub_total;
             }
 
             // Calculate final GPA
