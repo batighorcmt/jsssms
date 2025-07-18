@@ -128,7 +128,7 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <title>Tabulation Sheet</title>
+    <title>Merit List <?= $exam ?> - <?= $class ?> (<?= $year ?>)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
     <style>
@@ -159,9 +159,10 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
 <body>
 <div class="container my-4">
     <div class="text-center mb-3">
-        <h5><?= $institute_name ?></h5>
+        <h4><?= $institute_name ?></h4>
         <p><?= $institute_address ?></p>
-        <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
+        <h5><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h5>
+        <h4>Merit List</h4>
         <button onclick="window.print()" class="btn btn-primary no-print">প্রিন্ট</button>
     </div>
 </div>
