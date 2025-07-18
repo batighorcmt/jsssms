@@ -416,38 +416,19 @@ while ($stu = mysqli_fetch_assoc($students_q)) {
     ];
 }
 
-// ✅ Merit Position Logic with Tie Handling
+// ✅ Updated Merit Position Logic with Roll Number Tie-Breaker
 $ranked_students = $all_students;
 usort($ranked_students, function ($a, $b) {
-    return $a['fail'] <=> $b['fail'] ?: $b['total'] <=> $a['total'];
+    return $a['fail'] <=> $b['fail']   // Fewer fails first (ascending)
+        ?: $b['total'] <=> $a['total'] // Higher totals next (descending)
+        ?: $a['roll'] <=> $b['roll'];  // Lower roll numbers next (ascending)
 });
 
-// Assign merit positions with competition ranking (skip ranks after ties)
-$merit_map = [];
-$prev_student = null;
-$prev_rank = 0;
-
-foreach ($ranked_students as $index => $stu) {
-    if ($prev_student !== null && 
-        $stu['fail'] === $prev_student['fail'] && 
-        $stu['total'] === $prev_student['total']) {
-        // Tie: Same merit position as previous student
-        $merit_pos = $prev_rank;
-    } else {
-        // No tie: Current position = array index + 1
-        $merit_pos = $index + 1;
-    }
-    
-    $merit_map[$stu['row']] = $merit_pos;
-    $prev_student = $stu;
-    $prev_rank = $merit_pos;
-}
-
-// ✅ Render in merit order
+// ✅ Render rows with merit position
 foreach ($ranked_students as $i => $stu) {
-    $serial = $i + 1; // Table row number
+    $serial = $i + 1;
     $row = preg_replace('/<td><\/td>/', "<td>$serial</td>", $stu['row'], 1);
-    $merit_pos = $merit_map[$stu['row']] ?? '';
+    $merit_pos = $i + 1; // Merit position is same as serial in sorted list
     $row = str_replace('</tr>', "<td>$merit_pos</td></tr>", $row);
     echo $row;
 }
