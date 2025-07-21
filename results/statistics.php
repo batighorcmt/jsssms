@@ -425,130 +425,241 @@ foreach ($students_data as &$student) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @media print {
-            .no-print { display: none; }
-            .page-break { page-break-after: always; }
+            body {
+                font-size: 11pt;
+                padding: 0;
+                margin: 0;
+                background: white;
+                color: black;
+            }
+            .no-print, .btn { 
+                display: none !important; 
+            }
+            .page-break { 
+                page-break-after: always;
+                break-after: page;
+            }
+            .container-fluid {
+                width: 100%;
+                padding: 0 10px;
+            }
+            .stat-card {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            table {
+                page-break-inside: auto;
+                break-inside: auto;
+            }
+            tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .table-responsive {
+                overflow: visible !important;
+            }
+            .chart-container {
+                height: 250px !important;
+            }
+        }
+        
+        body {
+            font-family: 'SolaimanLipi', 'Bangla', Arial, sans-serif;
+            background-color: #f5f7fa;
         }
         .stat-card {
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             padding: 15px;
-            margin-bottom: 20px;
-            height: 100%;
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+            background: white;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         .stat-card h5 {
-            font-size: 1rem;
-            font-weight: bold;
-            border-bottom: 1px solid #eee;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-bottom: 1px dashed #ddd;
             padding-bottom: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
+            color: #444;
         }
         .stat-value {
-            font-size: 1.8rem;
-            font-weight: bold;
+            font-size: 1.6rem;
+            font-weight: 700;
             text-align: center;
-            margin: 10px 0;
+            margin: 8px 0;
         }
         .stat-label {
             text-align: center;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #666;
         }
         .pass-rate {
-            color: #28a745;
+            color: #2e7d32;
         }
         .fail-rate {
-            color: #dc3545;
+            color: #c62828;
         }
         .chart-container {
             position: relative;
-            height: 300px;
-            margin-bottom: 30px;
+            height: 280px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #e0e0e0;
         }
-        .table th, .table td {
+        .table {
+            font-size: 0.9rem;
+        }
+        .table th {
+            background-color: #3f51b5;
+            color: white;
+            font-weight: 500;
+            padding: 10px 8px;
+        }
+        .table td {
+            padding: 8px;
             vertical-align: middle;
         }
         .subject-pass-rate {
-            font-weight: bold;
+            font-weight: 600;
+            color: #2e7d32;
         }
         .subject-fail-rate {
-            font-weight: bold;
-            color: #dc3545;
+            font-weight: 600;
+            color: #c62828;
         }
         .header {
-            background-color: #f8f9fa;
-            padding: 20px 0;
-            margin-bottom: 30px;
-            border-bottom: 1px solid #eee;
-        }
-        .institute-info {
+            background-color: #3f51b5;
+            padding: 15px 0;
+            margin-bottom: 25px;
+            color: white;
             text-align: center;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .institute-info h4 {
             margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 1.4rem;
         }
         .institute-info p {
-            margin-bottom: 0;
-            color: #666;
+            margin-bottom: 5px;
+            color: #e0e0e0;
+            font-size: 0.95rem;
         }
         .report-title {
-            text-align: center;
-            margin: 20px 0;
-            padding: 10px;
-            background-color: #e9ecef;
+            font-weight: 600;
+            font-size: 1.2rem;
+            margin: 15px 0;
+            padding: 8px;
+            background-color: rgba(255,255,255,0.2);
             border-radius: 5px;
+            display: inline-block;
         }
         .badge-pass {
-            background-color: #28a745;
+            background-color: #2e7d32;
+            padding: 5px 8px;
+            font-size: 0.8rem;
         }
         .badge-fail {
-            background-color: #dc3545;
+            background-color: #c62828;
+            padding: 5px 8px;
+            font-size: 0.8rem;
+        }
+        .section-title {
+            color: #3f51b5;
+            font-weight: 600;
+            margin: 20px 0 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #3f51b5;
+            font-size: 1.1rem;
+        }
+        .print-header {
+            display: none;
+        }
+        @media print {
+            .print-header {
+                display: block;
+                text-align: center;
+                margin-bottom: 15px;
+            }
+            .print-header h4 {
+                font-size: 1.2rem;
+                margin: 0;
+                padding: 0;
+            }
+            .print-header p {
+                font-size: 0.9rem;
+                margin: 3px 0;
+                padding: 0;
+            }
+            .header {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="header">
-            <div class="institute-info">
-                <h4><?= $institute_name ?></h4>
-                <p><?= $institute_address ?></p>
-                <h3 class="report-title"><?= $exam ?> - <?= $class ?> (<?= $year ?>) পরিসংখ্যান রিপোর্ট</h3>
-            </div>
+    <div class="header">
+        <div class="institute-info">
+            <h4><?= $institute_name ?></h4>
+            <p><?= $institute_address ?></p>
+            <div class="report-title"><?= $exam ?> - <?= $class ?> (<?= $year ?>) পরিসংখ্যান রিপোর্ট</div>
         </div>
+    </div>
 
-        <div class="row mb-4 no-print">
+    <div class="print-header">
+        <h4><?= $institute_name ?></h4>
+        <p><?= $institute_address ?></p>
+        <p><?= $exam ?> - <?= $class ?> (<?= $year ?>) পরিসংখ্যান রিপোর্ট</p>
+    </div>
+
+    <div class="container-fluid" style="max-width: 1200px;">
+        <div class="row mb-3 no-print">
             <div class="col-12 text-center">
-                <button onclick="window.print()" class="btn btn-primary">
+                <button onclick="window.print()" class="btn btn-primary btn-sm">
                     <i class="bi bi-printer"></i> প্রিন্ট করুন
+                </button>
+                <button onclick="window.close()" class="btn btn-danger btn-sm ms-2">
+                    <i class="bi bi-x-circle"></i> বন্ধ করুন
                 </button>
             </div>
         </div>
 
         <!-- সার্বিক পরিসংখ্যান -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="stat-card bg-light">
-                    <h5>মোট পরীক্ষার্থী</h5>
-                    <div class="stat-value"><?= $total_students ?></div>
+        <div class="row mb-3">
+            <div class="col-md-3 col-6">
+                <div class="stat-card">
+                    <h5><i class="bi bi-people-fill text-primary"></i> মোট পরীক্ষার্থী</h5>
+                    <div class="stat-value text-primary"><?= $total_students ?></div>
                     <div class="stat-label">জন</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card bg-light">
-                    <h5>পাস করেছে</h5>
+            <div class="col-md-3 col-6">
+                <div class="stat-card">
+                    <h5><i class="bi bi-check-circle-fill text-success"></i> পাস করেছে</h5>
                     <div class="stat-value pass-rate"><?= $passed_students ?></div>
                     <div class="stat-label">জন (<?= $pass_rate ?>%)</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card bg-light">
-                    <h5>ফেল করেছে</h5>
+            <div class="col-md-3 col-6">
+                <div class="stat-card">
+                    <h5><i class="bi bi-x-circle-fill text-danger"></i> ফেল করেছে</h5>
                     <div class="stat-value fail-rate"><?= $failed_students ?></div>
                     <div class="stat-label">জন (<?= 100 - $pass_rate ?>%)</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card bg-light">
-                    <h5>পাসের হার</h5>
+            <div class="col-md-3 col-6">
+                <div class="stat-card">
+                    <h5><i class="bi bi-graph-up-arrow text-info"></i> পাসের হার</h5>
                     <div class="stat-value pass-rate"><?= $pass_rate ?>%</div>
                     <div class="stat-label">সর্বমোট</div>
                 </div>
@@ -556,7 +667,7 @@ foreach ($students_data as &$student) {
         </div>
 
         <!-- পাই চার্ট -->
-        <div class="row mb-4">
+        <div class="row mb-3 page-break">
             <div class="col-md-6">
                 <div class="chart-container">
                     <canvas id="passFailChart"></canvas>
@@ -570,20 +681,20 @@ foreach ($students_data as &$student) {
         </div>
 
         <!-- বিষয়ভিত্তিক পরিসংখ্যান -->
-        <div class="row mb-4">
+        <div class="row mb-3">
             <div class="col-12">
-                <h4 class="mb-3">বিষয়ভিত্তিক পরিসংখ্যান</h4>
+                <h5 class="section-title"><i class="bi bi-book-half"></i> বিষয়ভিত্তিক পরিসংখ্যান</h5>
                 <div class="table-responsive">
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-primary">
+                    <table class="table table-bordered table-hover">
+                        <thead>
                             <tr>
-                                <th>বিষয়ের নাম</th>
-                                <th>পাস করেছে</th>
-                                <th>ফেল করেছে</th>
-                                <th>পাসের হার</th>
-                                <th>সর্বোচ্চ নম্বর</th>
-                                <th>সর্বনিম্ন নম্বর</th>
-                                <th>গড় নম্বর</th>
+                                <th width="25%">বিষয়ের নাম</th>
+                                <th width="12%">পাস করেছে</th>
+                                <th width="12%">ফেল করেছে</th>
+                                <th width="13%">পাসের হার</th>
+                                <th width="12%">সর্বোচ্চ</th>
+                                <th width="12%">সর্বনিম্ন</th>
+                                <th width="14%">গড় নম্বর</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -594,14 +705,14 @@ foreach ($students_data as &$student) {
                             ?>
                                 <tr>
                                     <td><?= $subject['name'] ?></td>
-                                    <td><?= $subject['passed'] ?></td>
-                                    <td><?= $subject['failed'] ?></td>
-                                    <td class="<?= $pass_rate < 50 ? 'subject-fail-rate' : 'subject-pass-rate' ?>">
+                                    <td class="text-center"><?= $subject['passed'] ?></td>
+                                    <td class="text-center"><?= $subject['failed'] ?></td>
+                                    <td class="text-center <?= $pass_rate < 50 ? 'subject-fail-rate' : 'subject-pass-rate' ?>">
                                         <?= $pass_rate ?>%
                                     </td>
-                                    <td><?= $subject['max_marks'] ?></td>
-                                    <td><?= $subject['min_marks'] ?></td>
-                                    <td><?= $avg_marks ?></td>
+                                    <td class="text-center"><?= $subject['max_marks'] ?></td>
+                                    <td class="text-center"><?= $subject['min_marks'] ?></td>
+                                    <td class="text-center"><?= $avg_marks ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -611,16 +722,16 @@ foreach ($students_data as &$student) {
         </div>
 
         <!-- GPA ডিস্ট্রিবিউশন -->
-        <div class="row mb-4">
+        <div class="row mb-3 page-break">
             <div class="col-12">
-                <h4 class="mb-3">GPA বন্টন</h4>
+                <h5 class="section-title"><i class="bi bi-bar-chart-line"></i> GPA বন্টন</h5>
                 <div class="table-responsive">
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-primary">
+                    <table class="table table-bordered table-hover">
+                        <thead>
                             <tr>
-                                <th>GPA রেঞ্জ</th>
-                                <th>ছাত্র/ছাত্রী সংখ্যা</th>
-                                <th>শতকরা হার</th>
+                                <th width="30%">GPA রেঞ্জ</th>
+                                <th width="35%">ছাত্র/ছাত্রী সংখ্যা</th>
+                                <th width="35%">শতকরা হার</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -629,7 +740,22 @@ foreach ($students_data as &$student) {
                             ?>
                                 <tr>
                                     <td><?= $range ?></td>
-                                    <td><?= $count ?></td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar 
+                                                <?= $range == '5.00' ? 'bg-success' : '' ?>
+                                                <?= $range == '4.00-4.99' ? 'bg-info' : '' ?>
+                                                <?= $range == '3.50-3.99' ? 'bg-primary' : '' ?>
+                                                <?= $range == '3.00-3.49' ? 'bg-warning' : '' ?>
+                                                <?= $range == '2.00-2.99' ? 'bg-secondary' : '' ?>
+                                                <?= $range == '1.00-1.99' ? 'bg-danger' : '' ?>
+                                                <?= $range == '0.00' ? 'bg-dark' : '' ?>"
+                                                role="progressbar" style="width: <?= $percentage ?>%" 
+                                                aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100">
+                                                <?= $count ?>
+                                            </div>
+                                        </div>
+                                    </td>
                                     <td><?= $percentage ?>%</td>
                                 </tr>
                             <?php endforeach; ?>
@@ -640,19 +766,19 @@ foreach ($students_data as &$student) {
         </div>
 
         <!-- টপ পারফর্মার্স -->
-        <div class="row mb-4">
+        <div class="row mb-3">
             <div class="col-12">
-                <h4 class="mb-3">শীর্ষ ১০ শিক্ষার্থী</h4>
+                <h5 class="section-title"><i class="bi bi-trophy"></i> শীর্ষ ১০ শিক্ষার্থী</h5>
                 <div class="table-responsive">
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-primary">
+                    <table class="table table-bordered table-hover">
+                        <thead>
                             <tr>
-                                <th>মর্যাদাক্রম</th>
-                                <th>রোল নং</th>
-                                <th>নাম</th>
-                                <th>মোট নম্বর</th>
-                                <th>GPA</th>
-                                <th>স্ট্যাটাস</th>
+                                <th width="10%">মর্যাদাক্রম</th>
+                                <th width="15%">রোল নং</th>
+                                <th width="30%">নাম</th>
+                                <th width="15%">মোট নম্বর</th>
+                                <th width="15%">GPA</th>
+                                <th width="15%">স্ট্যাটাস</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -662,13 +788,13 @@ foreach ($students_data as &$student) {
                                 $status_class = $student['status'] === 'Passed' ? 'badge-pass' : 'badge-fail';
                             ?>
                                 <tr>
-                                    <td><?= $student['position'] ?></td>
-                                    <td><?= $student['roll'] ?></td>
+                                    <td class="text-center"><?= $student['position'] ?></td>
+                                    <td class="text-center"><?= $student['roll'] ?></td>
                                     <td><?= $student['name'] ?></td>
-                                    <td><?= $student['total_marks'] ?></td>
-                                    <td><?= $student['gpa'] ?></td>
-                                    <td>
-                                        <span class="badge <?= $status_class ?>">
+                                    <td class="text-center"><?= $student['total_marks'] ?></td>
+                                    <td class="text-center"><?= $student['gpa'] ?></td>
+                                    <td class="text-center">
+                                        <span class="badge rounded-pill <?= $status_class ?>">
                                             <?= $student['status'] ?>
                                         </span>
                                     </td>
@@ -685,29 +811,50 @@ foreach ($students_data as &$student) {
         // পাস-ফেল চার্ট
         const passFailCtx = document.getElementById('passFailChart').getContext('2d');
         const passFailChart = new Chart(passFailCtx, {
-            type: 'pie',
+            type: 'doughnut',
             data: {
-                labels: ['পাস করেছে', 'ফেল করেছে'],
+                labels: ['পাস করেছে (<?= $passed_students ?>)', 'ফেল করেছে (<?= $failed_students ?>)'],
                 datasets: [{
                     data: [<?= $passed_students ?>, <?= $failed_students ?>],
-                    backgroundColor: ['#28a745', '#dc3545'],
-                    borderWidth: 1
+                    backgroundColor: ['#2e7d32', '#c62828'],
+                    borderWidth: 0
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title: {
                         display: true,
-                        text: 'পাস-ফেল পরিসংখ্যান',
+                        text: 'পাস-ফেল পরিসংখ্যান (মোট: <?= $total_students ?>)',
                         font: {
-                            size: 16
+                            size: 14
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 15
                         }
                     },
                     legend: {
-                        position: 'bottom'
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const percentage = Math.round((value / <?= $total_students ?>) * 100);
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
+                        }
                     }
-                }
+                },
+                cutout: '65%'
             }
         });
 
@@ -721,23 +868,38 @@ foreach ($students_data as &$student) {
                     label: 'ছাত্র/ছাত্রী সংখ্যা',
                     data: [<?= implode(',', $gpa_distribution) ?>],
                     backgroundColor: [
-                        '#28a745', '#5cb85c', '#5bc0de', '#f0ad4e', '#ffc107', '#fd7e14', '#dc3545'
+                        '#2e7d32', '#0288d1', '#0097a7', '#fbc02d', '#ffa000', '#f57c00', '#c62828'
                     ],
-                    borderWidth: 1
+                    borderWidth: 0
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title: {
                         display: true,
-                        text: 'GPA বন্টন',
+                        text: 'GPA বন্টন (মোট: <?= $total_students ?>)',
                         font: {
-                            size: 16
+                            size: 14
+                        },
+                        padding: {
+                            top: 10,
+                            bottom: 15
                         }
                     },
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.dataset.label || '';
+                                const value = context.raw || 0;
+                                const percentage = Math.round((value / <?= $total_students ?>) * 100);
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
+                        }
                     }
                 },
                 scales: {
@@ -745,17 +907,35 @@ foreach ($students_data as &$student) {
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: 'ছাত্র/ছাত্রী সংখ্যা'
+                            text: 'ছাত্র/ছাত্রী সংখ্যা',
+                            font: {
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            display: false
                         }
                     },
                     x: {
                         title: {
                             display: true,
-                            text: 'GPA রেঞ্জ'
+                            text: 'GPA রেঞ্জ',
+                            font: {
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            display: false
                         }
                     }
                 }
             }
+        });
+
+        // Adjust charts for printing
+        window.addEventListener('beforeprint', () => {
+            passFailChart.resize(600, 400);
+            gpaDistChart.resize(600, 400);
         });
     </script>
 </body>

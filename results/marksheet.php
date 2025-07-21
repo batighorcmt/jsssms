@@ -440,6 +440,7 @@ unset($student);
                 font-size: 10px !important;
                 padding: 0 !important;
                 margin: 0 !important;
+                font-family: 'BenSenHandwriting', Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
             }
             .no-print {
                 display: none !important;
