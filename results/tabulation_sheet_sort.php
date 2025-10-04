@@ -262,7 +262,7 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
         <h5><?= $institute_name ?></h5>
         <p><?= $institute_address ?></p>
         <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
-        <button onclick="window.print()" class="btn btn-primary no-print">প্রিন্ট</button>
+        <button onclick="window.print()" class="btn btn-primary no-print">প্রিন্ট করুন</button>
     </div>
 </div>
 <div class="align-middle">
