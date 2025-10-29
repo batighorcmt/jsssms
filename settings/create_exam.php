@@ -101,6 +101,12 @@ $classResult = $conn->query($classQuery);
             </select>
         </div>
 
+        <div class="mb-3">
+            <label for="subjects_without_fourth" class="form-label">মোট বিষয় সংখ্যা (চতুর্থ বিষয় ছাড়া)</label>
+            <input type="number" name="subjects_without_fourth" id="subjects_without_fourth" class="form-control" min="1" placeholder="উদাহরণ: 6">
+            <div class="form-text">টেবুলেশন শীটে মোট GPA গণনার সময় এই সংখ্যাটি দ্বারা ভাগ করা হবে (চতুর্থ/ঐচ্ছিক বিষয় বাদে)।</div>
+        </div>
+
         <div id="subjectsContainer" style="display:none;">
             <h5>বিষয়ভিত্তিক নম্বর নির্ধারণ</h5>
             <table class="table table-bordered">

@@ -7,6 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $class_id = $_POST['class_id'];
     $exam_type = $_POST['exam_type'];
     $created_by = $_SESSION['user_id'] ?? 0;
+    $subjects_without_fourth = isset($_POST['subjects_without_fourth']) ? (int)$_POST['subjects_without_fourth'] : 0;
 
     // Exam Insert
     $sql = "INSERT INTO exams (exam_name, class_id, exam_type, created_by) VALUES (?, ?, ?, ?)";
@@ -15,6 +16,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($stmt->execute()) {
         $exam_id = $stmt->insert_id;
+
+        // Try to persist the subject count (excluding 4th) onto exams table
+        if ($subjects_without_fourth > 0) {
+            // Ensure column exists (add if missing)
+            $colExists = false;
+            if ($res = $conn->query("SHOW COLUMNS FROM exams LIKE 'total_subjects_without_fourth'")) {
+                $colExists = ($res->num_rows > 0);
+            }
+            if (!$colExists) {
+                // Attempt to add the column; ignore errors
+                @$conn->query("ALTER TABLE exams ADD COLUMN total_subjects_without_fourth INT NULL DEFAULT NULL");
+            }
+            // Update the just-created exam row (if column present now)
+            @$conn->query("UPDATE exams SET total_subjects_without_fourth = " . (int)$subjects_without_fourth . " WHERE id = " . (int)$exam_id);
+        }
 
         // Get the arrays from POST
         $subject_ids = $_POST['subject_id'];
@@ -57,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         header("Location: create_exam.php");
         exit();
     } else {
-        $_SESSION['error'] = "পরীক্ষা তৈরি করতে সমস্যা হয়েছে: " . $conn->error;
+        $_SESSION['error'] = "পরীক্ষা তৈরি করতে সমস্যা হয়েছে: " . (function_exists('mysqli_error') ? mysqli_error($conn) : '');
         header("Location: create_exam.php");
         exit();
     }
