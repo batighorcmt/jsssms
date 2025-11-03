@@ -80,9 +80,12 @@ while ($stu = mysqli_fetch_assoc($students_q)) {
 
 // Fetch subjects with pass marks and group info
 $subject_q = mysqli_query($conn, "
-    SELECT s.*, es.creative_pass, es.objective_pass, es.practical_pass, es.total_marks, es.pass_type, 
-           IFNULL(gm.group_name, '') AS group_name,
-           s.has_creative, s.has_objective, s.has_practical
+    SELECT 
+        s.*, 
+        es.creative_pass, es.objective_pass, es.practical_pass, es.total_marks, es.pass_type, 
+        IFNULL(gm.group_name, '') AS group_name,
+        gm.type AS type,
+        s.has_creative, s.has_objective, s.has_practical
     FROM subjects s
     JOIN exam_subjects es ON es.subject_id = s.id AND es.exam_id = '$exam_id'
     LEFT JOIN subject_group_map gm ON gm.subject_id = s.id AND gm.class_id = '$class_id'
@@ -93,6 +96,79 @@ $subject_q = mysqli_query($conn, "
 $subjects = [];
 while ($row = mysqli_fetch_assoc($subject_q)) {
     $subjects[] = $row;
+}
+
+// Deduplicate same subject appearing with both Compulsory and Optional mappings
+$by_code = [];
+foreach ($subjects as $row) {
+    $code = $row['subject_code'];
+    $curr_opt = strtolower((string)($row['type'] ?? ($row['subject_type'] ?? '')));
+    if (!isset($by_code[$code])) {
+        $by_code[$code] = $row;
+        continue;
+    }
+    $existing_opt = strtolower((string)($by_code[$code]['type'] ?? ($by_code[$code]['subject_type'] ?? '')));
+    // Prefer Compulsory over Optional
+    if ($existing_opt === 'optional' && $curr_opt === 'compulsory') {
+        $by_code[$code] = $row;
+    }
+}
+$subjects = array_values($by_code);
+
+// Build display subjects replacing 101/102 with Bangla and 107/108 with English (single rows)
+$display_subjects = [];
+$merged_added = [];
+foreach ($subjects as $sub) {
+    $code = $sub['subject_code'];
+
+    // If this is one of the components, optionally insert merged at the right time and skip the component itself
+    if (in_array($code, $excluded_subject_codes, true)) {
+        foreach ($merged_subjects as $label => $codes) {
+            if (in_array($code, $codes, true) && $code === $insert_after_codes[$label] && !in_array($label, $merged_added, true)) {
+                // Aggregate pass marks and max marks for merged subject
+                $creative_pass = 0; $objective_pass = 0; $practical_pass = 0; $max_marks = 0;
+                $has_creative = 0; $has_objective = 0; $has_practical = 0;
+                $merged_type = 'Compulsory';
+
+                foreach ($subjects as $s2) {
+                    if (in_array($s2['subject_code'], $codes, true)) {
+                        $creative_pass += (int)($s2['creative_pass'] ?? 0);
+                        $objective_pass += (int)($s2['objective_pass'] ?? 0);
+                        $practical_pass += (int)($s2['practical_pass'] ?? 0);
+                        $max_marks += (int)($s2['total_marks'] ?? 0);
+                        $has_creative = $has_creative || (int)($s2['has_creative'] ?? 0);
+                        $has_objective = $has_objective || (int)($s2['has_objective'] ?? 0);
+                        $has_practical = $has_practical || (int)($s2['has_practical'] ?? 0);
+                        if (isset($s2['type']) && strtolower((string)$s2['type']) === 'optional') {
+                            $merged_type = 'Optional';
+                        }
+                    }
+                }
+
+                $display_subjects[] = [
+                    'subject_name'   => $label,
+                    'subject_code'   => $label,
+                    'has_creative'   => $has_creative ? 1 : 0,
+                    'has_objective'  => $has_objective ? 1 : 0,
+                    'has_practical'  => $has_practical ? 1 : 0,
+                    'creative_pass'  => $creative_pass,
+                    'objective_pass' => $objective_pass,
+                    'practical_pass' => $practical_pass,
+                    'total_marks'    => $max_marks,
+                    'pass_type'      => 'individual',
+                    'type'           => $merged_type,
+                    'is_merged'      => true
+                ];
+                $merged_added[] = $label;
+            }
+        }
+        // Skip original 101/102/107/108 rows from display
+        continue;
+    }
+
+    // Normal subject row
+    $sub['is_merged'] = false;
+    $display_subjects[] = $sub;
 }
 
 $all_students = [];
@@ -110,108 +186,92 @@ foreach ($students as $stu) {
     $compulsory_count = 0;
     $optional_gpas = [];
 
-    foreach ($subjects as $sub) {
+    foreach ($display_subjects as $sub) {
         $code = $sub['subject_code'];
-        $subject_group_name = strtolower(trim($sub['group_name']));
 
-        // গ্রুপ মিল না করলে সাধারণ বিষয় (empty/null/none) বাদ দিও না
-        if ($subject_group_name !== $group && !in_array($subject_group_name, ['', 'none', 'null'], true)) {
-            continue;
-        }
+        // Determine if subject applies for this student's group
+        $subject_group_name = strtolower(trim($sub['group_name'] ?? ''));
+        $is_merged = !empty($sub['is_merged']);
 
-        $merged_handled = false;
-
-        // merged_subjects যোগ করো
-        foreach ($merged_subjects as $label => $codes) {
-            if (in_array($code, $codes) && $code === $insert_after_codes[$label] && !in_array($label, $added_merged)) {
-                // merged_subjects হিসাব
-                $c = 0; $o = 0; $p = 0; $max_marks = 0;
-                $cp = 0; $op = 0; $pp = 0;
-
-                foreach ($subjects as $sub2) {
-                    $sub2_group_name = strtolower(trim($sub2['group_name']));
-                    if (($sub2_group_name === $group || in_array($sub2_group_name, ['', 'none', 'null'], true)) && in_array($sub2['subject_code'], $codes)) {
-                        $c += $sub2['has_creative'] ? getMarks($student_id, $sub2['id'], $exam_id, 'creative') : 0;
-                        $o += $sub2['has_objective'] ? getMarks($student_id, $sub2['id'], $exam_id, 'objective') : 0;
-                        $p += $sub2['has_practical'] ? getMarks($student_id, $sub2['id'], $exam_id, 'practical') : 0;
-
-                        $cp += $sub2['creative_pass'];
-                        $op += $sub2['objective_pass'];
-                        $pp += $sub2['practical_pass'];
-
-                        $max_marks += $sub2['total_marks'];
-                    }
-                }
-
-                $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
-                $pass_marks = ['creative' => $cp, 'objective' => $op, 'practical' => $pp];
-                $is_pass = getPassStatus($class_id, $marks_arr, $pass_marks, 'individual');
-                $sub_total = $c + $o + $p;
-                $gpa = subjectGPA($sub_total, $max_marks);
-
-                if (!$is_pass) $fail_count++;
-                $total_marks += $sub_total;
-
-                $subject_data = [
-                    'subject_name' => $label,
-                    'creative' => $c,
-                    'objective' => $o,
-                    'practical' => $p,
-                    'total' => $sub_total,
-                    'gpa' => $gpa,
-                    'is_fail' => !$is_pass
-                ];
-
-                if (strtolower($sub['subject_type']) === 'optional') {
-                    $optional_subjects[] = $subject_data;
-                    $optional_gpas[] = $gpa;
-                } else {
-                    $compulsory_subjects[] = $subject_data;
-                    $compulsory_gpa += $gpa;
-                    $compulsory_count++;
-                }
-
-                $added_merged[] = $label;
-                $merged_handled = true;
-                break; // merged_subjects যোগ হয়ে গেছে, আর এপিসোডের লুপ থেকে বের হও
+        if (!$is_merged) {
+            // For normal subjects: skip if group doesn't match and it's not a common subject
+            if ($subject_group_name !== $group && !in_array($subject_group_name, ['', 'none', 'null'], true)) {
+                continue;
             }
+        } else {
+            // For merged subjects: ensure at least one component is applicable to this student's group
+            $label = $sub['subject_name'];
+            $codes = $merged_subjects[$label] ?? [];
+            $applicable = false;
+            foreach ($subjects as $sub2) {
+                $sub2_group_name = strtolower(trim($sub2['group_name'] ?? ''));
+                if (in_array($sub2['subject_code'], $codes, true) && ($sub2_group_name === $group || in_array($sub2_group_name, ['', 'none', 'null'], true))) {
+                    $applicable = true;
+                    break;
+                }
+            }
+            if (!$applicable) continue;
         }
 
-        if ($merged_handled) continue; // merged_subjects যোগ হয়ে গেলে আর নিচের অংশ চালাও না
+        // Calculate marks
+        $c = 0; $o = 0; $p = 0; $sub_total = 0; $gpa = 0; $is_pass = true;
 
-        // merged_subjects এর কোডগুলো বাদ দাও
-        if (in_array($code, $excluded_subject_codes)) continue;
+        if ($is_merged) {
+            $label = $sub['subject_name'];
+            $codes = $merged_subjects[$label] ?? [];
 
-        // সাধারণ সাবজেক্ট মার্ক
-        $c = $sub['has_creative'] ? getMarks($student_id, $sub['id'], $exam_id, 'creative') : 0;
-        $o = $sub['has_objective'] ? getMarks($student_id, $sub['id'], $exam_id, 'objective') : 0;
-        $p = $sub['has_practical'] ? getMarks($student_id, $sub['id'], $exam_id, 'practical') : 0;
+            foreach ($subjects as $sub2) {
+                $sub2_group_name = strtolower(trim($sub2['group_name'] ?? ''));
+                if (in_array($sub2['subject_code'], $codes, true) && ($sub2_group_name === $group || in_array($sub2_group_name, ['', 'none', 'null'], true))) {
+                    $c += !empty($sub2['has_creative']) ? getMarks($student_id, $sub2['id'], $exam_id, 'creative') : 0;
+                    $o += !empty($sub2['has_objective']) ? getMarks($student_id, $sub2['id'], $exam_id, 'objective') : 0;
+                    $p += !empty($sub2['has_practical']) ? getMarks($student_id, $sub2['id'], $exam_id, 'practical') : 0;
+                }
+            }
 
-        $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
-        $pass_marks = [
-            'creative' => $sub['creative_pass'],
-            'objective' => $sub['objective_pass'],
-            'practical' => $sub['practical_pass']
-        ];
+            $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
+            $pass_marks = [
+                'creative' => $sub['creative_pass'] ?? 0,
+                'objective' => $sub['objective_pass'] ?? 0,
+                'practical' => $sub['practical_pass'] ?? 0
+            ];
+            $sub_total = $c + $o + $p;
+            $is_pass = getPassStatus($class_id, $marks_arr, $pass_marks, 'individual');
+            $gpa = subjectGPA($sub_total, $sub['total_marks'] ?? 0);
+        } else {
+            $c = !empty($sub['has_creative']) ? getMarks($student_id, $sub['id'], $exam_id, 'creative') : 0;
+            $o = !empty($sub['has_objective']) ? getMarks($student_id, $sub['id'], $exam_id, 'objective') : 0;
+            $p = !empty($sub['has_practical']) ? getMarks($student_id, $sub['id'], $exam_id, 'practical') : 0;
 
-        $sub_total = $c + $o + $p;
-        $is_pass = getPassStatus($class_id, $marks_arr, $pass_marks, $sub['pass_type']);
-        $gpa = subjectGPA($sub_total, $sub['total_marks']);
+            $marks_arr = ['creative' => $c, 'objective' => $o, 'practical' => $p];
+            $pass_marks = [
+                'creative' => $sub['creative_pass'] ?? 0,
+                'objective' => $sub['objective_pass'] ?? 0,
+                'practical' => $sub['practical_pass'] ?? 0
+            ];
+            $sub_total = $c + $o + $p;
+            $is_pass = getPassStatus($class_id, $marks_arr, $pass_marks, $sub['pass_type'] ?? 'total');
+            $gpa = subjectGPA($sub_total, $sub['total_marks'] ?? 0);
+        }
 
         if (!$is_pass) $fail_count++;
         $total_marks += $sub_total;
 
         $subject_data = [
             'subject_name' => $sub['subject_name'],
-            'creative' => $c,
-            'objective' => $o,
-            'practical' => $p,
-            'total' => $sub_total,
-            'gpa' => $gpa,
-            'is_fail' => !$is_pass
+            'creative'     => $c,
+            'objective'    => $o,
+            'practical'    => $p,
+            'total'        => $sub_total,
+            'gpa'          => $gpa,
+            'is_fail'      => !$is_pass
         ];
 
-        if (strtolower($sub['subject_type']) === 'optional') {
+        $is_optional = false;
+        $stype = strtolower((string)($sub['type'] ?? ($sub['subject_type'] ?? 'Compulsory')));
+        if ($stype === 'optional') $is_optional = true;
+
+        if ($is_optional) {
             $optional_subjects[] = $subject_data;
             $optional_gpas[] = $gpa;
         } else {

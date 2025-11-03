@@ -52,11 +52,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $stmt2 = $conn->prepare($sql2);
         
-        for ($i = 0; $i < count($subject_ids); $i++) {
+        // Align lengths safely
+        $rowCount = min(
+            count($subject_ids),
+            count($exam_dates),
+            count($exam_times),
+            count($creative_marks),
+            count($objective_marks),
+            count($practical_marks),
+            count($creative_pass),
+            count($objective_pass),
+            count($practical_pass)
+        );
+
+        for ($i = 0; $i < $rowCount; $i++) {
+            // Sanitize and validate subject id
+            $sid = isset($subject_ids[$i]) ? (int)$subject_ids[$i] : 0;
+            if ($sid <= 0) { continue; }
+            // Optional: ensure subject exists
+            $chk = $conn->prepare("SELECT 1 FROM subjects WHERE id = ? LIMIT 1");
+            $chk->bind_param("i", $sid);
+            $chk->execute();
+            $exists = $chk->get_result()->num_rows > 0;
+            $chk->close();
+            if (!$exists) { continue; }
             $stmt2->bind_param(
                 "iissiiiiii",
                 $exam_id,
-                $subject_ids[$i],
+                $sid,
                 $exam_dates[$i],
                 $exam_times[$i],
                 $creative_marks[$i],

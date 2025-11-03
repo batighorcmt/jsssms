@@ -122,6 +122,7 @@ $classResult = $conn->query($classQuery);
                         <th>সৃজনশীল পাশ মার্ক</th>
                         <th>নৈর্ব্যক্তিক পাশ মার্ক</th>
                         <th>ব্যবহারিক পাশ মার্ক</th>
+                        <th>পাস টাইপ</th>
                     </tr>
                 </thead>
                 <tbody id="subjectsTableBody">
@@ -162,23 +163,51 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 let rows = '';
                 data.forEach(subject => {
+                    const hasC = Number(subject.has_creative) === 1;
+                    const hasO = Number(subject.has_objective) === 1;
+                    const hasP = Number(subject.has_practical) === 1;
+                    const passType = (subject.pass_type && String(subject.pass_type).trim() !== '') ? String(subject.pass_type) : 'total';
+
                     rows += `
                         <tr>
-    <td>
-        ${subject.subject_name}
-        <input type="hidden" name="subject_id[]" value="1">
-    </td>
-    <td><input type="date" name="exam_date[]" class="form-control" ></td>
-    <td><input type="time" name="exam_time[]" class="form-control" ></td>
-    <td><input type="number" name="creative_marks[]" class="form-control creative_marks" min="0" value="0" required></td>
-    <td><input type="number" name="objective_marks[]" class="form-control objective_marks" min="0" value="0" required></td>
-    <td><input type="number" name="practical_marks[]" class="form-control practical_marks" min="0" value="0" required></td>
-    <td><input type="number" class="form-control total_marks" value="0" readonly></td>
-    <td><input type="number" name="creative_pass[]" class="form-control" min="0" value="0" required></td>
-    <td><input type="number" name="objective_pass[]" class="form-control" min="0" value="0" required></td>
-    <td><input type="number" name="practical_pass[]" class="form-control" min="0" value="0" required></td>
-</tr>
-
+                            <td>
+                                ${subject.subject_name}
+                                <input type="hidden" name="subject_id[]" value="${subject.id}">
+                            </td>
+                            <td><input type="date" name="exam_date[]" class="form-control" ></td>
+                            <td><input type="time" name="exam_time[]" class="form-control" ></td>
+                            <td>
+                                <input type="number" name="creative_marks[]" class="form-control creative_marks" min="0" value="0" ${hasC ? '' : 'disabled'} required>
+                                ${hasC ? '' : '<input type="hidden" name="creative_marks[]" value="0">'}
+                            </td>
+                            <td>
+                                <input type="number" name="objective_marks[]" class="form-control objective_marks" min="0" value="0" ${hasO ? '' : 'disabled'} required>
+                                ${hasO ? '' : '<input type="hidden" name="objective_marks[]" value="0">'}
+                            </td>
+                            <td>
+                                <input type="number" name="practical_marks[]" class="form-control practical_marks" min="0" value="0" ${hasP ? '' : 'disabled'} required>
+                                ${hasP ? '' : '<input type="hidden" name="practical_marks[]" value="0">'}
+                            </td>
+                            <td><input type="number" class="form-control total_marks" value="0" readonly></td>
+                            <td>
+                                <input type="number" name="creative_pass[]" class="form-control" min="0" value="0" ${hasC ? '' : 'disabled'} required>
+                                ${hasC ? '' : '<input type="hidden" name="creative_pass[]" value="0">'}
+                            </td>
+                            <td>
+                                <input type="number" name="objective_pass[]" class="form-control" min="0" value="0" ${hasO ? '' : 'disabled'} required>
+                                ${hasO ? '' : '<input type="hidden" name="objective_pass[]" value="0">'}
+                            </td>
+                            <td>
+                                <input type="number" name="practical_pass[]" class="form-control" min="0" value="0" ${hasP ? '' : 'disabled'} required>
+                                ${hasP ? '' : '<input type="hidden" name="practical_pass[]" value="0">'}
+                            </td>
+                            <td>
+                                <select name="pass_type[]" class="form-select">
+                                    <option value="total" ${passType === 'total' ? 'selected' : ''}>মোট নাম্বার</option>
+                                    <option value="individual" ${passType === 'individual' ? 'selected' : ''}>আলাদা আলাদা</option>
+                                </select>
+                            </td>
+                        </tr>
                     `;
                 });
 

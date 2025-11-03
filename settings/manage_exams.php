@@ -86,6 +86,7 @@ include '../includes/header.php';
     <button class="btn btn-sm btn-primary" onclick="toggleDropdown(this)">নির্বাচন করুন</button>
     <div class="custom-dropdown-menu">
         <a href="exam_details.php?exam_id=<?= $exam_id ?>">বিস্তারিত</a>
+    <a href="update_exam.php?exam_id=<?= $exam_id ?>">সমষ্টিগত আপডেট</a>
         <a href="../results/tabulation_sheet.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">টেবুলেশন শীট রোল নং অনুসারে</a>
         <a href="../results/tabulation_sheet_sort.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">টেবুলেশন শীট মেধাক্রম অনুসারে</a>
         <a href="../results/marksheet.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">একাডেমিক ট্রান্সক্রিপ্ট</a>

@@ -14,18 +14,6 @@ if (!$exam_id || !$class_id || !$year) {
 $institute_name = "Jorepukuria Secondary School";
 $institute_address = "Gangni, Meherpur";
 
-// লোগো লোকেশন নির্ধারণ (uploads/logo থেকে সর্বশেষ ইমেজ নেয়ার চেষ্টা)
-$logo_src = '../uploads/logo/1757281102_jss_logo.png';
-if (!file_exists(__DIR__ . '/../uploads/logo/1757281102_jss_logo.png')) {
-    $logo_src = '';
-    $pattern = __DIR__ . '/../uploads/logo/*.{png,jpg,jpeg,gif}';
-    $candidates = glob($pattern, GLOB_BRACE);
-    if ($candidates && count($candidates) > 0) {
-        usort($candidates, function($a,$b){ return @filemtime($b) <=> @filemtime($a); });
-        $logo_src = '../uploads/logo/' . basename($candidates[0]);
-    }
-}
-
 // পরীক্ষার নাম
 $examRow = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM exams WHERE id='$exam_id'"));
 $exam = $examRow['exam_name'] ?? '';
@@ -457,36 +445,14 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
     <style>
         th, td { vertical-align: middle !important; font-size: 13px; border-spacing: 0px; padding: 2px; }
         @media print {
-            /* Ensure vivid colors and slightly larger text on print */
-            html, body, table, th, td, thead, tbody {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-            body { color: #000 !important; }
             .no-print { display: none; }
-            table { font-size: 12.5px; border-spacing: 0px; padding: 2px; }
-            .table-bordered th, .table-bordered td { border-color: #000 !important; }
-            .table-primary { background-color: #bcdcff !important; }
-            .fail-mark { color: #d10000 !important; font-weight: 700; }
-            /* Disable sticky in print to avoid artifacts */
-            #tabulationTable thead th { position: static !important; top: auto !important; }
+            table { font-size: 11px; border-spacing: 0px; padding: 2px; }
         }
         .fail-mark { color: red; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; }
         .text-center { text-align: center; }
         .table-bordered th, .table-bordered td { border: 1px solid #dee2e6; }
         .table-primary { background-color: #cfe2ff; }
-
-        /* Sticky table header (two-row header) */
-        #tabulationTable { --head1-h: 36px; }
-        #tabulationTable thead tr:first-child th { position: sticky; top: 0; z-index: 5; background: #cfe2ff; }
-        #tabulationTable thead tr:nth-child(2) th { position: sticky; top: var(--head1-h); z-index: 4; background: #e7f1ff; }
-
-    /* Header brand (logo + titles) */
-    .header-brand { display: flex; align-items: center; justify-content: center; gap: 12px; }
-    .header-brand img.logo { width: 56px; height: 56px; object-fit: contain; }
-    /* Floating print button at top-right */
-    .btn-print-floating { position: fixed; top: 12px; right: 16px; z-index: 9999; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 
 .badge-pass, .badge-fail {
     display: inline-block;
@@ -510,18 +476,11 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
 </head>
 <body>
 <div class="container my-4">
-    <div class="mb-3">
-        <div class="header-brand">
-            <?php if (!empty($logo_src)): ?>
-                <img src="<?= htmlspecialchars($logo_src) ?>" alt="Logo" class="logo" onerror="this.style.display='none'">
-            <?php endif; ?>
-            <div class="brand-text text-center">
-                <h3><?= $institute_name ?></h3>
-                <p><?= $institute_address ?></p>
-                <h5><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h5>
-            </div>
-        </div>
-        <button id="btnPrint" class="btn btn-primary no-print btn-print-floating">প্রিন্ট করুন</button>
+    <div class="text-center mb-3">
+        <h5><?= $institute_name ?></h5>
+        <p><?= $institute_address ?></p>
+        <h4><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h4>
+        <button id="btnPrint" class="btn btn-primary no-print">প্রিন্ট করুন</button>
     </div>
 </div>
 <div class="align-middle">
@@ -648,7 +607,8 @@ while ($stu = mysqli_fetch_assoc($students_q)) {
             $pass_type_sub = isset($sub['subject_pass_type']) ? trim((string)$sub['subject_pass_type']) : '';
             $pass_type = $pass_type_raw !== '' ? $pass_type_raw : ($pass_type_sub !== '' ? $pass_type_sub : 'total');
             $pass_type = strtolower($pass_type);
-            // Honor configured pass_type: 'total' => total-based pass; 'individual' => per-part pass
+            // Override policy: every existing part must be passed individually for all subjects
+            $pass_type = 'individual';
             // Determine compulsory/optional per-student: treat the student's chosen optional subject_code as Optional; others Compulsory
             if (empty($sub['is_merged'])) {
                 // Prefer explicit optional by subject_id, else fallback to code match
@@ -728,7 +688,7 @@ while ($stu = mysqli_fetch_assoc($students_q)) {
         'fail' => $fail_count,
         'total' => $total_marks,
         'roll' => isset($stu['roll_no']) ? (int)$stu['roll_no'] : 0,
-        'row' => "<tr><td></td><td>{$stu['student_name']}</td><td>{$stu['roll_no']}</td><td class='merit'></td><td>" . (!empty($stu['student_group']) ? htmlspecialchars($stu['student_group']) : '') . "</td>$row_data<td>" . htmlspecialchars($student_optional_code) . "</td><td><strong>$total_marks</strong></td><td><strong>$final_gpa</strong></td><td>$status</td><td>$fail_display</td></tr>"
+        'row' => "<tr><td></td><td>{$stu['student_name']}</td><td>{$stu['roll_no']}</td><td class='merit'></td><td>" . (!empty($stu['student_group']) ? htmlspecialchars($stu['student_group']) : '') . "</td>$row_data<td>" . htmlspecialchars($student_optional_code) . "</td><td>$total_marks</td><td>$final_gpa</td><td>$status</td><td>$fail_display</td></tr>"
     ];
 }
 
@@ -754,20 +714,6 @@ foreach ($ranked_students as $i => $stu) {
      <div id="printSplitContainer" class="print-split" style="display:none"></div>
 </div>
 <script>
-// Adjust sticky header offset based on first header row height
-(function(){
-    function updateStickyOffset(){
-        var table = document.getElementById('tabulationTable');
-        if(!table) return;
-        var firstRow = table.querySelector('thead tr:first-child');
-        if(!firstRow) return;
-        var h = firstRow.getBoundingClientRect().height;
-        table.style.setProperty('--head1-h', h + 'px');
-    }
-    window.addEventListener('load', updateStickyOffset);
-    window.addEventListener('resize', updateStickyOffset);
-})();
-
 // Sorting by Roll and Merit
 (function(){
     const table = document.getElementById('tabulationTable');
@@ -808,53 +754,28 @@ foreach ($ranked_students as $i => $stu) {
         // count subject groups
         const groups = Array.from(table.querySelectorAll('thead .subject-group'));
         const n = groups.length; if (n===0){ window.print(); return; }
-        // Move one subject from first part to second part (left half a bit narrower)
-        const mid = Math.max(0, Math.ceil(n/2) + 1);
+        const mid = Math.ceil(n/2);
         // helper to clone and hide sets by class
         function buildClone(hideStart, hideEnd){
             const clone = table.cloneNode(true);
-            // Remove id to avoid duplicates and drop 'original' class so it's not hidden in print
+            // Remove id to avoid duplicates
             clone.id = '';
-            if (clone.classList) { clone.classList.remove('original'); }
-
-            // Hide subject groups outside desired range and then recompute header colspans
+            // Hide subject groups outside desired range
             for(let i=0;i<n;i++){
-                const keep = (i>=hideStart && i<hideEnd);
-                // hide/show all cells that belong to this subject group
-                clone.querySelectorAll('.subgrp-'+i).forEach(el=>{ el.style.display = keep ? '' : 'none'; });
-            }
-
-            // Recompute colspan for remaining subject-group header cells so merged headers don't break
-            const headerGroups = Array.from(clone.querySelectorAll('thead .subject-group'));
-            headerGroups.forEach(th => {
-                const idx = th.getAttribute('data-sub-index');
-                if (idx === null) return;
-                // Count visible lower-row header cells for this subject index
-                const visible = clone.querySelectorAll(`thead tr:nth-child(2) .subgrp-${idx}`);
-                let visibleCount = 0;
-                visible.forEach(v => { if (v.style.display !== 'none') visibleCount++; });
-                // Set colspan to number of visible lower headers (Total/GPA + parts)
-                th.setAttribute('colspan', visibleCount > 0 ? visibleCount : 0);
-
-                // Abbreviate very long subject names for print clones (e.g., Information And Communication Technology -> ICT)
-                const txt = (th.innerText || '').toLowerCase();
-                if (txt.indexOf('information') !== -1 && txt.indexOf('communication') !== -1) {
-                    const codeEl = th.querySelector('small');
-                    const codeTxt = codeEl ? codeEl.innerText : '';
-                    th.innerHTML = 'ICT' + (codeTxt ? '<br><small>' + codeTxt + '</small>' : '');
+                const hide = !(i>=hideStart && i<hideEnd);
+                if (hide){
+                    clone.querySelectorAll('.subgrp-'+i).forEach(el=>{ el.style.display='none'; });
                 }
-            });
-
+            }
             return clone;
         }
         container.innerHTML = '';
         const left = buildClone(0, mid);
         const right = buildClone(mid, n);
-        // Optionally hide overall summary columns in left copy (not per-subject)
+        // Optionally hide summary columns in left copy to save width
         left.querySelectorAll('thead th').forEach(th=>{
             const t = th.innerText.trim();
-            const hasSubgrp = (th.className||'').indexOf('subgrp-') !== -1;
-            if (!hasSubgrp && ['Optional Subject Code','Total','GPA','Status','Fail Count'].includes(t)) th.style.display='none';
+            if (['Optional Subject Code','Total','GPA','Status','Fail Count'].includes(t)) th.style.display='none';
         });
         left.querySelectorAll('tbody tr').forEach(tr=>{
             // hide summary tds at the end (last 5 cells)

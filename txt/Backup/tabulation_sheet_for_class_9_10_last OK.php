@@ -468,19 +468,12 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
             .table-bordered th, .table-bordered td { border-color: #000 !important; }
             .table-primary { background-color: #bcdcff !important; }
             .fail-mark { color: #d10000 !important; font-weight: 700; }
-            /* Disable sticky in print to avoid artifacts */
-            #tabulationTable thead th { position: static !important; top: auto !important; }
         }
         .fail-mark { color: red; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; }
         .text-center { text-align: center; }
         .table-bordered th, .table-bordered td { border: 1px solid #dee2e6; }
         .table-primary { background-color: #cfe2ff; }
-
-        /* Sticky table header (two-row header) */
-        #tabulationTable { --head1-h: 36px; }
-        #tabulationTable thead tr:first-child th { position: sticky; top: 0; z-index: 5; background: #cfe2ff; }
-        #tabulationTable thead tr:nth-child(2) th { position: sticky; top: var(--head1-h); z-index: 4; background: #e7f1ff; }
 
     /* Header brand (logo + titles) */
     .header-brand { display: flex; align-items: center; justify-content: center; gap: 12px; }
@@ -648,7 +641,8 @@ while ($stu = mysqli_fetch_assoc($students_q)) {
             $pass_type_sub = isset($sub['subject_pass_type']) ? trim((string)$sub['subject_pass_type']) : '';
             $pass_type = $pass_type_raw !== '' ? $pass_type_raw : ($pass_type_sub !== '' ? $pass_type_sub : 'total');
             $pass_type = strtolower($pass_type);
-            // Honor configured pass_type: 'total' => total-based pass; 'individual' => per-part pass
+            // Override policy: every existing part must be passed individually for all subjects
+            $pass_type = 'individual';
             // Determine compulsory/optional per-student: treat the student's chosen optional subject_code as Optional; others Compulsory
             if (empty($sub['is_merged'])) {
                 // Prefer explicit optional by subject_id, else fallback to code match
@@ -754,20 +748,6 @@ foreach ($ranked_students as $i => $stu) {
      <div id="printSplitContainer" class="print-split" style="display:none"></div>
 </div>
 <script>
-// Adjust sticky header offset based on first header row height
-(function(){
-    function updateStickyOffset(){
-        var table = document.getElementById('tabulationTable');
-        if(!table) return;
-        var firstRow = table.querySelector('thead tr:first-child');
-        if(!firstRow) return;
-        var h = firstRow.getBoundingClientRect().height;
-        table.style.setProperty('--head1-h', h + 'px');
-    }
-    window.addEventListener('load', updateStickyOffset);
-    window.addEventListener('resize', updateStickyOffset);
-})();
-
 // Sorting by Roll and Merit
 (function(){
     const table = document.getElementById('tabulationTable');
