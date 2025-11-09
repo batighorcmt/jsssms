@@ -265,14 +265,25 @@ function subjectGPA($marks, $full_marks) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
 th, td { vertical-align: middle !important; font-size: 18px; }
-table { width: 100% !important; }
+table { width: 100% !important; border-collapse: collapse; }
 body, .container, h4, h5, p { font-size: 20px !important; }
 @media print {
     .no-print { display:none; }
     th, td { font-size: 22px !important; }
     body, .container, h4, h5, p { font-size: 24px !important; }
     table { width: 100vw !important; max-width: 100vw !important; }
-    html, body { width: 100vw !important; margin: 0; padding: 0; }
+    html, body {
+        width: 100vw !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+    }
+}
+@media print {
+    @page {
+        margin: 0 !important;
+        size: A4 landscape;
+    }
 }
 </style>
 </head>
