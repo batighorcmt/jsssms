@@ -262,9 +262,9 @@ function subjectGPA($marks, $full_marks) {
 <head>
 <meta charset="UTF-8">
 <title>Merit List</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
 <style>
-th, td { vertical-align: middle !important; font-size: 13px; padding: 2px; }
 @media print {
     .no-print { display: none; }
     table { font-size: 11px; padding: 2px; }
@@ -273,6 +273,7 @@ table { width: 100%; border-collapse: collapse; }
 .text-center { text-align: center; }
 .table-bordered th, .table-bordered td { border: 1px solid #dee2e6; }
 .table-primary { background-color: #cfe2ff; }
+th, td { vertical-align: middle !important; font-size: 13px; padding: 2px; }
 .badge-pass, .badge-fail {
     display: inline-block;
     width: 22px;
