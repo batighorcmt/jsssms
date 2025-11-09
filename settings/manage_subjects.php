@@ -6,6 +6,25 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 }
 include '../config/db.php';
 
+// Detect whether subjects.pass_type column exists
+$hasPassType = false;
+if ($chk = $conn->query("SHOW COLUMNS FROM subjects LIKE 'pass_type'")) {
+    $hasPassType = ($chk->num_rows > 0);
+}
+
+// If missing, add the column so Pass Type can be saved and displayed
+if (!$hasPassType) {
+    try {
+        $conn->query("ALTER TABLE subjects ADD COLUMN pass_type ENUM('total','individual') NOT NULL DEFAULT 'total' AFTER has_practical");
+        // Re-check after attempting migration
+        if ($chk2 = $conn->query("SHOW COLUMNS FROM subjects LIKE 'pass_type'")) {
+            $hasPassType = ($chk2->num_rows > 0);
+        }
+    } catch (Throwable $e) {
+        // Ignore migration failure; UI will fallback to default display
+    }
+}
+
 // Add or Update Subject
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $subject_name = $_POST['subject_name'];
@@ -14,18 +33,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $has_creative = $_POST['has_creative'];
     $has_objective = $_POST['has_objective'];
     $has_practical = $_POST['has_practical'];
-    $pass_type = $_POST['pass_type'];
+    $pass_type = $_POST['pass_type'] ?? 'total';
     $status = $_POST['status'];
 
     if ($_POST['action'] === 'add') {
-        $stmt = $conn->prepare("INSERT INTO subjects (subject_name, subject_code, default_marks, has_creative, has_objective, has_practical, pass_type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssiiisss", $subject_name, $subject_code, $default_marks, $has_creative, $has_objective, $has_practical, $pass_type, $status);
+        if ($hasPassType) {
+            $stmt = $conn->prepare("INSERT INTO subjects (subject_name, subject_code, default_marks, has_creative, has_objective, has_practical, pass_type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssiiisss", $subject_name, $subject_code, $default_marks, $has_creative, $has_objective, $has_practical, $pass_type, $status);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO subjects (subject_name, subject_code, default_marks, has_creative, has_objective, has_practical, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssiiiss", $subject_name, $subject_code, $default_marks, $has_creative, $has_objective, $has_practical, $status);
+        }
         $stmt->execute();
         $subject_id = $stmt->insert_id;
     } elseif ($_POST['action'] === 'edit') {
         $subject_id = $_POST['id'];
-        $stmt = $conn->prepare("UPDATE subjects SET subject_name=?, subject_code=?, default_marks=?, has_creative=?, has_objective=?, has_practical=?, pass_type=?, status=? WHERE id=?");
-        $stmt->bind_param("ssiiiissi", $subject_name, $subject_code, $default_marks, $has_creative, $has_objective, $has_practical, $pass_type, $status, $subject_id);
+        if ($hasPassType) {
+            $stmt = $conn->prepare("UPDATE subjects SET subject_name=?, subject_code=?, default_marks=?, has_creative=?, has_objective=?, has_practical=?, pass_type=?, status=? WHERE id=?");
+            $stmt->bind_param("ssiiiissi", $subject_name, $subject_code, $default_marks, $has_creative, $has_objective, $has_practical, $pass_type, $status, $subject_id);
+        } else {
+            $stmt = $conn->prepare("UPDATE subjects SET subject_name=?, subject_code=?, default_marks=?, has_creative=?, has_objective=?, has_practical=?, status=? WHERE id=?");
+            $stmt->bind_param("ssiiiisi", $subject_name, $subject_code, $default_marks, $has_creative, $has_objective, $has_practical, $status, $subject_id);
+        }
         $stmt->execute();
         $conn->query("DELETE FROM subject_group_map WHERE subject_id = $subject_id");
     }
@@ -75,13 +104,70 @@ if (isset($_GET['edit'])) {
         'status' => 'Active',
     ];
 }
-// Fetch classes and subjects   
+// Fetch classes and subjects (with filters + pagination)
 $classes = $conn->query("SELECT id, class_name FROM classes ORDER BY id ASC");
-$subjects = $conn->query("SELECT s.*, c.class_name, gm.type
+
+// Filters from GET
+$f_class_id = isset($_GET['f_class_id']) && ctype_digit($_GET['f_class_id']) ? (int)$_GET['f_class_id'] : '';
+$allowedGroups = ['none','Science','Humanities','Business Studies'];
+$f_group = isset($_GET['f_group']) && in_array($_GET['f_group'], $allowedGroups, true) ? $_GET['f_group'] : '';
+$allowedTypes = ['Compulsory','Optional'];
+$f_type = isset($_GET['f_type']) && in_array($_GET['f_type'], $allowedTypes, true) ? $_GET['f_type'] : '';
+$allowedStatus = ['Active','Inactive'];
+$f_status = isset($_GET['f_status']) && in_array($_GET['f_status'], $allowedStatus, true) ? $_GET['f_status'] : '';
+$q = isset($_GET['q']) ? trim($_GET['q']) : '';
+
+$where = "WHERE 1=1";
+if ($f_class_id !== '') { $where .= " AND gm.class_id = ".$f_class_id; }
+if ($f_group !== '') { $where .= " AND gm.group_name = '".$conn->real_escape_string($f_group)."'"; }
+if ($f_type !== '') { $where .= " AND gm.type = '".$conn->real_escape_string($f_type)."'"; }
+if ($f_status !== '') { $where .= " AND s.status = '".$conn->real_escape_string($f_status)."'"; }
+if ($q !== '') {
+    $qEsc = $conn->real_escape_string($q);
+    $where .= " AND (s.subject_name LIKE '%$qEsc%' OR s.subject_code LIKE '%$qEsc%')";
+}
+
+// Pagination
+$perPage = 20;
+$page = isset($_GET['page']) && ctype_digit($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$offset = ($page - 1) * $perPage;
+
+// Count
+$countSql = "SELECT COUNT(*) AS cnt
 FROM subjects s
 JOIN subject_group_map gm ON s.id = gm.subject_id
 JOIN classes c ON gm.class_id = c.id
-ORDER BY s.id DESC");
+$where";
+$countRes = $conn->query($countSql);
+$totalRows = 0; if ($countRes) { $rowCnt = $countRes->fetch_assoc(); $totalRows = (int)$rowCnt['cnt']; }
+$totalPages = ($perPage > 0) ? (int)ceil($totalRows / $perPage) : 1;
+
+// Main list
+$subjectsSql = <<<SQL
+SELECT 
+    s.*, 
+    c.class_name, 
+    gm.type,
+    gm.group_name,
+    (
+        SELECT CONCAT('[', GROUP_CONCAT(
+            CONCAT('{"class_id":', gm2.class_id,
+                   ',"group_name":"', COALESCE(gm2.group_name,''), '"',
+                   ',"type":"', COALESCE(gm2.type,''), '"',
+                   '}'
+            )
+        ), ']')
+        FROM subject_group_map gm2 
+        WHERE gm2.subject_id = s.id
+    ) AS group_mappings
+FROM subjects s
+JOIN subject_group_map gm ON s.id = gm.subject_id
+JOIN classes c ON gm.class_id = c.id
+$where
+ORDER BY s.id DESC
+LIMIT $perPage OFFSET $offset
+SQL;
+$subjects = $conn->query($subjectsSql);
 ?>
 <!DOCTYPE html>
 <html>
@@ -190,12 +276,63 @@ ORDER BY s.id DESC");
             </div>
         </form>
 
+        <!-- Filters (table-filter) -->
+        <form method="GET" action="" class="card p-3 mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">শ্রেণি</label>
+                    <?php $classesFilter = $conn->query("SELECT id, class_name FROM classes ORDER BY id ASC"); ?>
+                    <select name="f_class_id" class="form-select">
+                        <option value="">সব</option>
+                        <?php while($cl = $classesFilter->fetch_assoc()): ?>
+                            <option value="<?= (int)$cl['id'] ?>" <?= ($f_class_id!=='' && (int)$f_class_id===(int)$cl['id'])?'selected':'' ?>><?= htmlspecialchars($cl['class_name']) ?></option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">গ্রুপ</label>
+                    <select name="f_group" class="form-select">
+                        <option value="">সব</option>
+                        <option value="none" <?= ($f_group==='none'?'selected':'') ?>>গ্রুপ নেই</option>
+                        <option value="Science" <?= ($f_group==='Science'?'selected':'') ?>>বিজ্ঞান</option>
+                        <option value="Humanities" <?= ($f_group==='Humanities'?'selected':'') ?>>মানবিক</option>
+                        <option value="Business Studies" <?= ($f_group==='Business Studies'?'selected':'') ?>>ব্যবসায়</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">ধরণ</label>
+                    <select name="f_type" class="form-select">
+                        <option value="">সব</option>
+                        <option value="Compulsory" <?= ($f_type==='Compulsory'?'selected':'') ?>>Compulsory</option>
+                        <option value="Optional" <?= ($f_type==='Optional'?'selected':'') ?>>Optional</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">স্ট্যাটাস</label>
+                    <select name="f_status" class="form-select">
+                        <option value="">সব</option>
+                        <option value="Active" <?= ($f_status==='Active'?'selected':'') ?>>Active</option>
+                        <option value="Inactive" <?= ($f_status==='Inactive'?'selected':'') ?>>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">সার্চ (নাম/কোড)</label>
+                    <input type="text" name="q" value="<?= htmlspecialchars($q) ?>" class="form-control" placeholder="উদাহরণ: বাংলা বা 101">
+                </div>
+            </div>
+            <div class="mt-2 text-end">
+                <button type="submit" class="btn btn-primary">ফিল্টার</button>
+                <a href="manage_subjects.php" class="btn btn-secondary">রিসেট</a>
+            </div>
+        </form>
+
         <table class="table table-bordered">
             <thead>
             <tr>
                 <th>#</th>
                 <th>শ্রেণি</th>
                 <th>বিষয়</th>
+                <th>গ্রুপ</th>
                 <th>কোড</th>
                 <th>ধরণ</th>
                 <th>পূর্ণমান</th>
@@ -214,13 +351,29 @@ ORDER BY s.id DESC");
                     <td><?= $i++ ?></td>
                     <td><?= $row['class_name'] ?></td>
                     <td><?= $row['subject_name'] ?></td>
+                    <td><?php 
+                        $g = isset($row['group_name']) ? $row['group_name'] : '';
+                        $gLabel = ($g === null || $g === '' || strtolower($g) === 'none') ? 'গ্রুপ নেই' : $g;
+                        echo htmlspecialchars($gLabel);
+                    ?></td>
                     <td><?= $row['subject_code'] ?></td>
                     <td><?= $row['type'] ?></td>
                     <td><?= $row['default_marks'] ?></td>
                     <td><?= $row['has_creative'] ? '✔' : '✘' ?></td>
                     <td><?= $row['has_objective'] ? '✔' : '✘' ?></td>
                     <td><?= $row['has_practical'] ? '✔' : '✘' ?></td>
-                    <td><?= $row['pass_type'] ?></td>
+                    <td>
+                        <?php
+                        // Show meaningful default even if column was missing prior to migration
+                        if (!$hasPassType || !array_key_exists('pass_type', $row)) {
+                            echo 'মোট নাম্বার';
+                        } else {
+                            $pt = $row['pass_type'];
+                            if ($pt === null || $pt === '') { $pt = 'total'; }
+                            echo ($pt === 'individual') ? 'আলাদা আলাদা' : 'মোট নাম্বার';
+                        }
+                        ?>
+                    </td>
                     <td><?= $row['status'] ?></td>
                     <td> <button class="btn btn-sm btn-info" onclick='editSubject(<?= json_encode($row) ?>)'>Edit</button>
                         <a href="?delete=<?= $row['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</a>
@@ -229,6 +382,38 @@ ORDER BY s.id DESC");
             <?php endwhile; ?>
             </tbody>
         </table>
+        <!-- Pagination -->
+        <?php if ($totalPages > 1): ?>
+        <nav>
+            <ul class="pagination">
+                <?php
+                // Build base query string without page
+                $params = $_GET; unset($params['page']);
+                $base = 'manage_subjects.php';
+                $qs = http_build_query($params);
+                function pageLink($p, $base, $qs){
+                    $sep = ($qs!=='') ? '&' : '';
+                    return $base.'?'.($qs).$sep.'page='.$p;
+                }
+                $prevDisabled = ($page<=1)?' disabled':'';
+                $nextDisabled = ($page>=$totalPages)?' disabled':'';
+                ?>
+                <li class="page-item<?= $prevDisabled ?>">
+                    <a class="page-link" href="<?= ($page>1)?pageLink($page-1,$base,$qs):'#' ?>">Prev</a>
+                </li>
+                <?php
+                $start = max(1, $page-2); $end = min($totalPages, $page+2);
+                for($p=$start;$p<=$end;$p++):
+                    $active = ($p===$page)?' active':'';
+                ?>
+                <li class="page-item<?= $active ?>"><a class="page-link" href="<?= pageLink($p,$base,$qs) ?>"><?= $p ?></a></li>
+                <?php endfor; ?>
+                <li class="page-item<?= $nextDisabled ?>">
+                    <a class="page-link" href="<?= ($page<$totalPages)?pageLink($page+1,$base,$qs):'#' ?>">Next</a>
+                </li>
+            </ul>
+        </nav>
+        <?php endif; ?>
     </div>
 </div>
 </body>
@@ -243,7 +428,7 @@ function editSubject(subject) {
     document.getElementById('has_creative').value = subject.has_creative ? 1 : 0;
     document.getElementById('has_objective').value = subject.has_objective ? 1 : 0;
     document.getElementById('has_practical').value = subject.has_practical ? 1 : 0;
-    document.getElementById('pass_type').value = subject.pass_type;
+    document.getElementById('pass_type').value = subject.pass_type || 'total';
     document.getElementById('status').value = subject.status;
 
     // Clear previous selections
