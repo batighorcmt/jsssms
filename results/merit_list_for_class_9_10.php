@@ -267,6 +267,15 @@ function subjectGPA($marks, $full_marks) {
 th, td { vertical-align: middle !important; font-size: 13px; }
 @media print { .no-print { display:none; } }
 </style>
+th, td { vertical-align: middle !important; font-size: 18px; }
+table { width: 100% !important; }
+body, .container, h4, h5, p { font-size: 20px !important; }
+@media print {
+    th, td { font-size: 22px !important; }
+    body, .container, h4, h5, p { font-size: 24px !important; }
+    table { width: 100vw !important; max-width: 100vw !important; }
+    html, body { width: 100vw !important; margin: 0; padding: 0; }
+}
 </head>
 <body>
 <div class="container my-4">
