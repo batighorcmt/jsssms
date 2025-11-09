@@ -264,27 +264,28 @@ function subjectGPA($marks, $full_marks) {
 <title>Merit List</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
-th, td { vertical-align: middle !important; font-size: 18px; }
-table { width: 100% !important; border-collapse: collapse; }
-body, .container, h4, h5, p { font-size: 20px !important; }
+th, td { vertical-align: middle !important; font-size: 13px; padding: 2px; }
 @media print {
-    .no-print { display:none; }
-    th, td { font-size: 22px !important; }
-    body, .container, h4, h5, p { font-size: 24px !important; }
-    table { width: 100vw !important; max-width: 100vw !important; }
-    html, body {
-        width: 100vw !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        box-sizing: border-box !important;
-    }
+    .no-print { display: none; }
+    table { font-size: 11px; padding: 2px; }
 }
-@media print {
-    @page {
-        margin: 0 !important;
-        size: A4 landscape;
-    }
+table { width: 100%; border-collapse: collapse; }
+.text-center { text-align: center; }
+.table-bordered th, .table-bordered td { border: 1px solid #dee2e6; }
+.table-primary { background-color: #cfe2ff; }
+.badge-pass, .badge-fail {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 14px;
+    color: #fff;
+    font-weight: bold;
 }
+.badge-pass { background-color: #28a745; }
+.badge-fail { background-color: #dc3545; }
 </style>
 </head>
 <body>
