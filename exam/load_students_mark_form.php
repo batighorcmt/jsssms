@@ -61,18 +61,18 @@ while ($row = $resultMarks->fetch_assoc()) {
 <div class="card mt-4 shadow">
     <div class="card-header bg-primary text-white">
         <strong><?= htmlspecialchars($subject_name) ?></strong> 
-        (সৃজনশীল: <?= $creativeMax ?> / নৈর্ব্যক্তিক: <?= $objectiveMax ?> / ব্যবহারিক: <?= $practicalMax ?>)
+        (CQ: <?= $creativeMax ?> / MCQ: <?= $objectiveMax ?> / PR: <?= $practicalMax ?>)
     </div>
     <div class="card-body p-0">
         <form id="marksEntryForm">
             <table class="table table-bordered table-striped table-hover mb-0">
                 <thead class="thead-light text-center">
                     <tr>
-                        <th>রোল নং</th>
-                        <th>নাম</th>
-                        <?php if ($creativeMax > 0): ?><th>সৃজনশীল</th><?php endif; ?>
-                        <?php if ($objectiveMax > 0): ?><th>নৈর্ব্যক্তিক</th><?php endif; ?>
-                        <?php if ($practicalMax > 0): ?><th>ব্যবহারিক</th><?php endif; ?>
+                        <th>Roll</th>
+                        <th>Name</th>
+                        <?php if ($creativeMax > 0): ?><th>CQ</th><?php endif; ?>
+                        <?php if ($objectiveMax > 0): ?><th>MCQ</th><?php endif; ?>
+                        <?php if ($practicalMax > 0): ?><th>PR</th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
