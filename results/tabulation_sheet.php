@@ -1,4 +1,5 @@
 <?php
+@include_once __DIR__ . '/../config/config.php';
 include '../config/db.php';
 
 $exam_id = $_GET['exam_id'] ?? '';
@@ -10,20 +11,14 @@ if (!$exam_id || !$class_id || !$year) {
     exit;
 }
 
-// প্রতিষ্ঠানের তথ্য
-$institute_name = "Jorepukuria Secondary School";
-$institute_address = "Gangni, Meherpur";
-
-// লোগো লোকেশন নির্ধারণ (uploads/logo থেকে সর্বশেষ ইমেজ নেয়ার চেষ্টা)
-$logo_src = '../uploads/logo/1757281102_jss_logo.png';
-if (!file_exists(__DIR__ . '/../uploads/logo/1757281102_jss_logo.png')) {
-    $logo_src = '';
-    $pattern = __DIR__ . '/../uploads/logo/*.{png,jpg,jpeg,gif}';
-    $candidates = glob($pattern, GLOB_BRACE);
-    if ($candidates && count($candidates) > 0) {
-        usort($candidates, function($a,$b){ return @filemtime($b) <=> @filemtime($a); });
-        $logo_src = '../uploads/logo/' . basename($candidates[0]);
-    }
+// প্রতিষ্ঠানের তথ্য (config.php থেকে)
+$institute_name = isset($institute_name) ? $institute_name : 'Institution Name';
+$institute_address = isset($institute_address) ? $institute_address : '';
+$institute_phone = isset($institute_phone) ? $institute_phone : '';
+$institute_logo = isset($institute_logo) ? $institute_logo : '';
+$logo_src = '';
+if ($institute_logo !== '') {
+    $logo_src = preg_match('~^https?://~', $institute_logo) ? $institute_logo : (BASE_URL . ltrim($institute_logo,'/'));
 }
 
 // পরীক্ষার নাম
@@ -463,13 +458,15 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
                 print-color-adjust: exact !important;
             }
             body { color: #000 !important; }
-            .no-print { display: none; }
+            .no-print { display: none !important; }
             table { font-size: 12.5px; border-spacing: 0px; padding: 2px; }
             .table-bordered th, .table-bordered td { border-color: #000 !important; }
             .table-primary { background-color: #bcdcff !important; }
             .fail-mark { color: #d10000 !important; font-weight: 700; }
             /* Disable sticky in print to avoid artifacts */
             #tabulationTable thead th { position: static !important; top: auto !important; }
+            /* Remove any residual grey backgrounds from wrappers */
+            .container, .header-brand, .brand-text { background: #fff !important; }
         }
         .fail-mark { color: red; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; }
@@ -511,18 +508,54 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
 <body>
 <div class="container my-4">
     <div class="mb-3">
-        <div class="header-brand">
+        <div class="header-brand no-print">
             <?php if (!empty($logo_src)): ?>
                 <img src="<?= htmlspecialchars($logo_src) ?>" alt="Logo" class="logo" onerror="this.style.display='none'">
             <?php endif; ?>
             <div class="brand-text text-center">
-                <h3><?= $institute_name ?></h3>
-                <p><?= $institute_address ?></p>
-                <h5><?= $exam ?> - <?= $class ?> (<?= $year ?>)</h5>
+                <h3><?= htmlspecialchars($institute_name) ?></h3>
+                <p><?= htmlspecialchars($institute_address) ?></p>
+                <h5>Tabulation Sheet — <?= htmlspecialchars($exam) ?> | Class: <?= htmlspecialchars($class) ?> | Year: <?= htmlspecialchars($year) ?></h5>
             </div>
         </div>
         <button id="btnPrint" class="btn btn-primary no-print btn-print-floating">প্রিন্ট করুন</button>
     </div>
+</div>
+<!-- Print Header (only on print) -->
+<div class="print-header d-print-block" style="display:none; margin:0 12px 6px 12px;">
+    <?php
+        $name = $institute_name ?: 'Institution Name';
+        $addr = $institute_address ?: '';
+        $phone = $institute_phone ?: '';
+        $phLogo = $logo_src;
+    ?>
+    <div class="ph-grid">
+        <div class="ph-left">
+            <?php if (!empty($phLogo)): ?>
+            <img src="<?= htmlspecialchars($phLogo) ?>" alt="Logo" onerror="this.style.display='none'">
+            <?php endif; ?>
+        </div>
+        <div class="ph-center">
+            <div class="ph-name"><?= htmlspecialchars($name) ?></div>
+            <div class="ph-meta">
+                <?= htmlspecialchars($addr) ?>
+            </div>
+            <div class="ph-title">Tabulation Sheet</div>
+            <div class="ph-sub">Exam: <?= htmlspecialchars($exam) ?> | Class: <?= htmlspecialchars($class) ?> | Year: <?= htmlspecialchars($year) ?> | Printed: <?= date('d/m/Y') ?></div>
+        </div>
+        <div class="ph-right"></div>
+    </div>
+    <hr style="margin:4px 0;" />
+    <style>
+        @media print { .print-header{display:block !important;} }
+        .ph-grid{ display:grid; grid-template-columns:auto 1fr auto; align-items:center; }
+        .ph-left img{ height:60px; object-fit:contain; display:block; }
+        .ph-center{ text-align:center; }
+    .ph-name{ font-size:26px; font-weight:800; line-height:1.1; margin:0; }
+    .ph-meta{ font-size:12px; margin:3px 0 0 0; line-height:1.2; }
+    .ph-title{ font-size:17px; font-weight:700; margin:6px 0 0 0; display:inline-block; padding:2px 8px; border-radius:4px; background:#eef3ff; border:1px solid #cdd9ff; }
+    .ph-sub{ font-size:13px; margin:4px 0 0 0; line-height:1.25; }
+    </style>
 </div>
 <div class="align-middle">
     <table id="tabulationTable" class="table table-bordered text-center align-middle original">
@@ -878,7 +911,25 @@ foreach ($ranked_students as $i => $stu) {
     @page { size: landscape; margin: 10mm; }
     .original { display: none !important; }
     .print-split { display: block !important; }
+    /* Branding footer small and right aligned */
+    .print-brand { margin:8px 12px 0 12px; font-size:11px; text-align:right; color:#333; }
 }
 </style>
+<!-- Print-only branding footer -->
+<?php
+    $devName = isset($developer_name) ? $developer_name : '';
+    $devPhone = isset($developer_phone) ? $developer_phone : '';
+    $coName  = isset($company_name) ? $company_name : '';
+    $coWeb   = isset($company_website) ? $company_website : '';
+?>
+<div class="print-brand d-none d-print-block">
+    <div class="brand-line">
+        <?php if ($coName): ?><strong><?= htmlspecialchars($coName) ?></strong><?php endif; ?>
+        <?php if ($coName && ($devName || $devPhone || $coWeb)) echo ' — '; ?>
+        <?php if ($devName): ?>Developer: <?= htmlspecialchars($devName) ?><?php endif; ?>
+        <?php if ($devPhone): ?> | Phone: <?= htmlspecialchars($devPhone) ?><?php endif; ?>
+        <?php if ($coWeb): ?> | Website: <?= htmlspecialchars($coWeb) ?><?php endif; ?>
+    </div>
+</div>
 </body>
 </html>

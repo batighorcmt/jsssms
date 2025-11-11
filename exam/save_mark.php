@@ -22,15 +22,23 @@ $field = $_POST['field'];
 $value = $_POST['value'];
 
 if ($role === 'teacher') {
-    $assigned_teacher_id = null;
-    if ($st = $conn->prepare("SELECT teacher_id FROM exam_subjects WHERE exam_id=? AND subject_id=? LIMIT 1")) {
+    $assigned_teacher_id = null; $deadline = null;
+    if ($st = $conn->prepare("SELECT teacher_id, mark_entry_deadline FROM exam_subjects WHERE exam_id=? AND subject_id=? LIMIT 1")) {
         $st->bind_param('ii', $exam_id, $subject_id);
-        $st->execute(); $st->bind_result($assigned_teacher_id); $st->fetch(); $st->close();
+        $st->execute(); $st->bind_result($assigned_teacher_id, $deadline); $st->fetch(); $st->close();
     }
     if (empty($teacher_id) || empty($assigned_teacher_id) || intval($teacher_id) !== intval($assigned_teacher_id)) {
         http_response_code(403);
-        echo json_encode(['status'=>'error','message'=>'এই বিষয়ের নম্বর প্রদান করার অনুমতি নেই']);
+        echo json_encode(['status'=>'error','message'=>'You are not authorized to enter marks for this subject']);
         exit;
+    }
+    if ($deadline) {
+        $today = date('Y-m-d');
+        if ($today > $deadline) {
+            http_response_code(403);
+            echo json_encode(['status'=>'error','message'=>'Your mark entry deadline has passed. Contact Admin.']);
+            exit;
+        }
     }
 }
 

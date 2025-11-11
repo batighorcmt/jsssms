@@ -18,6 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ? (int)$_POST['subjects_without_fourth'] : null;
 
     if ($exam_id > 0) {
+        // Helper to normalize dd/mm/yyyy -> YYYY-MM-DD
+        function _normalize_dmy($d) {
+            if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $d, $m)) {
+                return $m[3] . '-' . $m[2] . '-' . $m[1];
+            }
+            return $d; // assume already YYYY-MM-DD or empty
+        }
         // Ensure column exists for total_subjects_without_fourth
         $colExists = false;
         if ($res = $conn->query("SHOW COLUMNS FROM exams LIKE 'total_subjects_without_fourth'")) {
@@ -56,6 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$esTeacherColumn) {
             @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
         }
+        // Ensure mark entry deadline column exists
+        if ($res = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'")) {
+            if ($res->num_rows === 0) {
+                @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN mark_entry_deadline DATE NULL AFTER exam_time");
+            }
+        }
 
         // Update each exam_subject row
         $ids = $_POST['exam_subject_id'] ?? [];
@@ -65,14 +78,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $creative_marks = $_POST['creative_marks'] ?? [];
         $objective_marks = $_POST['objective_marks'] ?? [];
         $practical_marks = $_POST['practical_marks'] ?? [];
-        $creative_pass = $_POST['creative_pass'] ?? [];
+    $creative_pass = $_POST['creative_pass'] ?? [];
         $objective_pass = $_POST['objective_pass'] ?? [];
         $practical_pass = $_POST['practical_pass'] ?? [];
+    $mark_entry_deadline = $_POST['mark_entry_deadline'] ?? [];
     $pass_types = $_POST['pass_type'] ?? [];
     $teacher_ids = $_POST['teacher_id'] ?? [];
 
         $rowCount = min(
-            count($ids), count($subject_ids), count($exam_dates), count($exam_times),
+            count($ids), count($subject_ids), count($exam_dates), count($exam_times), count($mark_entry_deadline),
             count($creative_marks), count($objective_marks), count($practical_marks),
             count($creative_pass), count($objective_pass), count($practical_pass)
         );
@@ -80,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $upd = $conn->prepare("UPDATE exam_subjects 
             SET subject_id = ?,
                 teacher_id = ?,
-                exam_date = ?, exam_time = ?,
+                exam_date = ?, exam_time = ?, mark_entry_deadline = ?,
                 creative_marks = ?, objective_marks = ?, practical_marks = ?,
                 creative_pass = ?, objective_pass = ?, practical_pass = ?,
                 pass_type = ?,
@@ -98,9 +112,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pp = (int)$practical_pass[$i];
             $ed = $exam_dates[$i];
             $et = $exam_times[$i];
+            $dlRaw = $mark_entry_deadline[$i] ?? '';
+            $dl = _normalize_dmy($dlRaw);
             $pt = isset($pass_types[$i]) && $pass_types[$i] !== '' ? $pass_types[$i] : 'total';
             $tid = isset($teacher_ids[$i]) && $teacher_ids[$i] !== '' ? (int)$teacher_ids[$i] : null;
-            $typestr = 'iiss' . str_repeat('i', 6) . 's' . str_repeat('i', 5); // 16 params: subject, teacher, dates, marks/pass, pt, totals, ids
+            $typestr = 'iisss' . str_repeat('i', 6) . 's' . str_repeat('i', 5); // added deadline as string
             // Use NULL for teacher when not selected
             if (is_null($tid)) {
                 // mysqli doesn't support binding NULL for integer directly in this pattern; set to null via SQL by conditional
@@ -108,11 +124,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Instead, reuse prepared statement and pass 0; separately run a fix to set teacher_id=NULL when 0.
                 $tid = 0;
             }
-            $upd->bind_param($typestr, $sid, $tid, $ed, $et, $c, $o, $p, $cp, $op, $pp, $pt, $c, $o, $p, $id, $exam_id);
+            $upd->bind_param($typestr, $sid, $tid, $ed, $et, $dl, $c, $o, $p, $cp, $op, $pp, $pt, $c, $o, $p, $id, $exam_id);
             $upd->execute();
             // If teacher was left blank, set teacher_id NULL for this row
             if (isset($teacher_ids[$i]) && $teacher_ids[$i] === '') {
                 $conn->query("UPDATE exam_subjects SET teacher_id = NULL WHERE id = ".(int)$id." AND exam_id = ".(int)$exam_id);
+            }
+            // If deadline blank, set NULL
+            if (!isset($mark_entry_deadline[$i]) || $mark_entry_deadline[$i] === '') {
+                $conn->query("UPDATE exam_subjects SET mark_entry_deadline = NULL WHERE id = ".(int)$id." AND exam_id = ".(int)$exam_id);
             }
         }
         $_SESSION['success'] = 'পরীক্ষার তথ্য সফলভাবে আপডেট হয়েছে';
@@ -147,6 +167,24 @@ if ($chk2 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) {
 if (!$esTeacherColumn) {
     @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
 }
+// Ensure mark_entry_deadline and pass columns exist for GET path as well (before SELECT below)
+$deadlineCol = false;
+if ($chk3 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'")) {
+    $deadlineCol = ($chk3->num_rows > 0);
+}
+if (!$deadlineCol) {
+    @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN mark_entry_deadline DATE NULL AFTER exam_time");
+}
+// Ensure pass mark columns to avoid SELECT failures on older schemas
+if ($chk4 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'creative_pass'")) {
+    if ($chk4->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN creative_pass INT NOT NULL DEFAULT 0 AFTER creative_marks"); }
+}
+if ($chk5 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'objective_pass'")) {
+    if ($chk5->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN objective_pass INT NOT NULL DEFAULT 0 AFTER objective_marks"); }
+}
+if ($chk6 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'practical_pass'")) {
+    if ($chk6->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN practical_pass INT NOT NULL DEFAULT 0 AFTER practical_marks"); }
+}
 
 // Load subjects for this exam
 $subPassTypeSelect = "NULL AS subject_pass_type";
@@ -155,6 +193,7 @@ if ($chkPT && $chkPT->num_rows > 0) { $subPassTypeSelect = "s.pass_type AS subje
 $sql = "SELECT es.id AS exam_subject_id, es.subject_id, es.teacher_id, s.subject_name, s.subject_code, es.exam_date, es.exam_time, 
          es.creative_marks, es.objective_marks, es.practical_marks,
          es.creative_pass, es.objective_pass, es.practical_pass,
+         es.mark_entry_deadline,
          es.pass_type,
          s.has_creative, s.has_objective, s.has_practical,
          $subPassTypeSelect
@@ -258,6 +297,7 @@ while ($srow = $subRes->fetch_assoc()) {
                     <th>বিষয়</th>
                     <th>তারিখ</th>
                     <th>সময়</th>
+                    <th>ডেডলাইন (dd/mm/yyyy)</th>
                     <th>সৃজনশীল</th>
                     <th>নৈর্ব্যক্তিক</th>
                     <th>ব্যবহারিক</th>
@@ -298,6 +338,13 @@ while ($srow = $subRes->fetch_assoc()) {
                     </td>
                     <td><input type="text" name="exam_date[]" class="form-control date-input" placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($r['exam_date']) ?>"></td>
                     <td><input type="time" name="exam_time[]" class="form-control" value="<?= htmlspecialchars($r['exam_time']) ?>"></td>
+                    <?php
+                        $deadlineOut = '';
+                        if (!empty($r['mark_entry_deadline']) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $r['mark_entry_deadline'], $dm)) {
+                            $deadlineOut = $dm[3] . '/' . $dm[2] . '/' . $dm[1];
+                        }
+                    ?>
+                    <td><input type="text" name="mark_entry_deadline[]" class="form-control date-input" placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($deadlineOut) ?>"></td>
                     <td>
                         <input type="number" name="creative_marks[]" class="form-control cm" min="0" value="<?= (int)$r['creative_marks'] ?>" <?= $hasC ? '' : 'disabled' ?> required>
                         <?= $hasC ? '' : '<input type="hidden" name="creative_marks[]" value="0">' ?>

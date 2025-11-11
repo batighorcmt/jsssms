@@ -31,10 +31,11 @@ if ($role === 'teacher') {
 }
 
 // ✅ Subject Details
-$sql = "SELECT s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
-        FROM exam_subjects es 
-        JOIN subjects s ON es.subject_id = s.id
-        WHERE es.exam_id = ? AND es.subject_id = ?";
+$sql = "SELECT s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks, es.mark_entry_deadline, es.pass_type,
+    es.creative_pass, es.objective_pass, es.practical_pass, es.total_pass
+    FROM exam_subjects es 
+    JOIN subjects s ON es.subject_id = s.id
+    WHERE es.exam_id = ? AND es.subject_id = ?";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $exam_id, $subject_id);
@@ -50,6 +51,21 @@ $subject_name = $subject['subject_name'];
 $creativeMax = $subject['creative_marks'];
 $objectiveMax = $subject['objective_marks'];
 $practicalMax = $subject['practical_marks'];
+$deadline = $subject['mark_entry_deadline'];
+$passType = $subject['pass_type'] ?? 'total';
+$cPass = (int)($subject['creative_pass'] ?? 0);
+$oPass = (int)($subject['objective_pass'] ?? 0);
+$pPass = (int)($subject['practical_pass'] ?? 0);
+$tPass = (int)($subject['total_pass'] ?? 0);
+
+// Deadline enforcement for teachers only
+if ($role === 'teacher' && $deadline) {
+    $today = date('Y-m-d');
+    if ($today > $deadline) {
+        echo '<div class="alert alert-danger"><strong>Your mark entry deadline has passed.</strong> Please contact the Head Teacher/Admin.</div>';
+        exit;
+    }
+}
 
 // ✅ Students List (who selected this subject)
 $sql2 = "SELECT s.id, s.student_name, s.father_name, s.roll_no, s.student_id 
@@ -83,8 +99,11 @@ while ($row = $resultMarks->fetch_assoc()) {
 <!-- ✅ Display Form -->
 <div class="card mt-4 shadow">
     <div class="card-header bg-primary text-white">
-        <strong><?= htmlspecialchars($subject_name) ?></strong> 
+        <strong><?= htmlspecialchars($subject_name) ?></strong>
         (CQ: <?= $creativeMax ?> / MCQ: <?= $objectiveMax ?> / PR: <?= $practicalMax ?>)
+        <?php if ($deadline): ?>
+          <span class="badge badge-warning ml-2">Deadline: <?= htmlspecialchars(date('d M Y', strtotime($deadline))) ?></span>
+        <?php endif; ?>
     </div>
     <div class="card-body p-0">
         <form id="marksEntryForm">
@@ -93,9 +112,9 @@ while ($row = $resultMarks->fetch_assoc()) {
                     <tr>
                         <th>Roll</th>
                         <th>Name</th>
-                        <?php if ($creativeMax > 0): ?><th> C.Q. </th><?php endif; ?>
-                        <?php if ($objectiveMax > 0): ?><th>MCQ</th><?php endif; ?>
-                        <?php if ($practicalMax > 0): ?><th>PRA</th><?php endif; ?>
+                        <?php if ($creativeMax > 0): ?><th>CQ<?= ($passType==='individual' && $cPass>0)?'<br><small>Pass: '.$cPass.'</small>':'' ?></th><?php endif; ?>
+                        <?php if ($objectiveMax > 0): ?><th>MCQ<?= ($passType==='individual' && $oPass>0)?'<br><small>Pass: '.$oPass.'</small>':'' ?></th><?php endif; ?>
+                        <?php if ($practicalMax > 0): ?><th>Practical<?= ($passType==='individual' && $pPass>0)?'<br><small>Pass: '.$pPass.'</small>':'' ?></th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>

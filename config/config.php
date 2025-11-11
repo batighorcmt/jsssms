@@ -5,6 +5,21 @@
 // define('BASE_URL', 'https://your-domain.com/');
 
 // Environment-aware mapping so you don't need to edit during deploy
+
+// Provide institute details
+$institute_name='Jorepukuria Secondary School';
+$institute_address='Gangni, Meherpur';
+$institute_phone='01713913076';
+$institute_logo='/assets/logo.png';
+
+//Provide Developer Info
+$developer_name='Md. Abdul Halim';
+$developer_phone='01762396713';
+$company_name='Batighor Computers';
+$company_website='https://batighorbd.com';
+
+
+// Auto-detect BASE_URL if not defined
 if (!defined('BASE_URL')) {
     $host = $_SERVER['HTTP_HOST'] ?? '';
     if ($host) {
