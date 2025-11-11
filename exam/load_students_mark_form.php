@@ -68,28 +68,24 @@ while ($row = $resultMarks->fetch_assoc()) {
             <table class="table table-bordered table-striped table-hover mb-0">
                 <thead class="thead-light text-center">
                     <tr>
-                        <th>ক্রমিক</th>
-                        <th>আইডি নং</th>
                         <th>রোল নং</th>
                         <th>নাম</th>
-                        <th>সৃজনশীল</th>
-                        <th>নৈর্ব্যক্তিক</th>
-                        <th>ব্যবহারিক</th>
+                        <?php if ($creativeMax > 0): ?><th>সৃজনশীল</th><?php endif; ?>
+                        <?php if ($objectiveMax > 0): ?><th>নৈর্ব্যক্তিক</th><?php endif; ?>
+                        <?php if ($practicalMax > 0): ?><th>ব্যবহারিক</th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php $i = 1; while ($student = $students->fetch_assoc()): 
+                    <?php while ($student = $students->fetch_assoc()): 
                         $sid = $student['student_id'];
                         $creative = $marks[$sid]['creative_marks'] ?? 0;
                         $objective = $marks[$sid]['objective_marks'] ?? 0;
                         $practical = $marks[$sid]['practical_marks'] ?? 0;
                     ?>
                     <tr>
-                        <td class="text-center"><?= $i++ ?></td>
-                        <td class="text-center"><?= $sid ?></td>
                         <td class="text-center"><?= htmlspecialchars($student['roll_no']) ?></td>
                         <td><?= htmlspecialchars($student['student_name']) ?></td>
-
+                        <?php if ($creativeMax > 0): ?>
                         <td><input type="number" min="0" max="<?= $creativeMax ?>" step="0.01"
                                    class="form-control form-control-sm text-center"
                                    data-student-id="<?= $sid ?>" 
@@ -98,6 +94,8 @@ while ($row = $resultMarks->fetch_assoc()) {
                                    value="<?= $creative ?>"
                                    onblur="saveMark(this)">
                         </td>
+                        <?php endif; ?>
+                        <?php if ($objectiveMax > 0): ?>
                         <td><input type="number" min="0" max="<?= $objectiveMax ?>" step="0.01"
                                    class="form-control form-control-sm text-center"
                                    data-student-id="<?= $sid ?>" 
@@ -106,6 +104,8 @@ while ($row = $resultMarks->fetch_assoc()) {
                                    value="<?= $objective ?>"
                                    onblur="saveMark(this)">
                         </td>
+                        <?php endif; ?>
+                        <?php if ($practicalMax > 0): ?>
                         <td><input type="number" min="0" max="<?= $practicalMax ?>" step="0.01"
                                    class="form-control form-control-sm text-center"
                                    data-student-id="<?= $sid ?>" 
@@ -114,6 +114,7 @@ while ($row = $resultMarks->fetch_assoc()) {
                                    value="<?= $practical ?>"
                                    onblur="saveMark(this)">
                         </td>
+                        <?php endif; ?>
                     </tr>
                     <?php endwhile; ?>
                 </tbody>
