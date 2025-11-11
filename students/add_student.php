@@ -1,5 +1,6 @@
 <?php
 $ALLOWED_ROLES = ['super_admin'];
+@include_once __DIR__ . '/../config/config.php';
 include '../auth/session.php';
 include '../config/db.php';
 ?>
@@ -17,8 +18,8 @@ include '../config/db.php';
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
-                        <li class="breadcrumb-item"><a href="/jsssms/students/manage_students.php">Students</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>students/manage_students.php">Students</a></li>
                         <li class="breadcrumb-item active">Add</li>
                     </ol>
                 </div>

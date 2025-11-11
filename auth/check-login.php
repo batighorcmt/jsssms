@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 session_start();
 include "../config/db.php"; // ডাটাবেজ কানেকশন ফাইল
+@include_once __DIR__ . '/../config/config.php'; // BASE_URL
 
 function test_input($data) {
     return htmlspecialchars(stripslashes(trim($data)));
@@ -38,7 +39,9 @@ if ($stmt->num_rows === 1) {
         $_SESSION['name'] = $name;
         $_SESSION['role'] = $db_role;
 
-        header("Location: ../dashboard.php");
+        // Role-based redirection
+        if ($db_role === 'teacher') header("Location: " . BASE_URL . "dashboard_teacher.php");
+        else header("Location: " . BASE_URL . "dashboard.php");
         exit();
     } else {
         header("Location: ../auth/login.php?error=পাসওয়ার্ড সঠিক নয়");
@@ -50,6 +53,8 @@ if ($stmt->num_rows === 1) {
 }
 
 } else {
-    header("Location: ../dashboard.php");
+    // Default landing: decide based on existing session role if any
+    if (isset($_SESSION['role']) && $_SESSION['role'] === 'teacher') header("Location: " . BASE_URL . "dashboard_teacher.php");
+    else header("Location: " . BASE_URL . "dashboard.php");
     exit();
 }

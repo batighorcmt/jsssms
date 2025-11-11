@@ -1,7 +1,8 @@
 <?php
 session_start();
+@include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
+    header("Location: " . BASE_URL . "auth/login.php");
     exit();
 }
 
@@ -37,8 +38,8 @@ if (!$exam_info) {
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
-                        <li class="breadcrumb-item"><a href="manage_exams.php">Manage Exams</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>settings/manage_exams.php">Manage Exams</a></li>
                         <li class="breadcrumb-item active">Details</li>
                     </ol>
                 </div>
@@ -49,8 +50,8 @@ if (!$exam_info) {
     <section class="content">
         <div class="container-fluid">
             <div class="mb-3">
-                <a href="manage_exams.php" class="btn btn-secondary btn-sm">← Manage Exams</a>
-                <a href="create_exam.php" class="btn btn-primary btn-sm">+ Create New Exam</a>
+                <a href="<?= BASE_URL ?>settings/manage_exams.php" class="btn btn-secondary btn-sm">← Manage Exams</a>
+                <a href="<?= BASE_URL ?>settings/create_exam.php" class="btn btn-primary btn-sm">+ Create New Exam</a>
             </div>
 
             <table class="table table-bordered table-hover">

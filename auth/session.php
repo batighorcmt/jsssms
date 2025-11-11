@@ -4,10 +4,16 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+@include_once __DIR__ . '/../config/config.php';
 
 // চেক করো ইউজার লগইন করা কি না
 if (!isset($_SESSION['username']) || !isset($_SESSION['role'])) {
-    header("Location: /jsssms/auth/login.php");
+    // Avoid header already sent: only redirect if no output has started
+    if (!headers_sent()) {
+        header("Location: " . BASE_URL . "auth/login.php");
+    } else {
+        echo '<script>location.href=' . json_encode(BASE_URL . 'auth/login.php') . ';</script>';
+    }
     exit();
 }
 
@@ -19,7 +25,11 @@ if (!isset($ALLOWED_ROLES) || !is_array($ALLOWED_ROLES) || empty($ALLOWED_ROLES)
 
 if (!in_array($_SESSION['role'], $ALLOWED_ROLES, true)) {
     // অনুমতি না থাকলে নিষিদ্ধ পেজে রিডাইরেক্ট
-    header("Location: /jsssms/auth/forbidden.php");
+    if (!headers_sent()) {
+        header("Location: " . BASE_URL . "auth/forbidden.php");
+    } else {
+        echo '<script>location.href=' . json_encode(BASE_URL . 'auth/forbidden.php') . ';</script>';
+    }
     exit();
 }
 ?>

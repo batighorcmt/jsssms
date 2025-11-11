@@ -1,7 +1,8 @@
 <?php
 session_start();
+@include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
+    header("Location: " . BASE_URL . "auth/login.php");
     exit();
 }
 
@@ -21,8 +22,8 @@ include '../includes/header.php';
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
-                        <li class="breadcrumb-item"><a href="manage_exams.php">Manage Exams</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>settings/manage_exams.php">Manage Exams</a></li>
                         <li class="breadcrumb-item active">Create</li>
                     </ol>
                 </div>
