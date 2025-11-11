@@ -309,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div class="col-md-3">
               <label for="dob" class="form-label">Date Of Birth</label>
-              <input type="date" name="dob" class="form-control" required>
+              <input type="text" name="dob" class="form-control date-input" placeholder="dd/mm/yyyy" required>
             </div>
             <div class="col-md-3">
               <label for="blood_group" class="form-label">Blood Group</label>
@@ -424,7 +424,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div class="col-md-3">
               <label for="edit_dob" class="form-label">Date Of Birth</label>
-              <input type="date" name="dob" id="edit_dob" class="form-control" required>
+              <input type="text" name="dob" id="edit_dob" class="form-control date-input" placeholder="dd/mm/yyyy" required>
             </div>
             <div class="col-md-3">
               <label for="edit_blood_group" class="form-label">Blood Group</label>

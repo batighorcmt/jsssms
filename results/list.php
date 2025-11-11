@@ -1,10 +1,6 @@
 <?php
-session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
-    exit();
-}
-
+$ALLOWED_ROLES = ['super_admin'];
+include '../auth/session.php';
 include '../config/db.php';
 include '../includes/header.php';
 
@@ -24,10 +20,28 @@ $sql = "SELECT
         ORDER BY s.year DESC, e.class_id ASC";
 
 $result = mysqli_query($conn, $sql);
+include '../includes/sidebar.php';
 ?>
-<
-<div class="d-flex">
-<?php include '../includes/sidebar.php'; ?>
+
+<!-- Content Wrapper. Contains page content -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1>Exam Results</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item active">Results</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="content">
+        <div class="container-fluid">
 
     <div class="container mt-4">
     <div class="container">
@@ -68,7 +82,8 @@ $result = mysqli_query($conn, $sql);
                 ?>
             </tbody>
         </table>
-    </div>
-    </div>
-</body>
-</html>
+        </div>
+    </section>
+</div>
+
+<?php include '../includes/footer.php'; ?>

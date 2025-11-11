@@ -40,11 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $update = $conn->prepare("UPDATE exam_subjects SET exam_date=?, exam_time=?, creative_marks=?, objective_marks=?, practical_marks=?, total_marks=? WHERE id=?");
     $update->bind_param("ssiiiii", $exam_date, $exam_time, $creative_marks, $objective_marks, $practical_marks, $total_marks, $id);
     if ($update->execute()) {
-        $_SESSION['success'] = "পরীক্ষা সফলভাবে আপডেট হয়েছে!";
-        header("Location: manage_exams.php");
+        // Redirect to exam details with toast
+        $eid = intval($exam['exam_id'] ?? 0);
+        header("Location: exam_details.php?exam_id=".$eid."&status=success&msg=updated");
         exit();
     } else {
-        $error = "Something went wrong!";
+        $error = "আপডেট ব্যর্থ হয়েছে!";
     }
 }
 
@@ -56,13 +57,13 @@ include '../includes/sidebar.php';
     <h4>পরীক্ষা এডিট করুন - <?= htmlspecialchars($exam['exam_name']) ?></h4>
 
     <?php if (isset($error)): ?>
-        <div class="alert alert-danger"><?= $error; ?></div>
+        <div class="d-none" id="serverMessage" data-type="error"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
     <form method="POST">
         <div class="mb-3">
             <label>পরীক্ষার তারিখ</label>
-            <input type="date" name="exam_date" class="form-control" value="<?= $exam['exam_date'] ?>" required>
+            <input type="text" name="exam_date" class="form-control date-input" placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($exam['exam_date']) ?>" required>
         </div>
         <div class="mb-3">
             <label>পরীক্ষার সময়</label>
@@ -86,3 +87,9 @@ include '../includes/sidebar.php';
 </div>
 
 <?php include '../includes/footer.php'; ?>
+<script>
+    (function(){
+        var sm = document.getElementById('serverMessage');
+        if (sm && window.showToast) window.showToast('ত্রুটি', sm.innerHTML, 'error');
+    })();
+</script>

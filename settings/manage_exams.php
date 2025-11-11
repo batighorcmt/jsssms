@@ -1,16 +1,31 @@
 <?php  
-session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
-    exit();
-}
-
+$ALLOWED_ROLES = ['super_admin'];
+include '../auth/session.php';
 include '../config/db.php';
 include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
-<div class="d-flex">
-<?php include '../includes/sidebar.php'; ?>
 
+<!-- Content Wrapper. Contains page content -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="bn">তৈরিকৃত পরীক্ষার তালিকা</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item active">Exams</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container-fluid">
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4>তৈরিকৃত পরীক্ষার তালিকা</h4>
@@ -119,6 +134,7 @@ include '../includes/header.php';
             <?php endwhile; ?>
         </tbody>
     </table>
-</div>
+        </div>
+    </section>
 </div>
 <?php include '../includes/footer.php'; ?>

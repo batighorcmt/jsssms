@@ -1,19 +1,38 @@
 <?php 
 session_start();
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
-    exit();
+        header("Location: ../auth/login.php");
+        exit();
 }
 
 include '../config/db.php';
 include '../includes/header.php';
 ?>
 
-<div class="d-flex">
 <?php include '../includes/sidebar.php'; ?>
 
-<div class="container mt-4">
-    <h4>মার্ক এন্ট্রি</h4>
+<!-- Content Wrapper. Contains page content -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="bn">মার্ক এন্ট্রি</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item active">Mark Entry</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container-fluid">
+        <div class="card">
+            <div class="card-body">
     <form id="markFilterForm" class="row g-3">
         <div class="col-md-3">
             <label>পরীক্ষা</label>
@@ -76,19 +95,28 @@ include '../includes/header.php';
             <button type="button" id="loadStudents" class="btn btn-primary">লোড করুন</button>
         </div>
     </form>
+            </div>
+        </div>
 
-    <div id="markEntryArea" class="mt-4"></div>
-</div>
+        <div id="markEntryArea" class="mt-3"></div>
+        </div>
+    </section>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-$(document).ready(function() {
+// Ensure jQuery is available (loaded in footer) before binding handlers
+window.addEventListener('load', function() {
+    var $ = window.jQuery;
+    if (!$) return;
 
     // শ্রেণি অথবা গ্রুপ পরিবর্তন করলে বিষয় লোড হবে
     $('#class_id, #group').change(function() {
         var class_id = $('#class_id').val();
         var group = $('#group').val();
+        // Normalize group value to match database (NONE vs none)
+        if (group && group.toLowerCase() === 'none') {
+            group = 'NONE';
+        }
 
         if (class_id && group) {
             $.post('fetch_subjects.php', {

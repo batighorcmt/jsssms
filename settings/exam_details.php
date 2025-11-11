@@ -25,14 +25,35 @@ if (!$exam_info) {
     exit;
 }
 ?>
-<div class="d-flex">
 <?php include '../includes/sidebar.php'; ?>
 
-<div class="container mt-4">
-    <h5>পরীক্ষার বিস্তারিত: <?= htmlspecialchars($exam_info['exam_name']) ?> (<?= htmlspecialchars($exam_info['class_name']) ?>)</h5>
-    <a href="exam_list.php" class="btn btn-sm btn-secondary mb-3">← ফিরে যান</a>
+<!-- Content Wrapper -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h5 class="bn">পরীক্ষার বিস্তারিত: <?= htmlspecialchars($exam_info['exam_name']) ?> (<?= htmlspecialchars($exam_info['class_name']) ?>)</h5>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="manage_exams.php">Manage Exams</a></li>
+                        <li class="breadcrumb-item active">Details</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    <table class="table table-bordered table-hover">
+    <section class="content">
+        <div class="container-fluid">
+            <div class="mb-3">
+                <a href="manage_exams.php" class="btn btn-secondary btn-sm">← Manage Exams</a>
+                <a href="create_exam.php" class="btn btn-primary btn-sm">+ Create New Exam</a>
+            </div>
+
+            <table class="table table-bordered table-hover">
         <thead class="table-light">
             <tr>
                 <th>ক্রমিক</th>
@@ -74,7 +95,25 @@ if (!$exam_info) {
             </tr>
             <?php endwhile; ?>
         </tbody>
-    </table>
-</div>
-</div>
+            </table>
+        </div><!-- /.container-fluid -->
+    </section>
+</div><!-- /.content-wrapper -->
+
+<script>
+ (function(){
+   // Read status from query string and show toast
+   const params = new URLSearchParams(window.location.search);
+   const status = params.get('status');
+   const msg = params.get('msg');
+   if (status && window.showToast){
+     let title = status === 'success' ? 'সফল' : 'বার্তা';
+     let body = 'অপারেশন সম্পন্ন হয়েছে';
+     if (msg === 'created') body = 'পরীক্ষা সফলভাবে তৈরি করা হয়েছে।';
+     if (msg === 'updated') body = 'পরীক্ষা সফলভাবে আপডেট হয়েছে।';
+     if (msg === 'deleted') body = 'তথ্য সফলভাবে মুছে ফেলা হয়েছে।';
+     window.showToast(title, body, status);
+   }
+ })();
+</script>
 <?php include '../includes/footer.php'; ?>

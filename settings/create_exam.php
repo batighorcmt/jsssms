@@ -9,9 +9,28 @@ include '../config/db.php';
 include '../includes/header.php';
 ?>
 
-<div class="d-flex">
-<?php include '../includes/sidebar.php';
+<?php include '../includes/sidebar.php'; ?>
 
+<!-- Content Wrapper -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="bn">নতুন পরীক্ষা তৈরি করুন</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="manage_exams.php">Manage Exams</a></li>
+                        <li class="breadcrumb-item active">Create</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+
+<?php
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -58,12 +77,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($all_success) {
-            $message = '<div class="alert alert-success">পরীক্ষা সফলভাবে তৈরি করা হয়েছে।</div>';
-        }
+                if ($all_success) {
+                    header("Location: exam_details.php?exam_id=".$exam_id."&status=success&msg=created");
+                    exit();
+                }
 
     } else {
-        $message = '<div class="alert alert-danger">পরীক্ষা তৈরি ব্যর্থ হয়েছে: ' . $conn->error . '</div>';
+        $message = 'পরীক্ষা তৈরি ব্যর্থ হয়েছে: ' . $conn->error;
     }
 }
 
@@ -72,69 +92,76 @@ $classQuery = "SELECT * FROM classes ORDER BY class_name ASC";
 $classResult = $conn->query($classQuery);
 ?>
 
-<div class="container mt-4">
-    <h4>নতুন পরীক্ষা তৈরি করুন</h4>
-    <?= $message; ?>
+    <section class="content">
+        <div class="container-fluid">
+            <div class="card">
+                <div class="card-body">
+                    <?php if(!empty($message)) echo '<div class="d-none" id="serverMessage" data-type="error">'. htmlspecialchars($message) .'</div>'; ?>
+                    <form method="POST" action="">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="exam_name" class="form-label">পরীক্ষার নাম</label>
+                                <input type="text" name="exam_name" id="exam_name" class="form-control" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="class_id" class="form-label">শ্রেণি</label>
+                                <select name="class_id" id="class_id" class="form-control" required>
+                                    <option value="">-- শ্রেণি নির্বাচন করুন --</option>
+                                    <?php while ($class = $classResult->fetch_assoc()): ?>
+                                        <option value="<?= $class['id']; ?>"><?= htmlspecialchars($class['class_name']); ?></option>
+                                    <?php endwhile; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="exam_type" class="form-label">পরীক্ষার ধরন</label>
+                                <select name="exam_type" id="exam_type" class="form-control" required>
+                                    <option value="Half Yearly">অর্ধবার্ষিক</option>
+                                    <option value="Final">বার্ষিক</option>
+                                    <option value="Monthly">মাসিক</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="subjects_without_fourth" class="form-label">মোট বিষয় সংখ্যা (চতুর্থ বিষয় ছাড়া)</label>
+                                <input type="number" name="subjects_without_fourth" id="subjects_without_fourth" class="form-control" min="1" placeholder="উদাহরণ: 6">
+                                <small class="text-muted">টেবুলেশন শীটে মোট GPA গণনার সময় এই সংখ্যাটি দ্বারা ভাগ করা হবে (চতুর্থ/ঐচ্ছিক বিষয় বাদে)।</small>
+                            </div>
+                        </div>
 
-    <form method="POST" action="store_exam.php">
-        <div class="mb-3">
-            <label for="exam_name" class="form-label">পরীক্ষার নাম</label>
-            <input type="text" name="exam_name" id="exam_name" class="form-control" required>
-        </div>
+                        <div id="subjectsContainer" style="display:none;">
+                            <h5 class="mt-4 mb-2">বিষয়ভিত্তিক নম্বর নির্ধারণ</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered table-striped">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>বিষয়</th>
+                                            <th style="min-width:110px;">তারিখ</th>
+                                            <th style="min-width:90px;">সময়</th>
+                                            <th>সৃজনশীল</th>
+                                            <th>নৈর্ব্যক্তিক</th>
+                                            <th>ব্যবহারিক</th>
+                                            <th>মোট</th>
+                                            <th>সৃজনশীল পাশ</th>
+                                            <th>নৈর্ব্যক্তিক পাশ</th>
+                                            <th>ব্যবহারিক পাশ</th>
+                                            <th>পাস টাইপ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="subjectsTableBody">
+                                        <!-- AJAX দিয়ে লোড হবে -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-        <div class="mb-3">
-            <label for="class_id" class="form-label">শ্রেণি</label>
-            <select name="class_id" id="class_id" class="form-select" required>
-                <option value="">-- শ্রেণি নির্বাচন করুন --</option>
-                <?php while ($class = $classResult->fetch_assoc()): ?>
-                    <option value="<?= $class['id']; ?>"><?= htmlspecialchars($class['class_name']); ?></option>
-                <?php endwhile; ?>
-            </select>
-        </div>
-
-        <div class="mb-3">
-            <label for="exam_type" class="form-label">পরীক্ষার ধরন</label>
-            <select name="exam_type" id="exam_type" class="form-select" required>
-                <option value="Half Yearly">অর্ধবার্ষিক</option>
-                <option value="Final">বার্ষিক</option>
-                <option value="Monthly">মাসিক</option>
-            </select>
-        </div>
-
-        <div class="mb-3">
-            <label for="subjects_without_fourth" class="form-label">মোট বিষয় সংখ্যা (চতুর্থ বিষয় ছাড়া)</label>
-            <input type="number" name="subjects_without_fourth" id="subjects_without_fourth" class="form-control" min="1" placeholder="উদাহরণ: 6">
-            <div class="form-text">টেবুলেশন শীটে মোট GPA গণনার সময় এই সংখ্যাটি দ্বারা ভাগ করা হবে (চতুর্থ/ঐচ্ছিক বিষয় বাদে)।</div>
-        </div>
-
-        <div id="subjectsContainer" style="display:none;">
-            <h5>বিষয়ভিত্তিক নম্বর নির্ধারণ</h5>
-            <table class="table table-bordered">
-                <thead class="table-light">
-                    <tr>
-                        <th>বিষয়</th>
-                        <th>তারিখ</th>
-                        <th>সময়</th>
-                        <th>সৃজনশীল মার্ক</th>
-                        <th>নৈর্ব্যক্তিক মার্ক</th>
-                        <th>ব্যবহারিক মার্ক</th>
-                        <th>মোট </th>
-                        <th>সৃজনশীল পাশ মার্ক</th>
-                        <th>নৈর্ব্যক্তিক পাশ মার্ক</th>
-                        <th>ব্যবহারিক পাশ মার্ক</th>
-                        <th>পাস টাইপ</th>
-                    </tr>
-                </thead>
-                <tbody id="subjectsTableBody">
-                    <!-- AJAX দিয়ে লোড হবে -->
-                </tbody>
-            </table>
-        </div>
-
-        <button type="submit" class="btn btn-success" id="submitBtn" style="display:none;">সেভ করুন</button>
-    </form>
-</div>
-</div>
+                        <button type="submit" class="btn btn-success" id="submitBtn" style="display:none;">সেভ করুন</button>
+                    </form>
+                </div><!-- /.card-body -->
+            </div><!-- /.card -->
+        </div><!-- /.container-fluid -->
+    </section>
+</div><!-- /.content-wrapper -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -174,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 ${subject.subject_name}
                                 <input type="hidden" name="subject_id[]" value="${subject.id}">
                             </td>
-                            <td><input type="date" name="exam_date[]" class="form-control" ></td>
+                            <td><input type="text" name="exam_date[]" class="form-control date-input" placeholder="dd/mm/yyyy"></td>
                             <td><input type="time" name="exam_time[]" class="form-control" ></td>
                             <td>
                                 <input type="number" name="creative_marks[]" class="form-control creative_marks" min="0" value="0" ${hasC ? '' : 'disabled'} required>
@@ -202,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 ${hasP ? '' : '<input type="hidden" name="practical_pass[]" value="0">'}
                             </td>
                             <td>
-                                <select name="pass_type[]" class="form-select">
+                                <select name="pass_type[]" class="form-control">
                                     <option value="total" ${passType === 'total' ? 'selected' : ''}>মোট নাম্বার</option>
                                     <option value="individual" ${passType === 'individual' ? 'selected' : ''}>আলাদা আলাদা</option>
                                 </select>
@@ -214,6 +241,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 subjectsTableBody.innerHTML = rows;
                 subjectsContainer.style.display = 'block';
                 submitBtn.style.display = 'inline-block';
+
+                // Initialize datepickers for dynamically added date inputs
+                if (window.setupDateInputs) { window.setupDateInputs(subjectsTableBody); }
 
                 // Mark total update
                 document.querySelectorAll('.creative_marks, .objective_marks, .practical_marks').forEach(input => {
@@ -239,6 +269,11 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+// Toast trigger if serverMessage exists
+if (document.getElementById('serverMessage')) {
+    var sm = document.getElementById('serverMessage');
+    if (window.showToast) window.showToast('ত্রুটি', sm.innerHTML, 'error');
+}
 </script>
 
 <?php include '../includes/footer.php'; ?>

@@ -1,17 +1,33 @@
 <?php
-session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
-
+$ALLOWED_ROLES = ['super_admin'];
+include '../auth/session.php';
 include '../config/db.php';
 ?>
 
 <?php include '../includes/header.php'; ?>
-<div class="d-flex">
 <?php include '../includes/sidebar.php'; ?>
 
+<!-- Content Wrapper. Contains page content -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="bn">শিক্ষার্থী যুক্ত করুন</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="/jsssms/students/manage_students.php">Students</a></li>
+                        <li class="breadcrumb-item active">Add</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container-fluid">
 <div class="container mt-4">
     <h4>শিক্ষার্থী যুক্ত করুন</h4>
     <form action="save_student.php" method="POST" enctype="multipart/form-data">
@@ -37,7 +53,7 @@ include '../config/db.php';
             <!-- Date of Birth -->
             <div class="col-md-6 mb-3">
                 <label>জন্ম তারিখ</label>
-                <input type="date" name="date_of_birth" class="form-control" required>
+                <input type="text" name="date_of_birth" class="form-control date-input" placeholder="dd/mm/yyyy" required>
             </div>
 
             <!-- Gender -->
@@ -160,8 +176,10 @@ include '../config/db.php';
 
         <button type="submit" class="btn btn-primary">Add Student</button>
     </form>
-</div>
-</div>
+        </div> <!-- /.container -->
+        </div> <!-- /.container-fluid -->
+    </section>
+</div> <!-- /.content-wrapper -->
 
 <script>
     // AJAX to load sections based on class

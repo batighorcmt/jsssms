@@ -154,11 +154,32 @@ while ($srow = $subRes->fetch_assoc()) {
     ];
 }
 ?>
-<div class="d-flex">
 <?php include '../includes/sidebar.php'; ?>
 
-<div class="container mt-4">
-    <h4>পরীক্ষা আপডেট: <?= htmlspecialchars($exam['exam_name']) ?> (<?= htmlspecialchars($exam['class_name']) ?>)</h4>
+<!-- Content Wrapper -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="bn">পরীক্ষা আপডেট: <?= htmlspecialchars($exam['exam_name']) ?> (<?= htmlspecialchars($exam['class_name']) ?>)</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="manage_exams.php">Manage Exams</a></li>
+                        <li class="breadcrumb-item active">Update</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container-fluid">
+            <div class="card">
+                <div class="card-body">
+        <h4 class="mb-3">পরীক্ষা আপডেট ফর্ম</h4>
     <?php if (isset($_SESSION['error'])) { echo '<div class="alert alert-danger">'.htmlspecialchars($_SESSION['error']).'</div>'; unset($_SESSION['error']); } ?>
 
     <form method="POST" action="update_exam.php">
@@ -174,7 +195,7 @@ while ($srow = $subRes->fetch_assoc()) {
             </div>
             <div class="col-md-4">
                 <label class="form-label">পরীক্ষার ধরন</label>
-                <select name="exam_type" class="form-select" required>
+                <select name="exam_type" class="form-control" required>
                     <?php
                     $types = ['Half Yearly' => 'অর্ধবার্ষিক', 'Final' => 'বার্ষিক', 'Monthly' => 'মাসিক'];
                     foreach ($types as $val => $label) {
@@ -219,7 +240,7 @@ while ($srow = $subRes->fetch_assoc()) {
                 ?>
                 <tr>
                     <td>
-                        <select name="subject_id[]" class="form-select subj-select" required>
+                        <select name="subject_id[]" class="form-control subj-select" required>
                             <?php foreach ($classSubjects as $sid => $label): ?>
                                 <?php
                                 // Attempt to fetch properties for option
@@ -236,7 +257,7 @@ while ($srow = $subRes->fetch_assoc()) {
                         </select>
                         <input type="hidden" name="exam_subject_id[]" value="<?= (int)$r['exam_subject_id'] ?>">
                     </td>
-                    <td><input type="date" name="exam_date[]" class="form-control" value="<?= htmlspecialchars($r['exam_date']) ?>"></td>
+                    <td><input type="text" name="exam_date[]" class="form-control date-input" placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($r['exam_date']) ?>"></td>
                     <td><input type="time" name="exam_time[]" class="form-control" value="<?= htmlspecialchars($r['exam_time']) ?>"></td>
                     <td>
                         <input type="number" name="creative_marks[]" class="form-control cm" min="0" value="<?= (int)$r['creative_marks'] ?>" <?= $hasC ? '' : 'disabled' ?> required>
@@ -264,7 +285,7 @@ while ($srow = $subRes->fetch_assoc()) {
                         <?= $hasP ? '' : '<input type="hidden" name="practical_pass[]" value="0">' ?>
                     </td>
                     <td>
-                        <select name="pass_type[]" class="form-select pt">
+                        <select name="pass_type[]" class="form-control pt">
                             <option value="total" <?= ($rowPassType === 'total') ? 'selected' : '' ?>>মোট নাম্বার</option>
                             <option value="individual" <?= ($rowPassType === 'individual') ? 'selected' : '' ?>>আলাদা আলাদা</option>
                         </select>
@@ -274,11 +295,14 @@ while ($srow = $subRes->fetch_assoc()) {
             </tbody>
         </table>
 
-        <button type="submit" class="btn btn-primary">আপডেট সংরক্ষণ</button>
-        <a href="manage_exams.php" class="btn btn-secondary">বাতিল</a>
-    </form>
-</div>
-</div>
+                <button type="submit" class="btn btn-primary">আপডেট সংরক্ষণ</button>
+                <a href="manage_exams.php" class="btn btn-secondary">বাতিল</a>
+        </form>
+                </div><!-- /.card-body -->
+            </div><!-- /.card -->
+        </div><!-- /.container-fluid -->
+    </section>
+</div><!-- /.content-wrapper -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

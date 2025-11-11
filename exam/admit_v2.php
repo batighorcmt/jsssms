@@ -164,7 +164,7 @@ if (!empty($students)) {
 }
 
 // Helpers
-function fmt_date($d){ return $d ? date('d-m-Y', strtotime($d)) : '-'; }
+function fmt_date($d){ return $d ? date('d/m/Y', strtotime($d)) : '-'; }
 function fmt_time($t){ return $t ? date('h:i A', strtotime($t)) : '-'; }
 function bn_num($v){ $en=['0','1','2','3','4','5','6','7','8','9']; $bn=['০','১','২','৩','৪','৫','৬','৭','৮','৯']; return str_replace($en,$bn,(string)$v); }
 $bnDays=['রবিবার','সোমবার','মঙ্গলবার','বুধবার','বৃহস্পতিবার','শুক্রবার','শনিবার'];

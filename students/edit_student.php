@@ -107,8 +107,8 @@ if ($student['class_id']) {
                     <!-- Date of Birth -->
                     <div class="col-md-6">
                         <label class="form-label">জন্ম তারিখ <span class="text-danger">*</span></label>
-                        <input type="date" name="date_of_birth" class="form-control form-control-lg" 
-                               value="<?= htmlspecialchars($student['date_of_birth']) ?>" required>
+                        <input type="text" name="date_of_birth" class="form-control form-control-lg date-input" 
+                               placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($student['date_of_birth']) ?>" required>
                         <div class="invalid-feedback">অনুগ্রহ করে জন্ম তারিখ নির্বাচন করুন</div>
                     </div>
 

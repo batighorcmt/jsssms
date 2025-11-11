@@ -2,97 +2,127 @@
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
-$BASE_URL = '/jsssms/'; // যেমন: /jsssms/
-
+$BASE_URL = '/jsssms/';
 $current = basename($_SERVER['PHP_SELF']);
 ?>
 
-<div class="d-flex flex-column flex-shrink-0 p-3 bg-light" style="width: 250px; min-height: 100vh;">
-  <a href="<?= $BASE_URL ?>dashboard.php" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
-    <span class="fs-4">📚 JSSSMS</span>
+<!-- Main Sidebar Container -->
+<aside class="main-sidebar sidebar-dark-primary elevation-4">
+  <!-- Brand Logo -->
+  <a href="<?= $BASE_URL ?>dashboard.php" class="brand-link">
+    <i class="fas fa-school brand-image img-circle elevation-3" style="opacity:.8"></i>
+    <span class="brand-text font-weight-light">JSSSMS</span>
   </a>
-  <hr>
-  <ul class="nav nav-pills flex-column mb-auto">
-    <li class="nav-item">
-      <a href="<?= $BASE_URL ?>dashboard.php" class="nav-link <?= ($current == 'dashboard.php') ? 'active' : 'text-dark' ?>">
-        🏠 Dashboard
-      </a>
-    </li>
 
-    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'super_admin'): ?>
-    <li>
-      <a href="<?= $BASE_URL ?>manage_teachers.php" class="nav-link <?= ($current == 'manage_teachers.php') ? 'active' : 'text-dark' ?>">
-        👩‍🏫 Manage Teachers
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>students/manage_students.php" class="nav-link <?= ($current == 'manage_students.php') ? 'active' : 'text-dark' ?>">
-        🎓 Manage Students
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>manage_classes.php" class="nav-link <?= ($current == 'manage_classes.php') ? 'active' : 'text-dark' ?>">
-        🏫 Class Management
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>settings/manage_subjects.php" class="nav-link <?= ($current == 'manage_subjects.php') ? 'active' : 'text-dark' ?>">
-        📚 Manage Subjects
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>manage_fees.php" class="nav-link <?= ($current == 'manage_fees.php') ? 'active' : 'text-dark' ?>">
-        💳 Fees & Payments
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>settings/manage_exams.php" class="nav-link <?= ($current == 'manage_exams.php') ? 'active' : 'text-dark' ?>">
-        📝 Manage Exams
-      </a>
-    <li>
-          <li>
-      <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current == 'mark_entry.php') ? 'active' : 'text-dark' ?>">
-        📝 Mark Entry
-      </a>
-    <li>
-      <a href="<?= $BASE_URL ?>exam_results.php" class="nav-link <?= ($current == 'exam_results.php') ? 'active' : 'text-dark' ?>">
-        📄 Exam Results
-      </a>
-    </li>
-    <?php endif; ?>
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <!-- Sidebar user panel (optional) -->
+    <div class="user-panel mt-3 pb-3 mb-3 d-flex">
+      <div class="image">
+        <i class="fas fa-user-circle fa-2x text-white-50"></i>
+      </div>
+      <div class="info">
+        <a href="#" class="d-block"><?php echo htmlspecialchars($_SESSION['name'] ?? 'Unknown'); ?></a>
+      </div>
+    </div>
 
-    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'teacher'): ?>
-    <li>
-      <a href="<?= $BASE_URL ?>my_classes.php" class="nav-link <?= ($current == 'my_classes.php') ? 'active' : 'text-dark' ?>">
-        🗂️ My Classes
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current == 'mark_entry.php') ? 'active' : 'text-dark' ?>">
-        📝 Mark Entry
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>student_list.php" class="nav-link <?= ($current == 'student_list.php') ? 'active' : 'text-dark' ?>">
-        📋 Student List
-      </a>
-    </li>
-    <?php endif; ?>
+    <!-- Sidebar Menu -->
+    <nav class="mt-2">
+      <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>dashboard.php" class="nav-link <?= ($current=='dashboard.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-tachometer-alt"></i>
+            <p>Dashboard</p>
+          </a>
+        </li>
 
-    <li>
-      <a href="<?= $BASE_URL ?>profile.php" class="nav-link <?= ($current == 'profile.php') ? 'active' : 'text-dark' ?>">
-        👤 My Profile
-      </a>
-    </li>
-    <li>
-      <a href="<?= $BASE_URL ?>auth/logout.php" class="nav-link text-danger">
-        🔓 Logout
-      </a>
-    </li>
-  </ul>
-  <hr>
-  <div class="text-muted small">
-    Logged in as: <strong><?= $_SESSION['name'] ?? 'Unknown' ?></strong><br>
-    Role: <?= $_SESSION['role'] ?? 'User' ?>
+        <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'super_admin'): ?>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>/teachers/manage_teachers.php" class="nav-link <?= ($current=='manage_teachers.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-chalkboard-teacher"></i>
+            <p>Manage Teachers</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>students/manage_students.php" class="nav-link <?= ($current=='manage_students.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-user-graduate"></i>
+            <p>Manage Students</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>manage_classes.php" class="nav-link <?= ($current=='manage_classes.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-school"></i>
+            <p>Class Management</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>settings/manage_subjects.php" class="nav-link <?= ($current=='manage_subjects.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-book"></i>
+            <p>Manage Subjects</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>manage_fees.php" class="nav-link <?= ($current=='manage_fees.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-credit-card"></i>
+            <p>Fees & Payments</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>settings/manage_exams.php" class="nav-link <?= ($current=='manage_exams.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-file-alt"></i>
+            <p>Manage Exams</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current=='mark_entry.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-pen"></i>
+            <p>Mark Entry</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>exam_results.php" class="nav-link <?= ($current=='exam_results.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-file"></i>
+            <p>Exam Results</p>
+          </a>
+        </li>
+        <?php endif; ?>
+
+        <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'teacher'): ?>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>my_classes.php" class="nav-link <?= ($current=='my_classes.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-folder-open"></i>
+            <p>My Classes</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current=='mark_entry.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-pen"></i>
+            <p>Mark Entry</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>student_list.php" class="nav-link <?= ($current=='student_list.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-list"></i>
+            <p>Student List</p>
+          </a>
+        </li>
+        <?php endif; ?>
+
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>profile.php" class="nav-link <?= ($current=='profile.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-user"></i>
+            <p>My Profile</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>auth/logout.php" class="nav-link text-danger">
+            <i class="nav-icon fas fa-sign-out-alt text-danger"></i>
+            <p class="text-danger">Logout</p>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <!-- /.sidebar-menu -->
   </div>
-</div>
+  <!-- /.sidebar -->
+</aside>
