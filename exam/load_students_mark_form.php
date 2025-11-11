@@ -70,9 +70,9 @@ while ($row = $resultMarks->fetch_assoc()) {
                     <tr>
                         <th>Roll</th>
                         <th>Name</th>
-                        <?php if ($creativeMax > 0): ?><th>CQ</th><?php endif; ?>
+                        <?php if ($creativeMax > 0): ?><th> CQ </th><?php endif; ?>
                         <?php if ($objectiveMax > 0): ?><th>MCQ</th><?php endif; ?>
-                        <?php if ($practicalMax > 0): ?><th>PR</th><?php endif; ?>
+                        <?php if ($practicalMax > 0): ?><th>PRA</th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
