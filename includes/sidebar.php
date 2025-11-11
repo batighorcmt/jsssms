@@ -83,7 +83,7 @@ $current = basename($_SERVER['PHP_SELF']);
           </a>
         </li>
         <li class="nav-item">
-          <a href="<?= $BASE_URL ?>exam_results.php" class="nav-link <?= ($current=='exam_results.php')?'active':'' ?>">
+          <a href="<?= $BASE_URL ?>results/exam_results.php" class="nav-link <?= ($current=='exam_results.php')?'active':'' ?>">
             <i class="nav-icon fas fa-file"></i>
             <p>Exam Results</p>
           </a>
@@ -95,18 +95,6 @@ $current = basename($_SERVER['PHP_SELF']);
           <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current=='mark_entry.php')?'active':'' ?>">
             <i class="nav-icon fas fa-pen"></i>
             <p>Mark Entry</p>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="<?= $BASE_URL ?>attendance/attendance_sheet.php" class="nav-link <?= ($current=='attendance_sheet.php')?'active':'' ?>">
-            <i class="nav-icon fas fa-user-check"></i>
-            <p>Attendance</p>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="<?= $BASE_URL ?>results/list.php" class="nav-link <?= ($current=='list.php')?'active':'' ?>">
-            <i class="nav-icon fas fa-table"></i>
-            <p>Results</p>
           </a>
         </li>
         <?php endif; ?>

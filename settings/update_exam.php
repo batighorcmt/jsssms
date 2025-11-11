@@ -7,7 +7,6 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 }
 
 include '../config/db.php';
-include '../includes/header.php';
 
 $exam_id = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : 0;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -49,6 +48,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN pass_type ENUM('total','individual') NOT NULL DEFAULT 'total'");
         }
 
+        // Ensure teacher_id column exists in exam_subjects
+        $esTeacherColumn = false;
+        if ($chk2 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) {
+            $esTeacherColumn = ($chk2->num_rows > 0);
+        }
+        if (!$esTeacherColumn) {
+            @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
+        }
+
         // Update each exam_subject row
         $ids = $_POST['exam_subject_id'] ?? [];
         $subject_ids = $_POST['subject_id'] ?? [];
@@ -60,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $creative_pass = $_POST['creative_pass'] ?? [];
         $objective_pass = $_POST['objective_pass'] ?? [];
         $practical_pass = $_POST['practical_pass'] ?? [];
-        $pass_types = $_POST['pass_type'] ?? [];
+    $pass_types = $_POST['pass_type'] ?? [];
+    $teacher_ids = $_POST['teacher_id'] ?? [];
 
         $rowCount = min(
             count($ids), count($subject_ids), count($exam_dates), count($exam_times),
@@ -70,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $upd = $conn->prepare("UPDATE exam_subjects 
             SET subject_id = ?,
+                teacher_id = ?,
                 exam_date = ?, exam_time = ?,
                 creative_marks = ?, objective_marks = ?, practical_marks = ?,
                 creative_pass = ?, objective_pass = ?, practical_pass = ?,
@@ -89,13 +99,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ed = $exam_dates[$i];
             $et = $exam_times[$i];
             $pt = isset($pass_types[$i]) && $pass_types[$i] !== '' ? $pass_types[$i] : 'total';
-            $typestr = 'iss' . str_repeat('i', 6) . 's' . str_repeat('i', 5); // 15 params
-            $upd->bind_param($typestr, $sid, $ed, $et, $c, $o, $p, $cp, $op, $pp, $pt, $c, $o, $p, $id, $exam_id);
+            $tid = isset($teacher_ids[$i]) && $teacher_ids[$i] !== '' ? (int)$teacher_ids[$i] : null;
+            $typestr = 'iiss' . str_repeat('i', 6) . 's' . str_repeat('i', 5); // 16 params: subject, teacher, dates, marks/pass, pt, totals, ids
+            // Use NULL for teacher when not selected
+            if (is_null($tid)) {
+                // mysqli doesn't support binding NULL for integer directly in this pattern; set to null via SQL by conditional
+                // Simpler approach: set $tid to 0 and later treat 0 as NULL with CASE in query would be heavy.
+                // Instead, reuse prepared statement and pass 0; separately run a fix to set teacher_id=NULL when 0.
+                $tid = 0;
+            }
+            $upd->bind_param($typestr, $sid, $tid, $ed, $et, $c, $o, $p, $cp, $op, $pp, $pt, $c, $o, $p, $id, $exam_id);
             $upd->execute();
+            // If teacher was left blank, set teacher_id NULL for this row
+            if (isset($teacher_ids[$i]) && $teacher_ids[$i] === '') {
+                $conn->query("UPDATE exam_subjects SET teacher_id = NULL WHERE id = ".(int)$id." AND exam_id = ".(int)$exam_id);
+            }
         }
         $_SESSION['success'] = 'পরীক্ষার তথ্য সফলভাবে আপডেট হয়েছে';
-    header("Location: " . BASE_URL . "settings/manage_exams.php");
-        exit();
+        if (!headers_sent()) {
+            header("Location: " . BASE_URL . "settings/manage_exams.php");
+            exit();
+        } else {
+            echo '<script>window.location.href = ' . json_encode(BASE_URL . 'settings/manage_exams.php') . ';</script>';
+            exit();
+        }
     }
 }
 
@@ -112,11 +139,20 @@ if (!$exam) {
     exit;
 }
 
+// Ensure teacher_id column exists (needed for SELECT below on initial GET as well)
+$esTeacherColumn = false;
+if ($chk2 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) {
+    $esTeacherColumn = ($chk2->num_rows > 0);
+}
+if (!$esTeacherColumn) {
+    @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
+}
+
 // Load subjects for this exam
 $subPassTypeSelect = "NULL AS subject_pass_type";
 $chkPT = $conn->query("SHOW COLUMNS FROM subjects LIKE 'pass_type'");
 if ($chkPT && $chkPT->num_rows > 0) { $subPassTypeSelect = "s.pass_type AS subject_pass_type"; }
-$sql = "SELECT es.id AS exam_subject_id, es.subject_id, s.subject_name, s.subject_code, es.exam_date, es.exam_time, 
+$sql = "SELECT es.id AS exam_subject_id, es.subject_id, es.teacher_id, s.subject_name, s.subject_code, es.exam_date, es.exam_time, 
          es.creative_marks, es.objective_marks, es.practical_marks,
          es.creative_pass, es.objective_pass, es.practical_pass,
          es.pass_type,
@@ -155,6 +191,7 @@ while ($srow = $subRes->fetch_assoc()) {
     ];
 }
 ?>
+<?php include '../includes/header.php'; ?>
 <?php include '../includes/sidebar.php'; ?>
 
 <!-- Content Wrapper -->
@@ -214,7 +251,7 @@ while ($srow = $subRes->fetch_assoc()) {
             <div class="form-text">GPA বিভাজকের জন্য ব্যবহৃত হবে (ঐচ্ছিক/চতুর্থ বিষয় বাদে)।</div>
         </div>
 
-        <h5 class="mt-3">বিষয়ভিত্তিক নম্বর/তারিখ হালনাগাদ</h5>
+        <h5 class="mt-3">বিষয়ভিত্তিক নম্বর/তারিখ/শিক্ষক হালনাগাদ</h5>
         <table class="table table-bordered">
             <thead class="table-light">
                 <tr>
@@ -229,6 +266,7 @@ while ($srow = $subRes->fetch_assoc()) {
                     <th>নৈর্ব্যক্তিক পাশ</th>
                     <th>ব্যবহারিক পাশ</th>
                     <th>পাস টাইপ</th>
+                    <th>বিষয় শিক্ষক</th>
                 </tr>
             </thead>
             <tbody>
@@ -289,6 +327,24 @@ while ($srow = $subRes->fetch_assoc()) {
                         <select name="pass_type[]" class="form-control pt">
                             <option value="total" <?= ($rowPassType === 'total') ? 'selected' : '' ?>>মোট নাম্বার</option>
                             <option value="individual" <?= ($rowPassType === 'individual') ? 'selected' : '' ?>>আলাদা আলাদা</option>
+                        </select>
+                    </td>
+                    <td>
+                        <?php
+                        // Load teachers list once
+                        static $teachersList = null;
+                        if ($teachersList === null) {
+                            $teachersList = [];
+                            if ($tres = $conn->query("SELECT id, name FROM teachers ORDER BY name ASC")) {
+                                while ($t = $tres->fetch_assoc()) { $teachersList[] = $t; }
+                            }
+                        }
+                        ?>
+                        <select name="teacher_id[]" class="form-control">
+                            <option value="">-- শিক্ষক --</option>
+                            <?php foreach ($teachersList as $t): ?>
+                                <option value="<?= (int)$t['id'] ?>" <?= ((int)($r['teacher_id'] ?? 0) === (int)$t['id']) ? 'selected' : '' ?>><?= htmlspecialchars($t['name']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </td>
                 </tr>

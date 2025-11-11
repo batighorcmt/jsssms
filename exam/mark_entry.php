@@ -112,20 +112,21 @@ window.addEventListener('load', function() {
 
     // শ্রেণি অথবা গ্রুপ পরিবর্তন করলে বিষয় লোড হবে
     $('#class_id, #group').change(function() {
-        var class_id = $('#class_id').val();
-        var group = $('#group').val();
+                var class_id = $('#class_id').val();
+                var group = $('#group').val();
         // Normalize group value to match database (NONE vs none)
         if (group && group.toLowerCase() === 'none') {
             group = 'NONE';
         }
 
-        if (class_id && group) {
-            $.post('fetch_subjects.php', {
-                class_id: class_id,
-                group: group
-            }, function(data) {
-                $('#subject_id').html(data);
-            });
+                if (class_id && group) {
+                    $.post('fetch_subjects.php', {
+                        class_id: class_id,
+                        group: group,
+                        exam_id: $('#exam_id').val() // may be used for filtering by assignment
+                    }, function(data) {
+                        $('#subject_id').html(data);
+                    });
         } else {
             $('#subject_id').html('<option value="">বিষয় নির্বাচন করুন</option>');
         }

@@ -65,17 +65,31 @@ if (!$exam_info) {
                 <th>নৈর্ব্যক্তিক</th>
                 <th>ব্যবহারিক</th>
                 <th>মোট</th>
+                <th>শিক্ষক</th>
                 <th>অ্যাকশন</th>
             </tr>
         </thead>
         <tbody>
             <?php
-            $sql = "SELECT es.id AS exam_subject_id, s.subject_name, es.exam_date, es.exam_time, 
-                           es.creative_marks, es.objective_marks, es.practical_marks, es.total_marks
-                    FROM exam_subjects es 
-                    JOIN subjects s ON es.subject_id = s.id
-                    WHERE es.exam_id = $exam_id
-                    ORDER BY es.exam_date ASC";
+         $hasTeacher = false;
+         if ($__c = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) { $hasTeacher = ($__c->num_rows > 0); }
+         if ($hasTeacher) {
+          $sql = "SELECT es.id AS exam_subject_id, s.subject_name, es.exam_date, es.exam_time, 
+                   es.creative_marks, es.objective_marks, es.practical_marks, es.total_marks,
+                   es.teacher_id, t.name AS teacher_name
+               FROM exam_subjects es 
+               JOIN subjects s ON es.subject_id = s.id
+               LEFT JOIN teachers t ON es.teacher_id = t.id
+               WHERE es.exam_id = $exam_id
+               ORDER BY es.exam_date ASC";
+         } else {
+          $sql = "SELECT es.id AS exam_subject_id, s.subject_name, es.exam_date, es.exam_time, 
+                   es.creative_marks, es.objective_marks, es.practical_marks, es.total_marks
+               FROM exam_subjects es 
+               JOIN subjects s ON es.subject_id = s.id
+               WHERE es.exam_id = $exam_id
+               ORDER BY es.exam_date ASC";
+         }
             $result = $conn->query($sql);
             $i = 1;
             while ($row = $result->fetch_assoc()):
@@ -89,6 +103,7 @@ if (!$exam_info) {
                 <td><?= $row['objective_marks'] ?></td>
                 <td><?= $row['practical_marks'] ?></td>
                 <td><?= $row['total_marks'] ?></td>
+                <td><?= isset($row['teacher_name']) && $row['teacher_name'] ? htmlspecialchars($row['teacher_name']) : '<span class="text-muted">নিযুক্ত নয়</span>' ?></td>
                 <td>
                     <a href="edit_exam.php?id=<?= $row['exam_subject_id'] ?>" class="btn btn-sm btn-info">এডিট</a>
                     <a href="delete_exam.php?id=<?= $row['exam_subject_id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('আপনি কি নিশ্চিতভাবে ডিলিট করতে চান?')">ডিলিট</a>

@@ -37,22 +37,22 @@ include "includes/sidebar.php";
   .link-tile .inner { position: relative; padding: 22px 22px 56px; min-height: 150px; border-radius: 14px; }
   /* Overlay to ensure text contrast on bright/animated backgrounds */
   .link-tile .inner::before { content:""; position:absolute; inset:0; border-radius: inherit; background: linear-gradient(165deg, rgba(0,0,0,.28) 0%, rgba(0,0,0,.12) 100%); pointer-events:none; }
-  .link-tile h4 { position:relative; z-index:1; font-weight: 800; margin: 0 0 6px; letter-spacing:.2px; text-shadow: 0 2px 6px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.6); }
-  .link-tile p { position:relative; z-index:1; margin: 0; opacity: 1; font-weight:600; text-shadow: 0 2px 6px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.55); }
+  .link-tile h4 { position:relative; z-index:1; font-weight: 800; margin: 0 0 6px; letter-spacing:.2px; color:#ffffff; text-shadow: 0 2px 6px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.6); }
+  .link-tile p { position:relative; z-index:1; margin: 0; opacity: 1; font-weight:600; color:#f1f5f9; text-shadow: 0 2px 6px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.55); }
         .link-tile .icon-wrap { position: absolute; right: 16px; bottom: 16px; width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,.16); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
         .link-tile .icon-wrap i { font-size: 22px; color: #fff; }
-        /* Darker, more pleasing animated gradients */
+        /* Updated palettes: deep blue/cyan & emerald/teal for higher appeal */
         .tile-info {
-          background: linear-gradient(135deg, #0b132b 0%, #1d3557 40%, #2563eb 70%, #0ea5e9 100%);
-          background-size: 200% 200%;
+          background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 35%, #2563eb 65%, #38bdf8 100%);
+          background-size: 220% 220%;
           animation: gradientShift 10s ease infinite;
         }
         .tile-warning {
-          background: linear-gradient(135deg, #7a2e0b 0%, #b45309 45%, #d97706 75%, #fb923c 100%);
-          background-size: 200% 200%;
+          background: linear-gradient(135deg, #022c22 0%, #065f46 35%, #10b981 70%, #34d399 100%);
+          background-size: 220% 220%;
           animation: gradientShift 10s ease infinite;
         }
-  .tile-footer { position:absolute; left:0; right:0; bottom:0; padding:10px 16px; background: rgba(0,0,0,.28); text-align:right; font-weight:700; letter-spacing:.2px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+  .tile-footer { position:absolute; left:0; right:0; bottom:0; padding:10px 16px; background: rgba(0,0,0,.32); color:#ffffff; text-align:right; font-weight:700; letter-spacing:.2px; text-shadow: 0 1px 2px rgba(0,0,0,.65); }
   .tile-footer i{ margin-left:6px; }
 
         @keyframes gradientShift {

@@ -46,7 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($conn->query($insert_exam_sql)) {
         $exam_id = $conn->insert_id;
 
-        // Step 2: Insert each subject with marks
+        // Ensure teacher_id column exists in exam_subjects
+        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) {
+            if ($chk->num_rows === 0) {
+                @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
+            }
+        }
+
+        // Step 2: Insert each subject with marks and assigned teacher
         $subject_ids = $_POST['subject_id'];
         $exam_dates = $_POST['exam_date'];
         $exam_times = $_POST['exam_time'];
@@ -54,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $objective_marks = $_POST['objective_marks'];
         $practical_marks = $_POST['practical_marks'];
         $pass_types = $_POST['pass_type'];
+        $teacher_ids = $_POST['teacher_id'] ?? [];
 
         $all_success = true;
 
@@ -66,10 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pass_type = $conn->real_escape_string($pass_types[$i]);
             $total = $creative + $objective + $practical;
 
+            $teacher_id = isset($teacher_ids[$i]) ? (int)$teacher_ids[$i] : 0;
             $insert_subject_sql = "INSERT INTO exam_subjects 
-                (exam_id, subject_id, exam_date, exam_time, creative_marks, objective_marks, practical_marks, pass_type, total_marks)
+                (exam_id, subject_id, teacher_id, exam_date, exam_time, creative_marks, objective_marks, practical_marks, pass_type, total_marks)
                 VALUES 
-                ($exam_id, $subject_id, '$exam_date', '$exam_time', $creative, $objective, $practical, '$pass_type', $total)";
+                ($exam_id, $subject_id, " . ($teacher_id ?: 'NULL') . ", '$exam_date', '$exam_time', $creative, $objective, $practical, '$pass_type', $total)";
 
             if (!$conn->query($insert_subject_sql)) {
                 $all_success = false;
@@ -91,6 +100,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Load classes
 $classQuery = "SELECT * FROM classes ORDER BY class_name ASC";
 $classResult = $conn->query($classQuery);
+// Load teachers (for assigning per subject)
+$teachers = [];
+if ($tres = $conn->query("SELECT id, name FROM teachers ORDER BY name ASC")) {
+    while ($t = $tres->fetch_assoc()) { $teachers[] = $t; }
+}
 ?>
 
     <section class="content">
@@ -147,6 +161,7 @@ $classResult = $conn->query($classQuery);
                                             <th>নৈর্ব্যক্তিক পাশ</th>
                                             <th>ব্যবহারিক পাশ</th>
                                             <th>পাস টাইপ</th>
+                                            <th>বিষয় শিক্ষক</th>
                                         </tr>
                                     </thead>
                                     <tbody id="subjectsTableBody">
@@ -166,6 +181,9 @@ $classResult = $conn->query($classQuery);
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Expose teachers list for the per-subject dropdown
+    const TEACHERS = <?php echo json_encode($teachers); ?>;
+    const teacherOptions = TEACHERS.map(t => `<option value="${t.id}">${t.name.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</option>`).join('');
     const classSelect = document.getElementById('class_id');
     const subjectsContainer = document.getElementById('subjectsContainer');
     const subjectsTableBody = document.getElementById('subjectsTableBody');
@@ -233,6 +251,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <select name="pass_type[]" class="form-control">
                                     <option value="total" ${passType === 'total' ? 'selected' : ''}>মোট নাম্বার</option>
                                     <option value="individual" ${passType === 'individual' ? 'selected' : ''}>আলাদা আলাদা</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="teacher_id[]" class="form-control">
+                                    <option value="">-- শিক্ষক --</option>
+                                    ${teacherOptions}
                                 </select>
                             </td>
                         </tr>

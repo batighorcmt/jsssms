@@ -1,11 +1,34 @@
 <?php
 session_start();
+@include_once __DIR__ . '/../config/config.php';
 include '../config/db.php';
 
 $exam_id = intval($_POST['exam_id']);
 $class_id = intval($_POST['class_id']);
 $subject_id = intval($_POST['subject_id']);
 $year = intval($_POST['year']);
+
+// ✅ Permission: if logged-in as teacher, ensure this exam+subject is assigned to them
+$role = $_SESSION['role'] ?? '';
+if ($role === 'teacher') {
+    $username = $_SESSION['username'] ?? '';
+    $teacher_id = 0;
+    if ($username !== '') {
+        if ($t = $conn->prepare("SELECT id FROM teachers WHERE contact = ? LIMIT 1")) {
+            $t->bind_param('s', $username);
+            $t->execute(); $t->bind_result($teacher_id); $t->fetch(); $t->close();
+        }
+    }
+    $assigned_teacher_id = null;
+    if ($st = $conn->prepare("SELECT teacher_id FROM exam_subjects WHERE exam_id=? AND subject_id=? LIMIT 1")) {
+        $st->bind_param('ii', $exam_id, $subject_id);
+        $st->execute(); $st->bind_result($assigned_teacher_id); $st->fetch(); $st->close();
+    }
+    if (empty($teacher_id) || empty($assigned_teacher_id) || intval($teacher_id) !== intval($assigned_teacher_id)) {
+        echo '<div class="alert alert-danger">আপনি এই বিষয়ের নম্বর প্রদান করার অনুমতি প্রাপ্ত নন।</div>';
+        exit;
+    }
+}
 
 // ✅ Subject Details
 $sql = "SELECT s.subject_name, es.creative_marks, es.objective_marks, es.practical_marks
