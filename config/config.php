@@ -23,9 +23,9 @@ $company_website='https://batighorbd.com';
 if (!defined('BASE_URL')) {
     $host = $_SERVER['HTTP_HOST'] ?? '';
     if ($host) {
-        if (stripos($host, 'bktc.edu.bd') !== false) {
+        if (stripos($host, 'jss.batighorbd.com') !== false) {
             // Live
-            define('BASE_URL', 'https://bktc.edu.bd/jss/');
+            define('BASE_URL', 'https://jss.batighorbd.com/');
         } elseif ($host === 'localhost' || $host === '127.0.0.1') {
             // Local
             define('BASE_URL', 'http://localhost/jsssms/');
