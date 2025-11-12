@@ -21,6 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $father_name = $_POST['father_name'] ?? '';
     $mother_name = $_POST['mother_name'] ?? '';
     $date_of_birth = $_POST['date_of_birth'] ?? '';
+    // Normalize DOB: dd/mm/yyyy -> yyyy-mm-dd; invalid/empty -> NULL (MySQL strict-safe)
+    $date_of_birth = trim($date_of_birth);
+    if ($date_of_birth !== '') {
+        if (preg_match('~^(\d{2})\/(\d{2})\/(\d{4})$~', $date_of_birth, $m)) {
+            $date_of_birth = $m[3] . '-' . $m[2] . '-' . $m[1];
+        } elseif (!preg_match('~^(\d{4})-(\d{2})-(\d{2})$~', $date_of_birth)) {
+            $date_of_birth = null;
+        }
+    } else {
+        $date_of_birth = null;
+    }
     $gender = $_POST['gender'] ?? '';
     $religion = $_POST['religion'] ?? '';
     $blood_group = $_POST['blood_group'] ?? '';
@@ -108,15 +119,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($stmt->execute()) {
         $_SESSION['success'] = "শিক্ষার্থীর তথ্য সফলভাবে আপডেট করা হয়েছে";
+        // On success, go to subject assignment page for this student
+        $conn->close();
+        header("Location: add_subject.php?student_id=" . urlencode($student_id));
+        exit;
     } else {
         $_SESSION['error'] = "শিক্ষার্থীর তথ্য আপডেট করতে সমস্যা হয়েছে: " . $conn->error;
+        $stmt->close();
+        $conn->close();
+        header("Location: edit_student.php?student_id=" . urlencode($student_id));
+        exit;
     }
-    
-    $stmt->close();
-    $conn->close();
-    
-    header("Location: edit_student.php?student_id=" . $student_id);
-    exit;
 } else {
     header("Location: student_list.php");
     exit;

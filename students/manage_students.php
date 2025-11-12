@@ -394,7 +394,7 @@ if ($hasSections) {
                 LEFT JOIN classes c ON s.class_id = c.id
                 LEFT JOIN sections sec ON s.section_id = sec.id
                 " . $where . "
-                ORDER BY s.id DESC
+                ORDER BY s.class_id ASC, s.section_id ASC, s.roll_no ASC, s.student_name ASC
                 LIMIT " . (int)$offset . ", " . (int)$per_page;
 } else {
     $dataSql = "SELECT s.*, c.class_name, '' AS section_name 
@@ -402,7 +402,7 @@ if ($hasSections) {
                 " . $subjectJoin . "
                 LEFT JOIN classes c ON s.class_id = c.id
                 " . $where . "
-                ORDER BY s.id DESC
+                ORDER BY s.class_id ASC, s.section_id ASC, s.roll_no ASC, s.student_name ASC
                 LIMIT " . (int)$offset . ", " . (int)$per_page;
 }
 $result = $conn->query($dataSql);
