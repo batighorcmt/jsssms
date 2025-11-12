@@ -7,33 +7,8 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 }
 
 include '../config/db.php';
-include '../includes/header.php';
-?>
-
-<?php include '../includes/sidebar.php'; ?>
-
-<!-- Content Wrapper -->
-<div class="content-wrapper">
-    <section class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="bn">নতুন পরীক্ষা তৈরি করুন</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
-                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>settings/manage_exams.php">Manage Exams</a></li>
-                        <li class="breadcrumb-item active">Create</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </section>
-
-<?php
+// Handle POST before any HTML output to avoid "headers already sent"
 $message = "";
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $exam_name = $conn->real_escape_string($_POST['exam_name']);
     $class_id = (int)$_POST['class_id'];
@@ -75,13 +50,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $creative_marks = $_POST['creative_marks'];
         $objective_marks = $_POST['objective_marks'];
         $practical_marks = $_POST['practical_marks'];
-    $pass_types = $_POST['pass_type'];
-    $creative_pass = $_POST['creative_pass'] ?? [];
-    $objective_pass = $_POST['objective_pass'] ?? [];
-    $practical_pass = $_POST['practical_pass'] ?? [];
-    $total_pass = $_POST['total_pass'] ?? [];
-    $teacher_ids = $_POST['teacher_id'] ?? [];
-    $deadlines = $_POST['mark_entry_deadline'] ?? [];
+        $pass_types = $_POST['pass_type'];
+        $creative_pass = $_POST['creative_pass'] ?? [];
+        $objective_pass = $_POST['objective_pass'] ?? [];
+        $practical_pass = $_POST['practical_pass'] ?? [];
+        $total_pass = $_POST['total_pass'] ?? [];
+        $teacher_ids = $_POST['teacher_id'] ?? [];
+        $deadlines = $_POST['mark_entry_deadline'] ?? [];
 
         $all_success = true;
 
@@ -116,15 +91,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-                if ($all_success) {
-                    header("Location: exam_details.php?exam_id=".$exam_id."&status=success&msg=created");
-                    exit();
-                }
+        if ($all_success) {
+            header("Location: exam_details.php?exam_id=".$exam_id."&status=success&msg=created");
+            exit();
+        }
 
     } else {
         $message = 'পরীক্ষা তৈরি ব্যর্থ হয়েছে: ' . $conn->error;
     }
 }
+
+include '../includes/header.php';
+?>
+
+<?php include '../includes/sidebar.php'; ?>
+
+<!-- Content Wrapper -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="bn">নতুন পরীক্ষা তৈরি করুন</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>settings/manage_exams.php">Manage Exams</a></li>
+                        <li class="breadcrumb-item active">Create</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
 
 // Load classes
 $classQuery = "SELECT * FROM classes ORDER BY class_name ASC";
