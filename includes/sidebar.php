@@ -71,6 +71,12 @@ $current = basename($_SERVER['PHP_SELF']);
           </a>
         </li>
         <li class="nav-item">
+          <a href="<?= $BASE_URL ?>exam/seat_plan.php" class="nav-link <?= ($current=='seat_plan.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-th-large"></i>
+            <p>Exam Seat Plan</p>
+          </a>
+        </li>
+        <li class="nav-item">
           <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current=='mark_entry.php')?'active':'' ?>">
             <i class="nav-icon fas fa-pen"></i>
             <p>Mark Entry</p>

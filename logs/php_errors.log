@@ -1,0 +1,92 @@
+[12-Nov-2025 21:24:53 Europe/Berlin] [2025-11-12 21:24:53] EXCEPTION: Can't DROP INDEX `uniq_exam_room`; check that it exists in L:\xampp\htdocs\jsssms\exam\seat_plan.php:32
+[12-Nov-2025 21:25:05 Europe/Berlin] [2025-11-12 21:25:05] EXCEPTION: Can't DROP INDEX `uniq_exam_room`; check that it exists in L:\xampp\htdocs\jsssms\exam\seat_plan.php:32
+[12-Nov-2025 21:25:12 Europe/Berlin] [2025-11-12 21:25:12] EXCEPTION: Can't DROP INDEX `uniq_exam_room`; check that it exists in L:\xampp\htdocs\jsssms\exam\seat_plan.php:32
+[12-Nov-2025 21:25:22 Europe/Berlin] [2025-11-12 21:25:22] EXCEPTION: Can't DROP INDEX `uniq_exam_room`; check that it exists in L:\xampp\htdocs\jsssms\exam\seat_plan.php:32
+[12-Nov-2025 22:10:12 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:10:12 Europe/Berlin] [2025-11-12 22:10:12] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:10:13 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:10:13 Europe/Berlin] [2025-11-12 22:10:13] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:10:13 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:10:13 Europe/Berlin] [2025-11-12 22:10:13] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:10:13 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:10:13 Europe/Berlin] [2025-11-12 22:10:13] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:10:13 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:10:13 Europe/Berlin] [2025-11-12 22:10:13] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:10:13 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:10:13 Europe/Berlin] [2025-11-12 22:10:13] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:10:14 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:10:14 Europe/Berlin] [2025-11-12 22:10:14] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:11:40 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:11:40 Europe/Berlin] [2025-11-12 22:11:40] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:12:38 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:12:38 Europe/Berlin] [2025-11-12 22:12:38] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:12:39 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:12:39 Europe/Berlin] [2025-11-12 22:12:39] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:12:39 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:12:39 Europe/Berlin] [2025-11-12 22:12:39] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:12:40 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:12:40 Europe/Berlin] [2025-11-12 22:12:40] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:12:40 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:12:40 Europe/Berlin] [2025-11-12 22:12:40] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:12:40 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:12:40 Europe/Berlin] [2025-11-12 22:12:40] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:13:07 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:13:07 Europe/Berlin] [2025-11-12 22:13:07] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:13:07 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:13:07 Europe/Berlin] [2025-11-12 22:13:07] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:13:11 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:13:11 Europe/Berlin] [2025-11-12 22:13:11] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:13:13 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:13:13 Europe/Berlin] [2025-11-12 22:13:13] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:13:14 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:13:14 Europe/Berlin] [2025-11-12 22:13:14] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:13:16 Europe/Berlin] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in L:\xampp\htdocs\jsssms\exam\seat_plan.php on line 57
+[12-Nov-2025 22:13:17 Europe/Berlin] [2025-11-12 22:13:17] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:129
+[12-Nov-2025 22:14:25 Europe/Berlin] [2025-11-12 22:14:25] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:75
+[12-Nov-2025 22:14:26 Europe/Berlin] [2025-11-12 22:14:26] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:75
+[12-Nov-2025 22:14:26 Europe/Berlin] [2025-11-12 22:14:26] EXCEPTION: Unknown column 'sort_order' in 'order clause' in L:\xampp\htdocs\jsssms\exam\seat_plan.php:75
+[12-Nov-2025 23:52:09 Europe/Berlin] [2025-11-12 23:52:09] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:35 Europe/Berlin] [2025-11-12 23:52:35] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:36 Europe/Berlin] [2025-11-12 23:52:36] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:37 Europe/Berlin] [2025-11-12 23:52:37] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:37 Europe/Berlin] [2025-11-12 23:52:37] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:37 Europe/Berlin] [2025-11-12 23:52:37] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:37 Europe/Berlin] [2025-11-12 23:52:37] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:37 Europe/Berlin] [2025-11-12 23:52:37] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:50 Europe/Berlin] [2025-11-12 23:52:50] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:52:50 Europe/Berlin] [2025-11-12 23:52:50] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:53:28 Europe/Berlin] [2025-11-12 23:53:28] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:53:29 Europe/Berlin] [2025-11-12 23:53:29] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:53:29 Europe/Berlin] [2025-11-12 23:53:29] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:53:29 Europe/Berlin] [2025-11-12 23:53:29] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:53:29 Europe/Berlin] [2025-11-12 23:53:29] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:53:29 Europe/Berlin] [2025-11-12 23:53:29] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:53:33 Europe/Berlin] [2025-11-12 23:53:33] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:38
+[12-Nov-2025 23:55:12 Europe/Berlin] [2025-11-12 23:55:12] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:55:13 Europe/Berlin] [2025-11-12 23:55:13] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:55:22 Europe/Berlin] [2025-11-12 23:55:22] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:32 Europe/Berlin] [2025-11-12 23:56:32] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:33 Europe/Berlin] [2025-11-12 23:56:33] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:34 Europe/Berlin] [2025-11-12 23:56:34] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:44 Europe/Berlin] [2025-11-12 23:56:44] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:45 Europe/Berlin] [2025-11-12 23:56:45] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:45 Europe/Berlin] [2025-11-12 23:56:45] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:49 Europe/Berlin] [2025-11-12 23:56:49] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:56:50 Europe/Berlin] [2025-11-12 23:56:50] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:57:38 Europe/Berlin] [2025-11-12 23:57:38] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:57:38 Europe/Berlin] [2025-11-12 23:57:38] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:57:38 Europe/Berlin] [2025-11-12 23:57:38] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:57:39 Europe/Berlin] [2025-11-12 23:57:39] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:57:43 Europe/Berlin] [2025-11-12 23:57:43] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:44
+[12-Nov-2025 23:58:14 Europe/Berlin] [2025-11-12 23:58:14] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:15 Europe/Berlin] [2025-11-12 23:58:15] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:15 Europe/Berlin] [2025-11-12 23:58:15] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:15 Europe/Berlin] [2025-11-12 23:58:15] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:16 Europe/Berlin] [2025-11-12 23:58:16] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:17 Europe/Berlin] [2025-11-12 23:58:17] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:17 Europe/Berlin] [2025-11-12 23:58:17] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:17 Europe/Berlin] [2025-11-12 23:58:17] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:17 Europe/Berlin] [2025-11-12 23:58:17] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:18 Europe/Berlin] [2025-11-12 23:58:18] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:18 Europe/Berlin] [2025-11-12 23:58:18] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[12-Nov-2025 23:58:32 Europe/Berlin] [2025-11-12 23:58:32] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
