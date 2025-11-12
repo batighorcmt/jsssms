@@ -171,6 +171,24 @@ $list = $conn->query("SELECT id, name, subject, contact, email, address, initial
 
 <!-- Content Wrapper -->
 <div class="content-wrapper">
+  <style>
+    .no-print { display: block; }
+    .print-only { display: none; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      body { background: #fff; }
+      .main-header, .main-sidebar, .control-sidebar, .navbar, .sidebar, .breadcrumb, .main-footer { display: none !important; }
+      .content-wrapper { margin-left: 0 !important; }
+      .card, .card-body { box-shadow: none !important; }
+      .table { font-size: 14px; }
+      .table th, .table td { padding: 6px !important; }
+      .table, .table th, .table td { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .table thead th { background: #e5e7eb !important; }
+      .col-actions { display: none !important; }
+      @page { margin: 0.5in; }
+    }
+  </style>
   <section class="content-header">
     <div class="container-fluid">
       <div class="row mb-2">
@@ -193,10 +211,18 @@ $list = $conn->query("SELECT id, name, subject, contact, email, address, initial
         <div class="card-header">
           <h3 class="card-title">শিক্ষক তালিকা</h3>
           <div class="card-tools">
-            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addTeacherModal"><i class="fas fa-plus"></i> নতুন শিক্ষক</button>
+            <button class="btn btn-secondary btn-sm no-print" onclick="window.print()"><i class="fas fa-print"></i> প্রিন্ট</button>
+            <button class="btn btn-primary btn-sm no-print" data-toggle="modal" data-target="#addTeacherModal"><i class="fas fa-plus"></i> নতুন শিক্ষক</button>
           </div>
         </div>
         <div class="card-body table-responsive p-0">
+          <!-- Print header -->
+          <div class="print-only text-center" style="margin:10px 0;">
+            <?php $instName = isset($institute_name) ? trim($institute_name) : ''; $instAddr = isset($institute_address) ? trim($institute_address) : ''; ?>
+            <?php if ($instName !== ''): ?><h3 style="margin:0;"><?= htmlspecialchars($instName) ?></h3><?php endif; ?>
+            <?php if ($instAddr !== ''): ?><div style="margin:2px 0 6px 0; font-size: 0.95rem; color:#374151;"><?= htmlspecialchars($instAddr) ?></div><?php endif; ?>
+            <h4 style="margin-top:6px;">শিক্ষক তালিকা</h4>
+          </div>
           <table class="table table-hover table-bordered mb-0">
             <thead class="thead-light">
               <tr>
@@ -206,7 +232,7 @@ $list = $conn->query("SELECT id, name, subject, contact, email, address, initial
                 <th>ইমেইল</th>
                 <th>ঠিকানা</th>
                 <th>পাসওয়ার্ড</th>
-                <th style="width:140px">অ্যাকশন</th>
+                <th class="col-actions no-print" style="width:140px">অ্যাকশন</th>
               </tr>
             </thead>
             <tbody>
@@ -218,7 +244,7 @@ $list = $conn->query("SELECT id, name, subject, contact, email, address, initial
                 <td><?= htmlspecialchars($t['email']) ?></td>
                 <td><?= htmlspecialchars($t['address']) ?></td>
                 <td><code><?= htmlspecialchars($t['initial_password'] ?? '') ?></code></td>
-                <td>
+                <td class="col-actions no-print">
                   <button class="btn btn-sm btn-info btn-edit" 
                           data-id="<?= (int)$t['id'] ?>"
                           data-name="<?= htmlspecialchars($t['name'], ENT_QUOTES) ?>"
