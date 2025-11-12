@@ -293,8 +293,8 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                             Action
                         </button>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="edit_student.php?student_id=<?= $row['student_id']; ?>">Edit</a></li>
-                            <li><a class="dropdown-item" href="add_subjects.php?student_id=<?= $row['student_id']; ?>">Select Subject</a></li>
+                            <li><a class="dropdown-item" href="edit_student.php?student_id=<?= $row['student_id']; ?>" target="_blank">Edit</a></li>
+                            <li><a class="dropdown-item" href="add_subjects.php?student_id=<?= $row['student_id']; ?>" target="_blank">Select Subject</a></li>
                             <li><a class="dropdown-item text-danger" href="delete_student.php?id=<?= $row['id']; ?>" onclick="return confirm('Are you sure?');">Delete</a></li>
                         </ul>
                     </div>
