@@ -5,21 +5,21 @@ $ALLOWED_ROLES = ['super_admin','teacher'];
 include '../auth/session.php';
 include '../config/db.php';
 
-// Helpers: Bengali digits and date formatting
+// Helpers: English digits and date formatting
 if (!function_exists('bn_digits')) {
+    // Keep the function name for compatibility but return input unchanged (English digits)
     function bn_digits($input): string {
-        $en = ['0','1','2','3','4','5','6','7','8','9'];
-        $bn = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
-        return str_replace($en, $bn, (string)$input);
+        return (string)$input;
     }
 }
 if (!function_exists('bn_date')) {
+    // Keep the function name for compatibility but format in English
     function bn_date(?string $dateStr): string {
         if (empty($dateStr)) return '';
         $ts = strtotime($dateStr);
         if ($ts === false) return '';
         $formatted = date('d/m/Y', $ts);
-        return bn_digits($formatted);
+        return $formatted;
     }
 }
 
@@ -34,25 +34,25 @@ if ($resY = $conn->query("SELECT DISTINCT year FROM students WHERE year IS NOT N
     while ($r = $resY->fetch_assoc()) { $years[] = $r['year']; }
 }
 
-// Available columns (key => label in Bangla)
+// Available columns (key => label in English)
 $available_columns = [
-    'serial' => 'ক্রম',
-    'photo' => 'ছবি',
-    'student_id' => 'আইডি',
-    'student_name' => 'শিক্ষার্থীর নাম',
-    'father_name' => 'পিতার নাম',
-    'mother_name' => 'মাতার নাম',
-    'roll_no' => 'রোল',
-    'class' => 'শ্রেণি',
-    'section' => 'শাখা',
-    'dob' => 'জন্ম তারিখ',
-    'gender' => 'লিঙ্গ',
-    'religion' => 'ধর্ম',
-    'status' => 'স্ট্যাটাস',
-    'mobile_no' => 'মোবাইল',
-    'address' => 'ঠিকানা',
-    'group' => 'গ্রুপ',
-    'year' => 'বছর',
+    'serial' => 'Serial',
+    'photo' => 'Photo',
+    'student_id' => 'ID',
+    'student_name' => 'Student Name',
+    'father_name' => 'Father\'s Name',
+    'mother_name' => 'Mother\'s Name',
+    'roll_no' => 'Roll No',
+    'class' => 'Class',
+    'section' => 'Section',
+    'dob' => 'Date of Birth',
+    'gender' => 'Gender',
+    'religion' => 'Religion',
+    'status' => 'Status',
+    'mobile_no' => 'Mobile',
+    'address' => 'Address',
+    'group' => 'Group',
+    'year' => 'Year',
 ];
 $selected_columns = array_keys($available_columns); // default: all
 $column_orders = [];
@@ -116,12 +116,12 @@ include '../includes/sidebar.php';
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h1 class="m-0">শিক্ষার্থী তালিকা</h1>
+                    <h1 class="m-0">Student List</h1>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">হোম</a></li>
-                        <li class="breadcrumb-item active">শিক্ষার্থী তালিকা</li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item active">Student List</li>
                     </ol>
                 </div>
             </div>
@@ -159,7 +159,7 @@ include '../includes/sidebar.php';
             <!-- Filter Form Card -->
             <div class="card shadow-sm no-print">
                 <div class="card-header">
-                    <h4 class="card-title mb-0">ফিল্টার নির্বাচন করুন</h4>
+                    <h4 class="card-title mb-0">Select Filters</h4>
                 </div>
                 <div class="card-body">
                     <form action="" method="POST">
@@ -167,9 +167,9 @@ include '../includes/sidebar.php';
                         <div class="row">
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="class_id">শ্রেণি</label>
+                                    <label for="class_id">Class</label>
                                     <select class="form-control" name="class_id" id="class_id">
-                                        <option value="">নির্বাচন করুন</option>
+                                        <option value="">Select</option>
                                         <?php foreach ($classes as $class): ?>
                                             <option value="<?= htmlspecialchars($class['id']) ?>" <?= (isset($class_id) && (int)$class_id === (int)$class['id']) ? 'selected' : '' ?>><?= htmlspecialchars($class['class_name']) ?></option>
                                         <?php endforeach; ?>
@@ -178,17 +178,17 @@ include '../includes/sidebar.php';
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="section_id">শাখা (ঐচ্ছিক)</label>
+                                    <label for="section_id">Section (optional)</label>
                                     <select class="form-control" name="section_id" id="section_id">
-                                        <option value="">সকল শাখা</option>
+                                        <option value="">All Sections</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="year">শিক্ষাবর্ষ/বছর</label>
+                                    <label for="year">Academic Year</label>
                                     <select class="form-control" name="year" id="year">
-                                        <option value="">সকল</option>
+                                        <option value="">All</option>
                                         <?php foreach ($years as $y): ?>
                                             <option value="<?= htmlspecialchars($y) ?>" <?= (isset($yearSel) && (string)$yearSel === (string)$y) ? 'selected' : '' ?>><?= htmlspecialchars($y) ?></option>
                                         <?php endforeach; ?>
@@ -197,35 +197,35 @@ include '../includes/sidebar.php';
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="gender">লিঙ্গ (ঐচ্ছিক)</label>
+                                    <label for="gender">Gender (optional)</label>
                                     <select class="form-control" name="gender" id="gender">
-                                        <option value="">সকল</option>
-                                        <option value="male" <?= (isset($gender) && strtolower($gender) === 'male') ? 'selected' : '' ?>>পুরুষ</option>
-                                        <option value="female" <?= (isset($gender) && strtolower($gender) === 'female') ? 'selected' : '' ?>>মহিলা</option>
-                                        <option value="other" <?= (isset($gender) && strtolower($gender) === 'other') ? 'selected' : '' ?>>অন্যান্য</option>
+                                        <option value="">All</option>
+                                        <option value="male" <?= (isset($gender) && strtolower($gender) === 'male') ? 'selected' : '' ?>>Male</option>
+                                        <option value="female" <?= (isset($gender) && strtolower($gender) === 'female') ? 'selected' : '' ?>>Female</option>
+                                        <option value="other" <?= (isset($gender) && strtolower($gender) === 'other') ? 'selected' : '' ?>>Other</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="religion">ধর্ম (ঐচ্ছিক)</label>
+                                    <label for="religion">Religion (optional)</label>
                                     <select class="form-control" name="religion" id="religion">
-                                        <option value="">সকল</option>
-                                        <option value="Islam" <?= (isset($religion) && $religion === 'Islam') ? 'selected' : '' ?>>ইসলাম</option>
-                                        <option value="Hinduism" <?= (isset($religion) && $religion === 'Hinduism') ? 'selected' : '' ?>>হিন্দু</option>
-                                        <option value="Christianity" <?= (isset($religion) && $religion === 'Christianity') ? 'selected' : '' ?>>খ্রিস্টান</option>
-                                        <option value="Buddhism" <?= (isset($religion) && $religion === 'Buddhism') ? 'selected' : '' ?>>বৌদ্ধ</option>
-                                        <option value="Others" <?= (isset($religion) && $religion === 'Others') ? 'selected' : '' ?>>অন্যান্য</option>
+                                        <option value="">All</option>
+                                        <option value="Islam" <?= (isset($religion) && $religion === 'Islam') ? 'selected' : '' ?>>Islam</option>
+                                        <option value="Hinduism" <?= (isset($religion) && $religion === 'Hinduism') ? 'selected' : '' ?>>Hinduism</option>
+                                        <option value="Christianity" <?= (isset($religion) && $religion === 'Christianity') ? 'selected' : '' ?>>Christianity</option>
+                                        <option value="Buddhism" <?= (isset($religion) && $religion === 'Buddhism') ? 'selected' : '' ?>>Buddhism</option>
+                                        <option value="Others" <?= (isset($religion) && $religion === 'Others') ? 'selected' : '' ?>>Others</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="status">স্ট্যাটাস (ঐচ্ছিক)</label>
+                                    <label for="status">Status (optional)</label>
                                     <select class="form-control" name="status" id="status">
-                                        <option value="">সকল</option>
-                                        <option value="Active" <?= (isset($status) && $status === 'Active') ? 'selected' : '' ?>>সক্রিয়</option>
-                                        <option value="Inactive" <?= (isset($status) && $status === 'Inactive') ? 'selected' : '' ?>>নিষ্ক্রিয়</option>
+                                        <option value="">All</option>
+                                        <option value="Active" <?= (isset($status) && $status === 'Active') ? 'selected' : '' ?>>Active</option>
+                                        <option value="Inactive" <?= (isset($status) && $status === 'Inactive') ? 'selected' : '' ?>>Inactive</option>
                                     </select>
                                 </div>
                             </div>
@@ -234,7 +234,7 @@ include '../includes/sidebar.php';
                         <div class="row no-print">
                             <div class="col-12">
                                 <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-toggle="collapse" data-target="#columnsCollapse" aria-expanded="false" aria-controls="columnsCollapse">
-                                    <i class="fas fa-sliders-h"></i> কলাম নির্ধারণ
+                                    <i class="fas fa-sliders-h"></i> Configure Columns
                                 </button>
                                 <div id="columnsCollapse" class="collapse">
                                     <div id="columnList" class="d-block">
@@ -267,9 +267,9 @@ include '../includes/sidebar.php';
 
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <button type="submit" name="generate_report" class="btn btn-primary"><i class="fas fa-search"></i> অনুসন্ধান করুন</button>
-                                <button type="button" class="btn btn-success ml-2" onclick="window.print()"><i class="fas fa-print"></i> পোর্ট্রেটে প্রিন্ট</button>
-                                <button type="button" class="btn btn-secondary ml-2" onclick="printWithOrientation('landscape')"><i class="fas fa-print"></i> ল্যান্ডস্কেপে প্রিন্ট</button>
+                                <button type="submit" name="generate_report" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
+                                <button type="button" class="btn btn-success ml-2" onclick="window.print()"><i class="fas fa-print"></i> Print (Portrait)</button>
+                                <button type="button" class="btn btn-secondary ml-2" onclick="printWithOrientation('landscape')"><i class="fas fa-print"></i> Print (Landscape)</button>
                             </div>
                         </div>
                     </form>
@@ -280,29 +280,29 @@ include '../includes/sidebar.php';
             <?php if ($filter_applied): ?>
                 <div class="print-only my-2">
                     <div class="text-center">
-                        <h4>শিক্ষার্থী তালিকা</h4>
+                        <h4>Student List</h4>
                         <p class="text-muted report-meta">
                             <?php
                             // Class label
-                            $class_name = 'সকল';
+                            $class_name = 'All';
                             if (!empty($class_id)) {
                                 foreach ($classes as $c) { if ((int)$c['id'] === (int)$class_id) { $class_name = $c['class_name']; break; } }
                             }
-                            $section_label = !empty($section_id) ? 'নির্বাচিত শাখা' : 'সকল';
-                            $year_label = !empty($yearSel) ? $yearSel : 'সকল';
-                            $gLabel = 'সকল';
+                            $section_label = !empty($section_id) ? 'Selected Section' : 'All';
+                            $year_label = !empty($yearSel) ? $yearSel : 'All';
+                            $gLabel = 'All';
                             if (!empty($gender)) {
                                 $g = strtolower($gender);
-                                if ($g === 'male') $gLabel = 'পুরুষ'; elseif ($g === 'female') $gLabel = 'মহিলা'; else $gLabel = 'অন্যান্য';
+                                if ($g === 'male') $gLabel = 'Male'; elseif ($g === 'female') $gLabel = 'Female'; else $gLabel = 'Other';
                             }
-                            $religion_label = !empty($religion) ? $religion : 'সকল';
-                            $status_label = !empty($status) ? $status : 'সকল';
-                            echo 'শ্রেণি: ' . htmlspecialchars($class_name) . ' | ';
-                            echo 'শাখা: ' . htmlspecialchars($section_label) . ' | ';
-                            echo 'বছর: ' . htmlspecialchars($year_label) . ' | ';
-                            echo 'লিঙ্গ: ' . htmlspecialchars($gLabel) . ' | ';
-                            echo 'ধর্ম: ' . htmlspecialchars($religion_label) . ' | ';
-                            echo 'স্ট্যাটাস: ' . htmlspecialchars($status_label);
+                            $religion_label = !empty($religion) ? $religion : 'All';
+                            $status_label = !empty($status) ? $status : 'All';
+                            echo 'Class: ' . htmlspecialchars($class_name) . ' | ';
+                            echo 'Section: ' . htmlspecialchars($section_label) . ' | ';
+                            echo 'Year: ' . htmlspecialchars($year_label) . ' | ';
+                            echo 'Gender: ' . htmlspecialchars($gLabel) . ' | ';
+                            echo 'Religion: ' . htmlspecialchars($religion_label) . ' | ';
+                            echo 'Status: ' . htmlspecialchars($status_label);
                             ?>
                         </p>
                     </div>
@@ -311,7 +311,7 @@ include '../includes/sidebar.php';
                 <?php if (!empty($students)): ?>
                     <div class="card">
                         <div class="card-header no-print">
-                            <h3 class="card-title">ফলাফল: মোট <?= bn_digits(count($students)) ?> জন</h3>
+                            <h3 class="card-title">Results: Total <?= count($students) ?></h3>
                         </div>
                         <div class="card-body table-responsive p-0">
                             <table class="table table-bordered table-striped table-hover table-sm mb-0">
@@ -329,7 +329,7 @@ include '../includes/sidebar.php';
                                             <?php
                                             switch ($colKey) {
                                                 case 'serial':
-                                                    echo '<td>' . bn_digits($i) . '</td>';
+                                                    echo '<td>' . $i . '</td>';
                                                     break;
                                                 case 'photo':
                                                     $ph = trim((string)($s['photo'] ?? ''));
@@ -399,7 +399,7 @@ include '../includes/sidebar.php';
                         </div>
                     </div>
                 <?php else: ?>
-                    <div class="alert alert-warning text-center">কোনো শিক্ষার্থী পাওয়া যায়নি।</div>
+                    <div class="alert alert-warning text-center">No students found.</div>
                 <?php endif; ?>
             <?php endif; ?>
         </div>
@@ -413,12 +413,12 @@ document.addEventListener('DOMContentLoaded', function(){
     var sectionSel = document.getElementById('section_id');
     function loadSections(cid, preselect){
         if (!sectionSel) return;
-        sectionSel.innerHTML = '<option value="">লোড হচ্ছে...</option>';
-        if (!cid){ sectionSel.innerHTML = '<option value="">সকল শাখা</option>'; return; }
+        sectionSel.innerHTML = '<option value="">Loading...</option>';
+        if (!cid){ sectionSel.innerHTML = '<option value="">All Sections</option>'; return; }
         fetch('../ajax/get_sections.php?class_id=' + encodeURIComponent(cid))
             .then(res => res.json())
             .then(data => {
-                sectionSel.innerHTML = '<option value="">সকল শাখা</option>';
+                sectionSel.innerHTML = '<option value="">All Sections</option>';
                 data.forEach(function(row){
                     var opt = document.createElement('option');
                     opt.value = row.id; opt.textContent = row.section_name;
@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     sectionSel.appendChild(opt);
                 });
             }).catch(()=>{
-                sectionSel.innerHTML = '<option value="">সকল শাখা</option>';
+                sectionSel.innerHTML = '<option value="">All Sections</option>';
             });
     }
     if (classSel){
