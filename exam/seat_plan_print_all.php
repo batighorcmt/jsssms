@@ -9,45 +9,38 @@ include '../config/db.php';
 if (isset($_GET['debug']) && $_GET['debug']=='1'){
     error_reporting(E_ALL);
     ini_set('display_errors','1');
-    // Robust fatal error surface
     set_error_handler(function($errno,$errstr,$errfile,$errline){
         echo "<pre style=\"background:#fee;border:1px solid #f88;padding:8px;\">PHP Error [$errno]: $errstr\n$errfile:$errline</pre>";
-        return false; // allow normal handling too
+        return false;
     });
     register_shutdown_function(function(){
         $e = error_get_last();
-        if ($e) {
-            echo "<pre style=\"background:#fee;border:2px solid #d00;padding:10px;\">FATAL: {$e['message']}\n{$e['file']}:{$e['line']}</pre>";
-        }
+        if ($e) { echo "<pre style=\"background:#fee;border:2px solid #d00;padding:10px;\">FATAL: {$e['message']}\n{$e['file']}:{$e['line']}</pre>"; }
     });
 }
 
 $plan_id = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
-$room_id = isset($_GET['room_id']) ? (int)$_GET['room_id'] : 0;
-if ($plan_id<=0 || $room_id<=0){ echo 'Invalid request'; exit; }
+if ($plan_id<=0){ echo 'Invalid request'; exit; }
 
-// Load plan and room
-$plan = null; $room = null;
+// Load plan and rooms
+$plan = null; $roomsToPrint = [];
 $rp = $conn->query("SELECT * FROM seat_plans WHERE id=".$plan_id." LIMIT 1");
 if ($rp && $rp->num_rows) $plan = $rp->fetch_assoc();
-$rr = $conn->query("SELECT * FROM seat_plan_rooms WHERE id=".$room_id." AND plan_id=".$plan_id);
-if ($rr && $rr->num_rows) $room = $rr->fetch_assoc();
-if (!$plan || !$room){ echo 'Plan/Room not found'; if(isset($_GET['debug'])){ echo "<pre>plan_id=$plan_id room_id=$room_id</pre>";} exit; }
+$rr = $conn->query("SELECT * FROM seat_plan_rooms WHERE plan_id=".$plan_id." ORDER BY room_no ASC");
+if ($rr) { while($row=$rr->fetch_assoc()){ $roomsToPrint[]=$row; } }
+if (!$plan || empty($roomsToPrint)){ echo 'Plan or Rooms not found'; exit; }
 
-// Prepare shift label for header (right side)
+// Prepare shift label
 $shiftName = (string)($plan['shift'] ?? 'Morning');
 $sn = strtolower(trim($shiftName));
 if (strpos($sn,'even') !== false) { $shiftLabel = 'Evening Shift'; }
 elseif (strpos($sn,'morn') !== false) { $shiftLabel = 'Morning Shift'; }
 else { $shiftLabel = ucwords($shiftName).' Shift'; }
-// Split shift into two lines for overlay
 $shiftParts = preg_split('/\s+/', trim($shiftLabel), 2);
 $shiftLine1 = $shiftParts[0] ?? $shiftLabel;
 $shiftLine2 = $shiftParts[1] ?? '';
 
-// Load allocations + try to enrich with students info (support both id and student_id keys)
-$alloc = [];
-// Detect optional/migrated columns safely to avoid unknown column fatals
+// Detect optional/migrated columns
 $hasStudentGroup = false; $hasLegacyGroup = false; $hasOptionalCol = false;
 if ($chk = $conn->query("SHOW COLUMNS FROM students LIKE 'student_group'")) { $hasStudentGroup = ($chk->num_rows>0); }
 if ($chk = $conn->query("SHOW COLUMNS FROM students LIKE 'group'")) { $hasLegacyGroup = ($chk->num_rows>0); }
@@ -60,38 +53,6 @@ elseif ($hasLegacyGroup) { $selGroupExpr = 'COALESCE(s1.`group`, s2.`group`) AS 
 $selOptionalExpr = 'NULL AS optional_subject_id';
 if ($hasOptionalCol) { $selOptionalExpr = 'COALESCE(s1.optional_subject_id, s2.optional_subject_id) AS optional_subject_id'; }
 
-$sql = "SELECT a.col_no, a.bench_no, a.position, a.student_id,
-        COALESCE(s1.student_name, s2.student_name) AS student_name,
-        COALESCE(s1.roll_no, s2.roll_no) AS roll_no,
-        COALESCE(c1.class_name, c2.class_name) AS class_name,
-        COALESCE(s1.class_id, s2.class_id) AS class_id,
-        $selGroupExpr,
-        $selOptionalExpr,
-        COALESCE(s1.student_id, s2.student_id) AS sid_str,
-        COALESCE(s1.id, s2.id) AS sid_num,
-        COALESCE(s1.photo, s2.photo) AS photo
-    FROM seat_plan_allocations a
-    LEFT JOIN students s1 ON s1.student_id=a.student_id
-    LEFT JOIN students s2 ON s2.id=a.student_id
-    LEFT JOIN classes c1 ON c1.id = s1.class_id
-    LEFT JOIN classes c2 ON c2.id = s2.class_id
-    WHERE a.room_id=".$room_id;
-$rs = $conn->query($sql);
-if ($rs){
-    while($r=$rs->fetch_assoc()){
-        $c = (int)$r['col_no']; $b=(int)$r['bench_no']; $p=$r['position'];
-        if(!isset($alloc[$c])) $alloc[$c]=[];
-        if(!isset($alloc[$c][$b])) $alloc[$c][$b]=['L'=>null,'R'=>null];
-        $alloc[$c][$b][$p]=$r;
-    }
-} else {
-    if (isset($_GET['debug'])){
-        echo "<pre style=\"background:#fee;border:1px solid #f88;padding:8px;\">SQL Error (alloc load): ".$conn->error."\nQuery: $sql</pre>";
-    } else { echo 'Data load error.'; }
-    exit;
-}
-
-$colCounts = [1=>(int)$room['col1_benches'], 2=>(int)$room['col2_benches'], 3=>(int)$room['col3_benches']];
 function normalizeGroupName($name){
     $n = strtolower(trim($name ?? ''));
     if ($n==='') return '';
@@ -121,7 +82,7 @@ function detectGradeFromClass($className){
     if (preg_match('/\b(10|১০)\b/u', $c)) return 10;
     return null;
 }
-function seatCell($data, $pos){
+function seatCellAll($data, $pos){
     if (!$data) return '<div class="seat empty">--</div>';
     $name = htmlspecialchars($data['student_name'] ?? '');
     $roll = htmlspecialchars($data['roll_no'] ?? '');
@@ -130,9 +91,7 @@ function seatCell($data, $pos){
     $grpRaw = normalizeGroupName($data['student_group'] ?? '');
     $grade = detectGradeFromClass($clsRaw);
     $displayClass = $cls;
-    if ($grade===9 || $grade===10) {
-        if ($grpRaw!=='') { $displayClass .= ' - '.htmlspecialchars(strtoupper(substr($grpRaw,0,1))); }
-    }
+    if ($grade===9 || $grade===10) { if ($grpRaw!=='') { $displayClass .= ' - '.htmlspecialchars(strtoupper(substr($grpRaw,0,1))); } }
     $photoTag = '';
     if (!empty($data['photo'])){
         $base = defined('BASE_URL') ? BASE_URL : '../';
@@ -143,72 +102,41 @@ function seatCell($data, $pos){
     $gradeClass = $grade?(' grade-'.(int)$grade):'';
     return '<div class="seat '.$posClass.$gradeClass.'">'.$photoTag.'<div class="roll">'.$roll.'</div><div class="name">'.$name.'</div><div class="class">'.$displayClass.'</div></div>';
 }
-// Compute total assigned for this room
-$totalAssigned = 0;
-for ($cc=1; $cc<=3; $cc++){
-    if (!isset($alloc[$cc])) continue;
-    foreach ($alloc[$cc] as $bb => $row){
-        if (!empty($row['L'])) $totalAssigned++;
-        if (!empty($row['R'])) $totalAssigned++;
-    }
-}
+function badgeClassForAll($className){ $g = detectGradeFromClass($className); return $g ? ('grade-'.(int)$g) : ''; }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seat Plan — Print</title>
+    <title>Seat Plan — Print All Rooms</title>
     <style>
-        @media print {
-            @page { size: A4; margin: 8mm; }
-            .page { page-break-after: always; }
-            body { margin: 0; }
-            .print-toolbar{display:none;}
-            .no-print, .no-print * { display: none !important; }
-            /* Keep three columns side-by-side in print */
-            .seat-area{ display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8mm; }
-            .column{ width:auto !important; min-width: 0 !important; }
-            /* Avoid cutting a bench across pages */
-            .bench{ break-inside: avoid; page-break-inside: avoid; }
-            /* Ensure space for fixed footer on paper */
-            .page{ padding-bottom: 22mm !important; }
-            .fixed-footer{ position: fixed; left: 0; right: 0; bottom: 0; }
-        }
+        @media print { @page { size: A4; margin: 8mm; } .page { page-break-after: always; } body { margin: 0; } .print-toolbar{display:none;} .no-print, .no-print * { display: none !important; } .seat-area{ display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8mm; } .column{ width:auto !important; min-width: 0 !important; } .bench{ break-inside: avoid; page-break-inside: avoid; } .page{ padding-bottom: 22mm !important; } .fixed-footer{ position: fixed; left: 0; right: 0; bottom: 0; } }
         body { font-family: 'Noto Sans', 'Arial', sans-serif; padding: 20px; color:#000; }
         .page { border: 1px solid #e3e3e3; padding: 18px; margin-bottom: 20px; border-radius: 6px; padding-bottom: 70px; }
-    .header { text-align: center; margin-bottom: 4px; position:relative; }
-    .header-brand{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; }
-    /* Overlay the logo so it doesn't add vertical space */
-    .brand-left{ position:absolute; left:6px; top:6px; width:0; height:0; overflow:visible; }
-    .brand-text{ display:flex; flex-direction:column; justify-content:center; text-align:center; flex:1; }
-    .brand-right{ width:0; height:0; }
-    .shift-overlay{ position:absolute; top:6px; right:6px; border:2px solid #333; padding:6px 10px; font-weight:800; background: rgba(255,247,168,0.95); color:#000; border-radius:6px; line-height:1.05; text-align:center; z-index: 20; }
-    .shift-overlay .line1{ font-size: 13px; }
-    .shift-overlay .line2{ font-size: 16px; }
+        .header { text-align: center; margin-bottom: 4px; position:relative; }
+        .header-brand{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; }
+        .brand-left{ position:absolute; left:6px; top:6px; width:0; height:0; overflow:visible; }
+        .brand-text{ display:flex; flex-direction:column; justify-content:center; text-align:center; flex:1; }
+        .brand-right{ width:0; height:0; }
+        .shift-overlay{ position:absolute; top:6px; right:6px; border:2px solid #333; padding:6px 10px; font-weight:800; background: rgba(255,247,168,0.95); color:#000; border-radius:6px; line-height:1.05; text-align:center; z-index: 20; }
+        .shift-overlay .line1{ font-size: 13px; }
+        .shift-overlay .line2{ font-size: 16px; }
         .school-name { font-size: 28px; font-weight: 800; line-height:1.05; margin: 0; }
         .school-address { font-size: 12px; color: #444; line-height:1.1; margin: 0; }
-    .exam-title { text-align: center; margin: 2px 0 4px; line-height:1.2; }
-    .exam-title .plan-name{ font-size: 18px; font-weight: 800; line-height:1.1; margin: 2px 0; }
-    .exam-title .label{ font-size: 20px; font-weight: 800; line-height:1.1; margin-top: 2px; }
-    .room-number { font-weight: 800; font-size: 22px; text-align: center; margin: 6px 0 10px; padding-bottom:6px; border-bottom:2px solid #333; }
-    .school-logo { display:block; width:64px; height:64px; object-fit:contain; object-position:center center; margin:0; position:absolute; top:0; left:0; }
-    .seat-area { display: flex; gap: 12px; align-items: flex-start; justify-content: center; flex-wrap: nowrap; }
-    .column { flex: 0 0 33.333%; min-width: 0; }
-    *, *::before, *::after { box-sizing: border-box; }
+        .exam-title { text-align: center; margin: 2px 0 4px; line-height:1.2; }
+        .exam-title .plan-name{ font-size: 18px; font-weight: 800; line-height:1.1; margin: 2px 0; }
+        .exam-title .label{ font-size: 20px; font-weight: 800; line-height:1.1; margin-top: 2px; }
+        .room-number { font-weight: 800; font-size: 22px; text-align: center; margin: 6px 0 10px; padding-bottom:6px; border-bottom:2px solid #333; }
+        .school-logo { display:block; width:64px; height:64px; object-fit:contain; object-position:center center; margin:0; position:absolute; top:0; left:0; }
+        .seat-area { display: flex; gap: 12px; align-items: flex-start; justify-content: center; flex-wrap: nowrap; }
+        .column { flex: 0 0 33.333%; min-width: 0; }
+        *, *::before, *::after { box-sizing: border-box; }
         .col-title { text-align: center; font-weight: 700; margin-bottom: 6px; }
         .bench { border: 1px dashed #bbb; padding: 8px; margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
-        /* Seat cell redesigned to keep photo inside border and beside roll */
-        .seat { width: 48%; padding: 6px 6px; font-size: 13px; min-height: 40px; text-align: center;
-            display: grid; align-items: center; column-gap: 0; row-gap: 2px;
-            grid-template-columns: auto 1fr;
-            grid-template-areas: "img roll" "name name" "class class";
-        }
-        .seat.right{
-            grid-template-columns: 1fr auto;
-            grid-template-areas: "roll img" "name name" "class class";
-        }
-    .seat img { grid-area: img; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; position: static; }
+        .seat { width: 48%; padding: 6px 6px; font-size: 13px; min-height: 40px; text-align: center; display: grid; align-items: center; column-gap: 0; row-gap: 2px; grid-template-columns: auto 1fr; grid-template-areas: "img roll" "name name" "class class"; }
+        .seat.right{ grid-template-columns: 1fr auto; grid-template-areas: "roll img" "name name" "class class"; }
+        .seat img { grid-area: img; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; position: static; }
         .seat .roll { grid-area: roll; font-size: 24px; font-weight: 900; color: #b00; line-height:1; }
         .seat .name { grid-area: name; font-size: 12px; font-weight: 600; line-height:1.1; }
         .seat .class { grid-area: class; font-size: 16px; color: #333; line-height:1.1; }
@@ -216,15 +144,11 @@ for ($cc=1; $cc<=3; $cc++){
         .stats h5{ margin:6px 0; }
         .stats ul{ margin:0; padding-left:18px; }
         @media (max-width: 800px) { .seat-area { flex-direction: column; } .column { min-width: auto; } }
-
-        /* Class color coding */
-        .seat.grade-10 .roll, .seat.grade-10 .name, .seat.grade-10 .class { color: #0a8a0a; } /* Green */
-        .seat.grade-9 .roll, .seat.grade-9 .name, .seat.grade-9 .class { color: #0b2e7a; } /* Dark blue */
-        .seat.grade-8 .roll, .seat.grade-8 .name, .seat.grade-8 .class { color: #c40000; } /* Red */
-        .seat.grade-7 .roll, .seat.grade-7 .name, .seat.grade-7 .class { color: #800000; } /* Maroon */
-        .seat.grade-6 .roll, .seat.grade-6 .name, .seat.grade-6 .class { color: #000000; } /* Black */
-
-        /* Stats layout */
+        .seat.grade-10 .roll, .seat.grade-10 .name, .seat.grade-10 .class { color: #0a8a0a; }
+        .seat.grade-9 .roll, .seat.grade-9 .name, .seat.grade-9 .class { color: #0b2e7a; }
+        .seat.grade-8 .roll, .seat.grade-8 .name, .seat.grade-8 .class { color: #c40000; }
+        .seat.grade-7 .roll, .seat.grade-7 .name, .seat.grade-7 .class { color: #800000; }
+        .seat.grade-6 .roll, .seat.grade-6 .name, .seat.grade-6 .class { color: #000000; }
         .stats-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         .stat-col{ border:1px solid #e6e6e6; border-radius:6px; padding:8px; }
         .badge{ display:inline-block; padding:2px 6px; border-radius:4px; font-weight:700; }
@@ -233,20 +157,9 @@ for ($cc=1; $cc<=3; $cc++){
         .badge.grade-8{ color:#c40000; border:1px solid #c40000; }
         .badge.grade-7{ color:#800000; border:1px solid #800000; }
         .badge.grade-6{ color:#000; border:1px solid #000; }
-
-        /* Fixed highlighted footer (both screen and print) */
-        .fixed-footer{
-            position: fixed;
-            left: 0; right: 0; bottom: 0;
-            text-align: center;
-            font-size: 12px; font-weight: 800;
-            background: #fff7a8; /* light highlight */
-            color: #000;
-            padding: 8px 10px;
-            border-top: 2px solid #333;
-            z-index: 9999;
-        }
+        .fixed-footer{ position: fixed; left: 0; right: 0; bottom: 0; text-align: center; font-size: 12px; font-weight: 800; background: #fff7a8; color: #000; padding: 8px 10px; border-top: 2px solid #333; z-index: 9999; }
     </style>
+    <?php /* Precompute room names */ ?>
 </head>
 <body>
     <div class="print-toolbar no-print" style="display:flex; gap:8px; align-items:center;">
@@ -254,6 +167,49 @@ for ($cc=1; $cc<=3; $cc++){
         <a href="seat_plan_rooms.php?plan_id=<?= (int)$plan_id ?>" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">Back to Rooms</a>
         <a href="seat_plan.php" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">All Seat Plans</a>
     </div>
+
+<?php foreach ($roomsToPrint as $room): ?>
+<?php
+// Load allocations for this room
+$alloc = [];
+$sql = "SELECT a.col_no, a.bench_no, a.position, a.student_id,
+        COALESCE(s1.student_name, s2.student_name) AS student_name,
+        COALESCE(s1.roll_no, s2.roll_no) AS roll_no,
+        COALESCE(c1.class_name, c2.class_name) AS class_name,
+        COALESCE(s1.class_id, s2.class_id) AS class_id,
+        $selGroupExpr,
+        $selOptionalExpr,
+        COALESCE(s1.student_id, s2.student_id) AS sid_str,
+        COALESCE(s1.id, s2.id) AS sid_num,
+        COALESCE(s1.photo, s2.photo) AS photo
+    FROM seat_plan_allocations a
+    LEFT JOIN students s1 ON s1.student_id=a.student_id
+    LEFT JOIN students s2 ON s2.id=a.student_id
+    LEFT JOIN classes c1 ON c1.id = s1.class_id
+    LEFT JOIN classes c2 ON c2.id = s2.class_id
+    WHERE a.room_id=".(int)$room['id'];
+$rs = $conn->query($sql);
+if ($rs){
+    while($r=$rs->fetch_assoc()){
+        $c = (int)$r['col_no']; $b=(int)$r['bench_no']; $p=$r['position'];
+        if(!isset($alloc[$c])) $alloc[$c]=[];
+        if(!isset($alloc[$c][$b])) $alloc[$c][$b]=['L'=>null,'R'=>null];
+        $alloc[$c][$b][$p]=$r;
+    }
+} else {
+    if (isset($_GET['debug'])){
+        echo "<pre style=\"background:#fee;border:1px solid #f88;padding:8px;\">SQL Error (alloc load): ".$conn->error."\nQuery: $sql</pre>";
+    } else { echo 'Data load error.'; }
+}
+$colCounts = [1=>(int)$room['col1_benches'], 2=>(int)$room['col2_benches'], 3=>(int)$room['col3_benches']];
+
+// Compute total assigned for this room
+$totalAssigned = 0;
+for ($cc=1; $cc<=3; $cc++){
+    if (!isset($alloc[$cc])) continue;
+    foreach ($alloc[$cc] as $bb => $rowAlloc){ if (!empty($rowAlloc['L'])) $totalAssigned++; if (!empty($rowAlloc['R'])) $totalAssigned++; }
+}
+?>
     <div class="page">
         <div class="header">
             <div class="header-brand">
@@ -274,7 +230,7 @@ for ($cc=1; $cc<=3; $cc++){
             <div class="plan-name"><?= htmlspecialchars($plan['plan_name'] ?? 'Seat Plan') ?></div>
             <div class="label">Seat Plan</div>
         </div>
-    <div class="room-number">Room No: <?= htmlspecialchars($room['room_no']) ?></div>
+        <div class="room-number">Room No: <?= htmlspecialchars($room['room_no']) ?></div>
 
         <div class="seat-area">
             <?php $colNames = [1=>'Left Column', 2=>'Middle Column', 3=>'Right Column'];
@@ -283,8 +239,8 @@ for ($cc=1; $cc<=3; $cc++){
                 <div class="col-title"><?= $colNames[$c] ?></div>
                 <?php for($b=1; $b<=$maxB; $b++): $row=$alloc[$c][$b] ?? ['L'=>null,'R'=>null]; ?>
                     <div class="bench">
-                        <?= seatCell($row['L'], 'L'); ?>
-                        <?= seatCell($row['R'], 'R'); ?>
+                        <?= seatCellAll($row['L'], 'L'); ?>
+                        <?= seatCellAll($row['R'], 'R'); ?>
                     </div>
                 <?php endfor; ?>
             </div>
@@ -292,7 +248,7 @@ for ($cc=1; $cc<=3; $cc++){
         </div>
 
         <?php
-        // Build statistics
+        // Build statistics for this room
         $classCounts = [];
         $groupCounts = [];
         $optionalCounts = [];
@@ -319,28 +275,19 @@ for ($cc=1; $cc<=3; $cc++){
                 }
             }
         }
-        // Optional subjects for 9/10 using optional_subject_id if present, else derive from student_subjects
         if ($has9or10 && !empty($assignedSidStr)){
-            // Verify required tables exist before querying optional/group maps
-            $tableExists = function($name) use ($conn){
-                $name = mysqli_real_escape_string($conn, $name);
-                $q = $conn->query("SHOW TABLES LIKE '$name'");
-                return ($q && $q->num_rows > 0);
-            };
+            $tableExists = function($name) use ($conn){ $name = mysqli_real_escape_string($conn, $name); $q = $conn->query("SHOW TABLES LIKE '$name'"); return ($q && $q->num_rows > 0); };
             $hasSubjects = $tableExists('subjects');
             $hasStuSubs  = $tableExists('student_subjects');
             $hasMap      = $tableExists('subject_group_map');
-            
             $sidList = array_map(function($s) use ($conn){ return "'".mysqli_real_escape_string($conn, $s)."'"; }, array_keys($assignedSidStr));
             $sidIn = implode(',', $sidList);
-            // Check optional_subject_id column (if present)
             $colCheck = $conn->query("SHOW COLUMNS FROM students LIKE 'optional_subject_id'");
             $optMap = [];
             if ($colCheck && $colCheck->num_rows>0 && $hasSubjects){
                 $q1 = $conn->query("SELECT st.student_id, st.optional_subject_id, sb.subject_name FROM students st LEFT JOIN subjects sb ON sb.id=st.optional_subject_id WHERE st.student_id IN ($sidIn) AND st.optional_subject_id IS NOT NULL");
                 if ($q1){ while($r=$q1->fetch_assoc()){ $sn = trim((string)($r['subject_name'] ?? '')); if($sn!==''){ $optMap[$r['student_id']] = $sn; } } }
             }
-            // Fallback via student_subjects and subject_group_map
             $missing = array_diff(array_keys($assignedSidStr), array_keys($optMap));
             if (!empty($missing) && $hasSubjects && $hasStuSubs && $hasMap){
                 $mList = array_map(function($s) use ($conn){ return "'".mysqli_real_escape_string($conn, $s)."'"; }, $missing);
@@ -351,17 +298,13 @@ for ($cc=1; $cc<=3; $cc++){
                     while($r=$q2->fetch_assoc()){
                         $sid = (string)$r['student_id']; $name = (string)($r['subject_name'] ?? ''); $code = (string)($r['subject_code'] ?? '');
                         $num = is_numeric($code)? (int)$code : -1;
-                        if (!isset($best[$sid]) || $num > $best[$sid]['num']){
-                            $best[$sid] = ['num'=>$num, 'name'=>$name];
-                        }
+                        if (!isset($best[$sid]) || $num > $best[$sid]['num']){ $best[$sid] = ['num'=>$num, 'name'=>$name]; }
                     }
                     foreach ($best as $sid=>$info){ if(!isset($optMap[$sid]) && !empty($info['name'])) $optMap[$sid] = $info['name']; }
                 }
             }
             foreach ($optMap as $sid=>$subName){ $subName = trim($subName); if($subName!==''){ $optionalCounts[$subName] = ($optionalCounts[$subName] ?? 0) + 1; } }
         }
-        // Helper to pick badge class for class name
-        function badgeClassFor($className){ $g = detectGradeFromClass($className); return $g ? ('grade-'.(int)$g) : ''; }
         ?>
         <div class="stats">
             <div class="stats-grid">
@@ -370,7 +313,7 @@ for ($cc=1; $cc<=3; $cc++){
                     <div><strong>Total students — </strong> <?= (int)$totalAssigned ?></div>
                     <?php if (!empty($classCounts)): ?>
                         <ul>
-                            <?php foreach ($classCounts as $cn=>$cnt): $bc = badgeClassFor($cn); ?>
+                            <?php foreach ($classCounts as $cn=>$cnt): $bc = badgeClassForAll($cn); ?>
                                 <li><span class="badge <?= htmlspecialchars($bc) ?>"><?= htmlspecialchars($cn) ?></span> — <?= (int)$cnt ?></li>
                             <?php endforeach; ?>
                         </ul>
@@ -403,9 +346,8 @@ for ($cc=1; $cc<=3; $cc++){
             </div>
         </div>
     </div>
+<?php endforeach; ?>
 
-    
-    <!-- Fixed, highlighted developer credit at bottom of page -->
     <div class="fixed-footer">
         <strong>Developed by Md. Abdul Halim</strong> | <strong>Batighor Computers</strong> - <strong>https://batighorbd.com</strong>
     </div>

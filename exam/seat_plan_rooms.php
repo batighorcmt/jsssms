@@ -96,11 +96,7 @@ include '../includes/sidebar.php';
                 <div>
                     <a class="btn btn-sm btn-outline-secondary" href="seat_plan.php"><i class="fas fa-arrow-left"></i> Back to Plans</a>
                 </div>
-                <div>
-                    <?php if (!empty($rooms)): $firstRoomId = (int)$rooms[0]['id']; ?>
-                    <a class="btn btn-sm btn-outline-primary" target="_blank" href="seat_plan_print.php?plan_id=<?= (int)$plan_id ?>&room_id=<?= $firstRoomId ?>"><i class="fas fa-print"></i> Print First Room</a>
-                    <?php endif; ?>
-                </div>
+                <div></div>
             </div>
             <?php if ($toast): ?>
             <div class="alert alert-<?= $toast['type'] ?>"><?= htmlspecialchars($toast['msg']) ?></div>
@@ -111,7 +107,7 @@ include '../includes/sidebar.php';
                 <div class="card-body">
                     <form method="post">
                         <input type="hidden" name="action" value="add_room">
-                        <div class="form-row">
+                        <div class="form-row align-items-end">
                             <div class="form-group col-md-3">
                                 <label>Room No</label>
                                 <input type="text" name="room_no" class="form-control" required>
@@ -120,34 +116,73 @@ include '../includes/sidebar.php';
                                 <label>Title (optional)</label>
                                 <input type="text" name="title" class="form-control" placeholder="e.g., North Building 2nd Floor">
                             </div>
-                            <div class="form-group col-md-2">
+                            <div class="form-group col-md-1">
                                 <label>Columns</label>
-                                <select name="columns_count" class="form-control">
+                                <select name="columns_count" id="columns_count" class="form-control">
                                     <option value="1">1</option>
                                     <option value="2">2</option>
                                     <option selected value="3">3</option>
                                 </select>
                             </div>
-                            <div class="form-group col-md-2">
+                            <div class="form-group col-md-1 bench-group" data-col="1">
                                 <label>Col 1 Benches</label>
-                                <input type="number" name="col1_benches" class="form-control" min="0" value="5">
+                                <input type="number" name="col1_benches" id="col1_benches" class="form-control" min="0" value="5">
                             </div>
-                            <div class="form-group col-md-2">
+                            <div class="form-group col-md-1 bench-group" data-col="2">
                                 <label>Col 2 Benches</label>
-                                <input type="number" name="col2_benches" class="form-control" min="0" value="5">
+                                <input type="number" name="col2_benches" id="col2_benches" class="form-control" min="0" value="5">
                             </div>
-                            <div class="form-group col-md-2">
+                            <div class="form-group col-md-1 bench-group" data-col="3">
                                 <label>Col 3 Benches</label>
-                                <input type="number" name="col3_benches" class="form-control" min="0" value="5">
+                                <input type="number" name="col3_benches" id="col3_benches" class="form-control" min="0" value="5">
                             </div>
                         </div>
                         <button class="btn btn-success">Add Room</button>
                     </form>
                 </div>
             </div>
+            <script>
+            (function(){
+                var select = document.getElementById('columns_count');
+                if (!select) return;
+                var groups = Array.prototype.slice.call(document.querySelectorAll('.bench-group'));
+                var inputs = {
+                    1: document.getElementById('col1_benches'),
+                    2: document.getElementById('col2_benches'),
+                    3: document.getElementById('col3_benches')
+                };
+                function applyColumns(){
+                    var cols = parseInt(select.value, 10) || 0;
+                    groups.forEach(function(g){
+                        var c = parseInt(g.getAttribute('data-col'), 10) || 0;
+                        var input = inputs[c];
+                        if (c <= cols){
+                            g.style.display = '';
+                            if (input && input.dataset.prevValue){
+                                input.value = input.dataset.prevValue;
+                            }
+                        } else {
+                            g.style.display = 'none';
+                            if (input){
+                                input.dataset.prevValue = input.value;
+                                input.value = 0; // ensure server receives 0 for hidden columns
+                            }
+                        }
+                    });
+                }
+                select.addEventListener('change', applyColumns);
+                // Initialize on load
+                applyColumns();
+            })();
+            </script>
 
             <div class="card">
-                <div class="card-header"><strong>Rooms in this Plan</strong></div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Rooms in this Plan</strong>
+                    <?php if (!empty($rooms)): ?>
+                    <a class="btn btn-sm btn-outline-primary" target="_blank" href="seat_plan_print_all.php?plan_id=<?= (int)$plan_id ?>"><i class="fas fa-print"></i> Print All Rooms</a>
+                    <?php endif; ?>
+                </div>
                 <div class="card-body table-responsive p-0">
                     <table class="table table-bordered table-hover mb-0">
                         <thead class="thead-light">
@@ -167,7 +202,7 @@ include '../includes/sidebar.php';
                         <tbody>
                         <?php if (empty($rooms)): ?>
                             <tr><td colspan="10" class="text-center text-muted">No rooms yet.</td></tr>
-                        <?php else: $i=1; foreach($rooms as $r): $cap=room_capacity_local($r); ?>
+                        <?php else: $i=1; $sumAssigned=0; $sumCapacity=0; foreach($rooms as $r): $cap=room_capacity_local($r); $sumAssigned += (int)$r['assigned']; $sumCapacity += $cap; ?>
                             <tr>
                                 <td><?= $i++ ?></td>
                                 <td><?= htmlspecialchars($r['room_no']) ?></td>
@@ -195,6 +230,16 @@ include '../includes/sidebar.php';
                             </tr>
                         <?php endforeach; endif; ?>
                         </tbody>
+                        <?php if (!empty($rooms)): ?>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td colspan="7" class="text-right">Totals</td>
+                                <td><?= (int)$sumAssigned ?></td>
+                                <td><?= (int)$sumCapacity ?></td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                        <?php endif; ?>
                     </table>
                 </div>
             </div>
