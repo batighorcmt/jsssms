@@ -125,6 +125,7 @@ include '../includes/header.php';
         </div>
     </section>
 
+<?php
 // Load classes
 $classQuery = "SELECT * FROM classes ORDER BY class_name ASC";
 $classResult = $conn->query($classQuery);
