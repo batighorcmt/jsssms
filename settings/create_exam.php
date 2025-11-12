@@ -77,9 +77,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $all_success = true;
+        $yr = (int)date('Y');
         foreach ($subject_ids as $i => $subject_id) {
-            $exam_date = $conn->real_escape_string($exam_dates[$i]);
-            $exam_time = $conn->real_escape_string($exam_times[$i]);
+            $raw_date = isset($exam_dates[$i]) ? trim((string)$exam_dates[$i]) : '';
+            // Normalize exam_date: dd/mm/yyyy -> yyyy-mm-dd; empty -> NULL
+            $exam_date = null;
+            if ($raw_date !== '') {
+                if (preg_match('~^(\d{2})\/(\d{2})\/(\d{4})$~', $raw_date, $dm)) {
+                    $exam_date = $dm[3] . '-' . $dm[2] . '-' . $dm[1];
+                } elseif (preg_match('~^(\d{4})-(\d{2})-(\d{2})$~', $raw_date)) {
+                    $exam_date = $raw_date;
+                }
+            }
+
+            $raw_time = isset($exam_times[$i]) ? trim((string)$exam_times[$i]) : '';
+            // Normalize time: HH:MM or HH:MM:SS; empty -> NULL
+            $exam_time = null;
+            if ($raw_time !== '') {
+                if (preg_match('~^(\d{2}):(\d{2})(?::(\d{2}))?$~', $raw_time, $tm)) {
+                    $sec = isset($tm[3]) ? $tm[3] : '00';
+                    $exam_time = $tm[1] . ':' . $tm[2] . ':' . $sec;
+                }
+            }
             $creative = (int)$creative_marks[$i];
             $objective = (int)$objective_marks[$i];
             $practical = (int)$practical_marks[$i];
@@ -96,10 +115,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $deadline = $dm[3].'-'.$dm[2].'-'.$dm[1];
             }
             if ($deadline) { $deadline = $conn->real_escape_string($deadline); }
+            // Build safe parts
+            $sql_exam_date = $exam_date ? ("'" . $conn->real_escape_string($exam_date) . "'") : 'NULL';
+            $sql_exam_time = $exam_time ? ("'" . $conn->real_escape_string($exam_time) . "'") : 'NULL';
+
+            // NOTE: total_marks is a generated column in schema; do NOT insert into it
+            // Also include required 'year' column to satisfy NOT NULL
             $insert_subject_sql = "INSERT INTO exam_subjects 
-                (exam_id, subject_id, teacher_id, exam_date, exam_time, mark_entry_deadline, creative_marks, objective_marks, practical_marks, creative_pass, objective_pass, practical_pass, pass_type, total_marks, total_pass)
+                (exam_id, subject_id, teacher_id, exam_date, exam_time, mark_entry_deadline, creative_marks, objective_marks, practical_marks, creative_pass, objective_pass, practical_pass, pass_type, total_pass, year)
                 VALUES 
-                ($exam_id, $subject_id, " . ($teacher_id ?: 'NULL') . ", '$exam_date', '$exam_time', " . ($deadline ? "'".$deadline."'" : 'NULL') . ", $creative, $objective, $practical, $c_pass, $o_pass, $p_pass, '$pass_type', $total, $t_pass)";
+                ($exam_id, $subject_id, " . ($teacher_id ?: 'NULL') . ", $sql_exam_date, $sql_exam_time, " . ($deadline ? "'".$deadline."'" : 'NULL') . ", $creative, $objective, $practical, $c_pass, $o_pass, $p_pass, '$pass_type', $t_pass, $yr)";
 
             if (!$conn->query($insert_subject_sql)) {
                 $all_success = false;
