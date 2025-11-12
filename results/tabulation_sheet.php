@@ -841,6 +841,25 @@ foreach ($ranked_students as $i => $stu) {
         // count subject groups
         const groups = Array.from(table.querySelectorAll('thead .subject-group'));
         const n = groups.length; if (n===0){ window.print(); return; }
+
+        // If subjects are 12 or fewer: print in a single part (no split)
+        if (n <= 12) {
+            // Temporarily ensure original table is not hidden by print CSS
+            const hadOriginal = table.classList.contains('original');
+            if (hadOriginal) table.classList.remove('original');
+            const prevDisplay = container.style.display;
+            container.style.display = 'none';
+            const restore = function(){
+                if (hadOriginal) table.classList.add('original');
+                container.style.display = prevDisplay;
+                window.removeEventListener('afterprint', restore);
+            };
+            window.addEventListener('afterprint', restore);
+            window.print();
+            return;
+        }
+
+        // Else: split into two parts for printing
         // Move one subject from first part to second part (left half a bit narrower)
         const mid = Math.max(0, Math.ceil(n/2) + 1);
         // helper to clone and hide sets by class

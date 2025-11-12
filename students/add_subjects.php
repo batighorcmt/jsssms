@@ -256,6 +256,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <?php include '../includes/header.php'; ?>
 <div class="d-flex"><?php include '../includes/sidebar.php'; ?>
 <div class="container mt-4">
+    <style>
+        /* Make subject selection easier to click */
+        .select-cell .chk-big{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; cursor:pointer; user-select:none; }
+        .select-cell .chk-big:hover{ background:#f3f4f6; }
+        .subject-checkbox{ width:20px; height:20px; transform: scale(1.35); transform-origin:center; }
+        .selectable-row{ cursor:pointer; }
+        @media (pointer: coarse){ .subject-checkbox{ transform: scale(1.5); } }
+    </style>
     <h4>বিষয় নির্বাচন</h4>
 
     <form method="GET" class="mb-4">
@@ -331,19 +339,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     }
                                     if ($is_checked) { $precheckedById[$sid] = true; }
                                 ?>
-                                    <tr>
+                                    <tr class="selectable-row" data-checkbox-id="subject_<?= $sub['id'] ?>">
                                         <td><?= $i++ ?></td>
                                         <td><?= htmlspecialchars($sub['subject_code']) ?></td>
                                         <td><?= htmlspecialchars($sub['subject_name']) ?></td>
-                                        <td>
-                                            <input class="form-check-input subject-checkbox"
-                                                   type="checkbox"
-                                                   name="subjects[]"
-                                                   value="<?= $sub['id'] ?>"
-                                                   id="subject_<?= $sub['id'] ?>"
-                                                   data-subject-code="<?= htmlspecialchars($sub['subject_code']) ?>"
-                                                   data-type="Compulsory"
-                                                   <?= $is_checked ? 'checked' : '' ?>>
+                                        <td class="select-cell">
+                                            <label class="chk-big" for="subject_<?= $sub['id'] ?>">
+                                                <input class="form-check-input subject-checkbox"
+                                                       type="checkbox"
+                                                       name="subjects[]"
+                                                       value="<?= $sub['id'] ?>"
+                                                       id="subject_<?= $sub['id'] ?>"
+                                                       data-subject-code="<?= htmlspecialchars($sub['subject_code']) ?>"
+                                                       data-type="Compulsory"
+                                                       <?= $is_checked ? 'checked' : '' ?>>
+                                                <span>Select</span>
+                                            </label>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -382,19 +393,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     }
                                     if ($is_checked) { $precheckedById[$sid] = true; }
                                 ?>
-                                    <tr>
+                                    <tr class="selectable-row" data-checkbox-id="subject_<?= $sub['id'] ?>_opt">
                                         <td><?= $j++ ?></td>
                                         <td><?= htmlspecialchars($sub['subject_code']) ?></td>
                                         <td><?= htmlspecialchars($sub['subject_name']) ?></td>
-                                        <td>
-                                            <input class="form-check-input subject-checkbox"
-                                                   type="checkbox"
-                                                   name="subjects[]"
-                                                   value="<?= $sub['id'] ?>"
-                                                   id="subject_<?= $sub['id'] ?>_opt"
-                                                   data-subject-code="<?= htmlspecialchars($sub['subject_code']) ?>"
-                                                   data-type="Optional"
-                                                   <?= $is_checked ? 'checked' : '' ?>>
+                                        <td class="select-cell">
+                                            <label class="chk-big" for="subject_<?= $sub['id'] ?>_opt">
+                                                <input class="form-check-input subject-checkbox"
+                                                       type="checkbox"
+                                                       name="subjects[]"
+                                                       value="<?= $sub['id'] ?>"
+                                                       id="subject_<?= $sub['id'] ?>_opt"
+                                                       data-subject-code="<?= htmlspecialchars($sub['subject_code']) ?>"
+                                                       data-type="Optional"
+                                                       <?= $is_checked ? 'checked' : '' ?>>
+                                                <span>Select</span>
+                                            </label>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
