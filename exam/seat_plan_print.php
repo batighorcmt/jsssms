@@ -34,6 +34,13 @@ $rr = $conn->query("SELECT * FROM seat_plan_rooms WHERE id=".$room_id." AND plan
 if ($rr && $rr->num_rows) $room = $rr->fetch_assoc();
 if (!$plan || !$room){ echo 'Plan/Room not found'; if(isset($_GET['debug'])){ echo "<pre>plan_id=$plan_id room_id=$room_id</pre>";} exit; }
 
+// Prepare shift label for header (right side)
+$shiftName = (string)($plan['shift'] ?? 'Morning');
+$sn = strtolower(trim($shiftName));
+if (strpos($sn,'even') !== false) { $shiftLabel = 'Evening Shift'; }
+elseif (strpos($sn,'morn') !== false) { $shiftLabel = 'Morning Shift'; }
+else { $shiftLabel = ucwords($shiftName).' Shift'; }
+
 // Load allocations + try to enrich with students info (support both id and student_id keys)
 $alloc = [];
 // Detect optional/migrated columns safely to avoid unknown column fatals
@@ -167,8 +174,10 @@ for ($cc=1; $cc<=3; $cc++){
         body { font-family: 'Noto Sans', 'Arial', sans-serif; padding: 20px; color:#000; }
         .page { border: 1px solid #e3e3e3; padding: 18px; margin-bottom: 20px; border-radius: 6px; padding-bottom: 70px; }
     .header { text-align: center; margin-bottom: 8px; }
-    .header-brand{ display:flex; align-items:center; justify-content:center; gap:15px; }
-    .brand-text{ display:flex; flex-direction:column; justify-content:center; }
+    .header-brand{ display:flex; align-items:center; justify-content:space-between; gap:15px; width:100%; }
+    .brand-left{ display:flex; align-items:center; gap:12px; }
+    .brand-text{ display:flex; flex-direction:column; justify-content:center; text-align:center; flex:1; }
+    .shift-box{ border:2px solid #333; padding:6px 12px; font-weight:800; background:#fff7a8; color:#000; border-radius:6px; white-space:nowrap; align-self:center; }
         .school-name { font-size: 28px; font-weight: 800; line-height:1.1; margin: 2px 0; }
         .school-address { font-size: 12px; color: #444; line-height:1.2; margin: 2px 0; }
         .exam-title { text-align: center; margin: 6px 0 4px; line-height:1.2; }
@@ -231,20 +240,23 @@ for ($cc=1; $cc<=3; $cc++){
     <div class="page">
         <div class="header">
             <div class="header-brand">
-                <?php if (!empty($institute_logo)): $logoUrl = (defined('BASE_URL') ? BASE_URL : '/') . ltrim($institute_logo,'/'); ?>
-                    <img class="school-logo" src="<?= htmlspecialchars($logoUrl) ?>" alt="logo">
-                <?php endif; ?>
+                <div class="brand-left">
+                    <?php if (!empty($institute_logo)): $logoUrl = (defined('BASE_URL') ? BASE_URL : '/') . ltrim($institute_logo,'/'); ?>
+                        <img class="school-logo" src="<?= htmlspecialchars($logoUrl) ?>" alt="logo">
+                    <?php endif; ?>
+                </div>
                 <div class="brand-text">
                     <div class="school-name"><?= htmlspecialchars($institute_name ?? 'Institute Name') ?></div>
                     <div class="school-address"><?= htmlspecialchars($institute_address ?? '') ?></div>
                 </div>
+                <div class="shift-box"><?= htmlspecialchars($shiftLabel) ?></div>
             </div>
         </div>
         <div class="exam-title">
             <div><strong><?= htmlspecialchars($plan['plan_name'] ?? 'Seat Plan') ?></strong></div>
             <div style="margin-top:6px; font-size:16px;">Seat Plan</div>
         </div>
-        <div class="room-number">Room: <?= htmlspecialchars($room['room_no']) ?> — Shift: <?= htmlspecialchars($plan['shift'] ?? 'Morning') ?></div>
+    <div class="room-number">Room: <?= htmlspecialchars($room['room_no']) ?></div>
 
         <div class="seat-area">
             <?php $colNames = [1=>'Left Column', 2=>'Middle Column', 3=>'Right Column'];
