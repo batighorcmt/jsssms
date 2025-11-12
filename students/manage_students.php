@@ -240,7 +240,15 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
                     $religion     = $getCol($row, ['religion','ধর্ম']);
                     $nationality  = $getCol($row, ['nationality','জাতীয়তা']);
                     $dob          = $getCol($row, ['date_of_birth','dob','জন্ম তারিখ']);
-                    $dob = trim($dob); if ($dob !== '') { if (preg_match('~^(\d{2})/(\d{2})/(\d{4})$~', $dob, $m)) { $dob = $m[3].'-'.$m[2].'-'.$m[1]; } elseif (!preg_match('~^(\d{4})-(\d{2})-(\d{2})$~', $dob)) { $dob = '0000-00-00'; } } else { $dob = '0000-00-00'; }
+                    // Normalize DOB for MySQL 8 strict: dd/mm/yyyy or yyyy-mm-dd; otherwise NULL
+                    $dob = trim($dob);
+                    if ($dob !== '') {
+                        if (preg_match('~^(\d{2})/(\d{2})/(\d{4})$~', $dob, $m)) {
+                            $dob = $m[3].'-'.$m[2].'-'.$m[1];
+                        } elseif (!preg_match('~^(\d{4})-(\d{2})-(\d{2})$~', $dob)) {
+                            $dob = null;
+                        }
+                    } else { $dob = null; }
                     $blood_group  = $getCol($row, ['blood_group','রক্তের_গ্রুপ']);
                     $village      = $getCol($row, ['village','গ্রাম']);
                     $post_office  = $getCol($row, ['post_office','পোস্ট অফিস']);
@@ -384,6 +392,7 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                     <div class="card-tools">
                         <a href="?download_template=1" class="btn btn-xs btn-outline-secondary"><i class="fas fa-download mr-1"></i>Sample CSV</a>
                         <button class="btn btn-xs btn-outline-primary" type="button" data-toggle="collapse" data-target="#importCollapse" aria-expanded="false" aria-controls="importCollapse">Toggle</button>
+                        <button class="btn btn-xs btn-outline-secondary" type="button" data-toggle="collapse" data-target="#diagCollapse" aria-expanded="false" aria-controls="diagCollapse">Diagnostics</button>
                     </div>
                 </div>
                 <div class="card-body collapse" id="importCollapse">
@@ -407,6 +416,33 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                         Required columns: <strong>student_name, class, section, year</strong> (section required only if Sections table exists).<br>
                         Optional columns include: student_id, roll_no, father_name, mother_name, gender, mobile_no, religion, nationality, date_of_birth (dd/mm/yyyy or yyyy-mm-dd), blood_group, village, post_office, upazilla, district, status, group, photo, optional_subject_id.<br>
                         Tip: You can open the sample CSV in Excel, fill it in, and upload either the same CSV or save as <strong>.xlsx</strong> and upload.
+                    </div>
+                </div>
+                <div class="card-body collapse" id="diagCollapse">
+                    <?php
+                        $diag_zip = class_exists('ZipArchive') ? 'Yes' : 'No';
+                        $diag_xml = function_exists('simplexml_load_string') ? 'Yes' : 'No';
+                        $diag_php = PHP_VERSION;
+                        $diag_ums = ini_get('upload_max_filesize');
+                        $diag_pms = ini_get('post_max_size');
+                        $diag_mem = ini_get('memory_limit');
+                        $diag_tmp = ini_get('upload_tmp_dir');
+                        if (!$diag_tmp) { $diag_tmp = sys_get_temp_dir(); }
+                        $logsDir = realpath(__DIR__ . '/../logs');
+                        if ($logsDir === false) { $logsDir = __DIR__ . '/../logs'; }
+                        $logsWritable = (is_dir($logsDir) && is_writable($logsDir)) ? 'Yes' : 'No';
+                        $tmpWritable = is_writable($diag_tmp) ? 'Yes' : 'No';
+                    ?>
+                    <div class="small">
+                        <strong>Server diagnostics</strong>
+                        <ul class="mb-1">
+                            <li>PHP version: <code><?= htmlspecialchars($diag_php) ?></code></li>
+                            <li>ZipArchive: <strong><?= $diag_zip ?></strong>, SimpleXML: <strong><?= $diag_xml ?></strong></li>
+                            <li>upload_max_filesize: <code><?= htmlspecialchars($diag_ums) ?></code>, post_max_size: <code><?= htmlspecialchars($diag_pms) ?></code>, memory_limit: <code><?= htmlspecialchars($diag_mem) ?></code></li>
+                            <li>upload_tmp_dir: <code><?= htmlspecialchars($diag_tmp) ?></code> (writable: <?= $tmpWritable ?>)</li>
+                            <li>logs dir: <code><?= htmlspecialchars($logsDir) ?></code> (writable: <?= $logsWritable ?>)</li>
+                        </ul>
+                        <div class="text-muted">If ZipArchive or SimpleXML is "No", upload CSV instead of .xlsx or enable those PHP extensions. If limits are small, increase them or use CSV.</div>
                     </div>
                 </div>
             </div>
