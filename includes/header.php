@@ -1,7 +1,9 @@
 <?php
 // includes/header.php
+// Bootstrap error logging early for all pages that include header
+@include_once __DIR__ . '/bootstrap.php';
 if (session_status() == PHP_SESSION_NONE) {
-    session_start();
+  session_start();
 }
 // Global app config (BASE_URL)
 @include_once __DIR__ . '/../config/config.php';
