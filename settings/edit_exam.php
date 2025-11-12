@@ -189,14 +189,14 @@ include '../includes/sidebar.php';
                                 <option value="individual" <?= ($pt==='individual')?'selected':''; ?>>Per Component</option>
                             </select>
                         </td>
-                        <td>
-                            <select name="teacher_id" class="form-control">
-                                <option value="">-- Teacher --</option>
-                                <?php foreach($teacherList as $t): ?>
-                                  <option value="<?= $t['id'] ?>" <?= ((int)$exam['teacher_id']===(int)$t['id'])?'selected':''; ?>><?= htmlspecialchars($t['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </td>
+                                                <td>
+                                                        <select name="teacher_id" class="form-control teacher-select" data-placeholder="-- Teacher --">
+                                                                <option value=""></option>
+                                                                <?php foreach($teacherList as $t): ?>
+                                                                    <option value="<?= $t['id'] ?>" <?= ((int)$exam['teacher_id']===(int)$t['id'])?'selected':''; ?>><?= htmlspecialchars($t['name']) ?></option>
+                                                                <?php endforeach; ?>
+                                                        </select>
+                                                </td>
                     </tr>
                 </tbody>
             </table>
@@ -225,4 +225,33 @@ include '../includes/sidebar.php';
      });
      recalc();
  })();
+</script>
+<script>
+// Load Select2 if not available, then initialize on teacher select
+function ensureSelect2(callback){
+    function ready(){ try { if (typeof callback === 'function') callback(); } catch(e){} }
+    if (window.jQuery && jQuery.fn && jQuery.fn.select2) { ready(); return; }
+    var cssId = 'select2-css-cdn';
+    if (!document.getElementById(cssId)){
+        var l = document.createElement('link'); l.id = cssId; l.rel = 'stylesheet'; l.href = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css';
+        document.head.appendChild(l);
+        var l2 = document.createElement('link'); l2.rel = 'stylesheet'; l2.href = 'https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css';
+        document.head.appendChild(l2);
+    }
+    var jsId = 'select2-js-cdn';
+    if (!document.getElementById(jsId)){
+        var s = document.createElement('script'); s.id = jsId; s.src = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js';
+        s.onload = ready; document.body.appendChild(s);
+    } else { ready(); }
+}
+function initSelect2(){
+    if (!(window.jQuery && jQuery.fn && jQuery.fn.select2)) return;
+    var $ = window.jQuery;
+    $('select.teacher-select, select[name="teacher_id"]').each(function(){
+        var $sel = $(this);
+        if ($sel.data('select2')) { $sel.select2('destroy'); }
+        $sel.select2({ theme: 'bootstrap4', width: '100%', placeholder: $sel.attr('data-placeholder') || '-- Teacher --', allowClear: true });
+    });
+}
+document.addEventListener('DOMContentLoaded', function(){ ensureSelect2(initSelect2); });
 </script>
