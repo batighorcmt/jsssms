@@ -104,34 +104,34 @@ if ($student['class_id']) {
                         <div class="invalid-feedback">অনুগ্রহ করে মাতার নাম লিখুন</div>
                     </div>
 
-                    <!-- Date of Birth -->
+                    <!-- Date of Birth (optional) -->
                     <div class="col-md-6">
-                        <label class="form-label">জন্ম তারিখ <span class="text-danger">*</span></label>
+                        <label class="form-label">জন্ম তারিখ</label>
                         <input type="text" name="date_of_birth" class="form-control form-control-lg date-input" 
-                               placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($student['date_of_birth']) ?>" required>
-                        <div class="invalid-feedback">অনুগ্রহ করে জন্ম তারিখ নির্বাচন করুন</div>
+                               placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($student['date_of_birth']) ?>">
+                        <div class="form-text">(ঐচ্ছিক)</div>
                     </div>
 
-                    <!-- Gender -->
+                    <!-- Photo -->
                     <div class="col-md-4">
-                        <label class="form-label">লিঙ্গ <span class="text-danger">*</span></label>
-                        <select name="gender" class="form-select form-select-lg" required>
-                            <option value="">নির্বাচন করুন</option>
-                            <option value="Male" <?= $student['gender'] == 'Male' ? 'selected' : '' ?>>পুরুষ</option>
-                            <option value="Female" <?= $student['gender'] == 'Female' ? 'selected' : '' ?>>মহিলা</option>
-                            <option value="Other" <?= $student['gender'] == 'Other' ? 'selected' : '' ?>>অন্যান্য</option>
-                        </select>
-                        <div class="invalid-feedback">অনুগ্রহ করে লিঙ্গ নির্বাচন করুন</div>
+                        <label class="form-label">ছবি</label>
+                        <input type="file" name="student_photo" id="student_photo" class="form-control form-control-lg" 
+                               accept="image/*" onchange="previewImage(this)">
+                        <input type="hidden" name="existing_photo" value="<?= htmlspecialchars($student['student_photo']) ?>">
+                        <div class="mt-3 text-center">
+                            <div id="imagePreview" style="width: 150px; height: 180px; border: 1px dashed #ccc; margin: 0 auto; position: relative; overflow: hidden;">
+                                <?php if ($student['student_photo']): ?>
+                                    <img id="previewImgTag" src="../uploads/students/<?= htmlspecialchars($student['student_photo']) ?>" 
+                                         alt="Current Photo" style="max-width: 100%; max-height: 100%; object-fit: cover;">
+                                <?php else: ?>
+                                    <div class="d-flex align-items-center justify-content-center h-100 text-muted" id="previewImgTag">
+                                        <i class="bi bi-person-bounding-box" style="font-size: 3rem;"></i>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <small class="text-muted d-block mt-1">ছবির সাইজ সর্বোচ্চ 500KB</small>
+                        </div>
                     </div>
-
-                    <!-- Religion -->
-                    <div class="col-md-4">
-                        <label class="form-label">ধর্ম <span class="text-danger">*</span></label>
-                        <select name="religion" class="form-select form-select-lg" required>
-                            <option value="">নির্বাচন করুন</option>
-                            <option value="Islam" <?= $student['religion'] == 'Islam' ? 'selected' : '' ?>>ইসলাম</option>
-                            <option value="Hindu" <?= $student['religion'] == 'Hindu' ? 'selected' : '' ?>>হিন্দু</option>
-                            <option value="Christian" <?= $student['religion'] == 'Christian' ? 'selected' : '' ?>>খ্রিষ্টান</option>
                             <option value="Buddhist" <?= $student['religion'] == 'Buddhist' ? 'selected' : '' ?>>বৌদ্ধ</option>
                         </select>
                         <div class="invalid-feedback">অনুগ্রহ করে ধর্ম নির্বাচন করুন</div>
@@ -311,14 +311,23 @@ if ($student['class_id']) {
     function previewImage(input) {
         const preview = document.getElementById('imagePreview');
         const file = input.files[0];
-        
         if (file) {
             const reader = new FileReader();
-            
             reader.onload = function(e) {
-                preview.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; max-height: 100%; object-fit: cover;">`;
+                // Remove previous image or icon
+                let imgTag = document.getElementById('previewImgTag');
+                if (imgTag) imgTag.remove();
+                // Add new image
+                const img = document.createElement('img');
+                img.id = 'previewImgTag';
+                img.src = e.target.result;
+                img.alt = 'Preview';
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '100%';
+                img.style.objectFit = 'cover';
+                preview.innerHTML = '';
+                preview.appendChild(img);
             }
-            
             reader.readAsDataURL(file);
         }
     }
