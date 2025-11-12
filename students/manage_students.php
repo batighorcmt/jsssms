@@ -23,6 +23,15 @@ if (isset($_GET['download_template']) && $_GET['download_template'] === '1') {
 $importSummaryHtml = '';
 $importNotesHtml = '';
 if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILES['csv_file'])) {
+    // Enable robust logging in production to catch 500s
+    $logFile = __DIR__ . '/../logs/import_errors.log';
+    $__import_log = function($msg) use ($logFile){
+        $ts = date('Y-m-d H:i:s');
+        @file_put_contents($logFile, "[$ts] $msg\n", FILE_APPEND);
+    };
+    @ini_set('display_errors', '0');
+    @ini_set('log_errors', '1');
+    @ini_set('error_log', $logFile);
     $uploadErrors = [];
     $inserted = 0; $updated = 0; $skipped = 0;
     $hasHeader = isset($_POST['has_header']) ? true : false;
@@ -35,6 +44,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
         // read shared strings (text pool)
         $shared = [];
         if (($entry = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
+            libxml_use_internal_errors(true);
             $xml = @simplexml_load_string($entry);
             if ($xml && isset($xml->si)) {
                 foreach ($xml->si as $si) {
@@ -49,9 +59,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
             }
         }
         // get first sheet
-        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+    $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
         if ($sheetXml === false) { $uploadErrors[] = 'First sheet not found in .xlsx'; $zip->close(); return $rows; }
-        $sx = @simplexml_load_string($sheetXml);
+    libxml_use_internal_errors(true);
+    $sx = @simplexml_load_string($sheetXml);
         if (!$sx) { $uploadErrors[] = 'Invalid sheet XML'; $zip->close(); return $rows; }
 
         foreach ($sx->sheetData->row as $row) {
@@ -99,19 +110,48 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
         return $rows;
     };
 
-    if (!is_uploaded_file($_FILES["csv_file"]["tmp_name"])) {
-        $uploadErrors[] = 'No file received.';
+    // Map PHP upload errors early
+    $uploadErrCode = isset($_FILES['csv_file']['error']) ? (int)$_FILES['csv_file']['error'] : UPLOAD_ERR_OK;
+    if ($uploadErrCode !== UPLOAD_ERR_OK) {
+        $errMap = [
+            UPLOAD_ERR_INI_SIZE => 'The uploaded file exceeds the server limit (upload_max_filesize).',
+            UPLOAD_ERR_FORM_SIZE => 'The uploaded file exceeds the form limit (MAX_FILE_SIZE).',
+            UPLOAD_ERR_PARTIAL => 'The uploaded file was only partially uploaded.',
+            UPLOAD_ERR_NO_FILE => 'No file was uploaded.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Missing a temporary folder on server.',
+            UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk.',
+            UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the file upload.',
+        ];
+        $msg = isset($errMap[$uploadErrCode]) ? $errMap[$uploadErrCode] : ('Upload error code: ' . $uploadErrCode);
+        $uploadErrors[] = $msg;
+        $__import_log('Upload failed: ' . $msg);
+    }
+
+    if ($uploadErrCode !== UPLOAD_ERR_OK || !is_uploaded_file($_FILES["csv_file"]["tmp_name"])) {
+        if ($uploadErrCode === UPLOAD_ERR_OK) { $uploadErrors[] = 'No file received.'; $__import_log('No file received (is_uploaded_file failed).'); }
     } else {
         $tmp = $_FILES['csv_file']['tmp_name'];
         $name = $_FILES['csv_file']['name'];
         $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $size = isset($_FILES['csv_file']['size']) ? (int)$_FILES['csv_file']['size'] : 0;
 
         $allRows = [];
         if ($ext === 'xlsx') {
-            if (!class_exists('ZipArchive') || !function_exists('simplexml_load_string')) {
+            // Guard against very large XLSX on low-memory hosts
+            $maxXlsxSize = 8 * 1024 * 1024; // 8 MB
+            if ($size > $maxXlsxSize) {
+                $uploadErrors[] = 'XLSX file is too large for this server. Please upload CSV instead.';
+                $__import_log('XLSX rejected due to size: ' . $size . ' bytes.');
+            } elseif (!class_exists('ZipArchive') || !function_exists('simplexml_load_string')) {
                 $uploadErrors[] = 'XLSX support requires ZipArchive and SimpleXML PHP extensions. You can upload CSV instead.';
+                $__import_log('Missing ZipArchive or SimpleXML on server.');
             } else {
-                $allRows = $parseXlsx($tmp);
+                try {
+                    $allRows = $parseXlsx($tmp);
+                } catch (Throwable $e) {
+                    $uploadErrors[] = 'XLSX parse failed: ' . $e->getMessage();
+                    $__import_log('XLSX parse exception: ' . $e->getMessage());
+                }
             }
         } else { // default CSV
             $fh = fopen($tmp, 'r');
