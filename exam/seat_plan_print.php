@@ -40,6 +40,10 @@ $sn = strtolower(trim($shiftName));
 if (strpos($sn,'even') !== false) { $shiftLabel = 'Evening Shift'; }
 elseif (strpos($sn,'morn') !== false) { $shiftLabel = 'Morning Shift'; }
 else { $shiftLabel = ucwords($shiftName).' Shift'; }
+// Split shift into two lines for overlay
+$shiftParts = preg_split('/\s+/', trim($shiftLabel), 2);
+$shiftLine1 = $shiftParts[0] ?? $shiftLabel;
+$shiftLine2 = $shiftParts[1] ?? '';
 
 // Load allocations + try to enrich with students info (support both id and student_id keys)
 $alloc = [];
@@ -173,11 +177,14 @@ for ($cc=1; $cc<=3; $cc++){
         }
         body { font-family: 'Noto Sans', 'Arial', sans-serif; padding: 20px; color:#000; }
         .page { border: 1px solid #e3e3e3; padding: 18px; margin-bottom: 20px; border-radius: 6px; padding-bottom: 70px; }
-    .header { text-align: center; margin-bottom: 8px; }
-    .header-brand{ display:flex; align-items:center; justify-content:space-between; gap:15px; width:100%; }
+    .header { text-align: center; margin-bottom: 8px; position:relative; }
+    .header-brand{ display:flex; align-items:center; justify-content:center; gap:15px; width:100%; }
     .brand-left{ display:flex; align-items:center; gap:12px; }
     .brand-text{ display:flex; flex-direction:column; justify-content:center; text-align:center; flex:1; }
-    .shift-box{ border:2px solid #333; padding:6px 12px; font-weight:800; background:#fff7a8; color:#000; border-radius:6px; white-space:nowrap; align-self:center; }
+    .brand-right{ width:72px; height:72px; }
+    .shift-overlay{ position:absolute; top:6px; right:6px; border:2px solid #333; padding:6px 10px; font-weight:800; background: rgba(255,247,168,0.95); color:#000; border-radius:6px; line-height:1.05; text-align:center; z-index: 20; }
+    .shift-overlay .line1{ font-size: 13px; }
+    .shift-overlay .line2{ font-size: 16px; }
         .school-name { font-size: 28px; font-weight: 800; line-height:1.1; margin: 2px 0; }
         .school-address { font-size: 12px; color: #444; line-height:1.2; margin: 2px 0; }
         .exam-title { text-align: center; margin: 6px 0 4px; line-height:1.2; }
@@ -190,7 +197,7 @@ for ($cc=1; $cc<=3; $cc++){
         .bench { border: 1px dashed #bbb; padding: 8px; margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
         /* Seat cell redesigned to keep photo inside border and beside roll */
         .seat { width: 48%; padding: 6px 6px; font-size: 13px; min-height: 40px; text-align: center;
-            display: grid; align-items: center; column-gap: 6px; row-gap: 2px;
+            display: grid; align-items: center; column-gap: 0; row-gap: 2px;
             grid-template-columns: auto 1fr;
             grid-template-areas: "img roll" "name name" "class class";
         }
@@ -198,7 +205,7 @@ for ($cc=1; $cc<=3; $cc++){
             grid-template-columns: 1fr auto;
             grid-template-areas: "roll img" "name name" "class class";
         }
-        .seat img { grid-area: img; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; position: static; }
+    .seat img { grid-area: img; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; position: static; }
         .seat .roll { grid-area: roll; font-size: 24px; font-weight: 900; color: #b00; line-height:1; }
         .seat .name { grid-area: name; font-size: 12px; font-weight: 600; line-height:1.1; }
         .seat .class { grid-area: class; font-size: 16px; color: #333; line-height:1.1; }
@@ -256,8 +263,9 @@ for ($cc=1; $cc<=3; $cc++){
                     <div class="school-name"><?= htmlspecialchars($institute_name ?? 'Institute Name') ?></div>
                     <div class="school-address"><?= htmlspecialchars($institute_address ?? '') ?></div>
                 </div>
-                <div class="shift-box"><?= htmlspecialchars($shiftLabel) ?></div>
+                <div class="brand-right" aria-hidden="true"></div>
             </div>
+            <div class="shift-overlay"><div class="line1"><?= htmlspecialchars($shiftLine1) ?></div><div class="line2"><?= htmlspecialchars($shiftLine2) ?></div></div>
         </div>
         <div class="exam-title">
             <div><strong><?= htmlspecialchars($plan['plan_name'] ?? 'Seat Plan') ?></strong></div>
