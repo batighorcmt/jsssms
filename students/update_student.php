@@ -39,6 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $photo_name = $_POST['existing_photo'] ?? '';
     
     if (isset($_FILES['student_photo']) && $_FILES['student_photo']['error'] === UPLOAD_ERR_OK) {
+        // Enforce max image size: 2MB
+        $maxSize = 2 * 1024 * 1024; // 2MB
+        if ((int)$_FILES['student_photo']['size'] > $maxSize) {
+            $_SESSION['error'] = "Image is too large. Maximum allowed size is 2MB.";
+            header("Location: edit_student.php?student_id=" . urlencode($student_id));
+            exit;
+        }
         $upload_dir = '../uploads/students/';
         $file_ext = pathinfo($_FILES['student_photo']['name'], PATHINFO_EXTENSION);
         $photo_name = 'student_' . time() . '.' . $file_ext;

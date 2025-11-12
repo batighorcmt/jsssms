@@ -171,7 +171,8 @@ include '../config/db.php';
                         <!-- Photo -->
                         <div class="col-md-4 mb-3">
                             <label>Photo</label>
-                            <input type="file" name="student_photo" class="form-control" accept="image/*">
+                            <input type="file" name="student_photo" id="student_photo" class="form-control" accept="image/*">
+                            <small class="text-muted">JPG/PNG • Max 2MB</small>
                         </div>
                     </div>
 
@@ -199,6 +200,23 @@ include '../config/db.php';
                 });
             });
     });
+</script>
+
+<script>
+// Client-side 2MB size check for add page
+(function(){
+    var inp = document.getElementById('student_photo');
+    if(!inp) return;
+    inp.addEventListener('change', function(){
+        if (this.files && this.files[0]){
+            var max = 2 * 1024 * 1024; // 2MB
+            if (this.files[0].size > max){
+                alert('Image is too large. Maximum allowed size is 2MB.');
+                this.value = '';
+            }
+        }
+    });
+})();
 </script>
 
 <?php include '../includes/footer.php'; ?>

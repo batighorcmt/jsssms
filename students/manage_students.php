@@ -25,6 +25,13 @@ $importNotesHtml = '';
 if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILES['csv_file'])) {
     // Enable robust logging in production to catch 500s
     $logFile = __DIR__ . '/../logs/import_errors.log';
+    $logDir = dirname($logFile);
+    if (!is_dir($logDir)) { @mkdir($logDir, 0775, true); }
+    if (!is_writable($logDir)) {
+        $tmpFallback = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'jsssms_import_errors.log';
+        $logFile = $tmpFallback;
+    }
+    if (!file_exists($logFile)) { @touch($logFile); }
     $__import_log = function($msg) use ($logFile){
         $ts = date('Y-m-d H:i:s');
         @file_put_contents($logFile, "[$ts] $msg\n", FILE_APPEND);
@@ -148,7 +155,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
             } else {
                 try {
                     $allRows = $parseXlsx($tmp);
-                } catch (Throwable $e) {
+                } catch (Exception $e) {
                     $uploadErrors[] = 'XLSX parse failed: ' . $e->getMessage();
                     $__import_log('XLSX parse exception: ' . $e->getMessage());
                 }

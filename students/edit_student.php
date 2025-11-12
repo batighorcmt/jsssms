@@ -152,7 +152,7 @@ if (!empty($student['class_id'])) {
                             <div class="flex-grow-1">
                                 <input type="file" name="student_photo" id="student_photo" class="form-control form-control-lg mb-1" accept="image/*" onchange="previewImage(this)">
                                 <input type="hidden" name="existing_photo" value="<?= isset($student['photo']) ? htmlspecialchars($student['photo']) : '' ?>">
-                                <small class="text-muted">JPG/PNG • Max 500KB</small>
+                                <small class="text-muted">JPG/PNG • Max 2MB</small>
                             </div>
                         </div>
                     </div>
@@ -331,6 +331,13 @@ if (!empty($student['class_id'])) {
         const preview = document.getElementById('imagePreview');
         const file = input.files[0];
         if (file) {
+            // Enforce 2MB max client-side
+            var maxBytes = 2 * 1024 * 1024; // 2MB
+            if (file.size > maxBytes) {
+                alert('Image is too large. Maximum allowed size is 2MB.');
+                input.value = '';
+                return;
+            }
             const reader = new FileReader();
             reader.onload = function(e) {
                 // Remove previous image or icon
