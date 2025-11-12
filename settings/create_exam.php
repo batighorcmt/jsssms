@@ -1,4 +1,5 @@
 <?php
+@include_once __DIR__ . '/../includes/bootstrap.php';
 session_start();
 @include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
