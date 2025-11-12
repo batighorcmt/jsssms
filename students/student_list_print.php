@@ -280,6 +280,19 @@ include '../includes/sidebar.php';
             <?php if ($filter_applied): ?>
                 <div class="print-only my-2">
                     <div class="text-center">
+                        <?php
+                        // Prepare institute header data from config
+                        $instName = isset($institute_name) ? trim($institute_name) : '';
+                        $instAddr = isset($institute_address) ? trim($institute_address) : '';
+                        ?>
+                        <?php if ($instName !== ''): ?>
+                            <h3 style="margin:0;"><?= htmlspecialchars($instName) ?></h3>
+                        <?php endif; ?>
+                        <?php if ($instAddr !== ''): ?>
+                            <div style="margin:2px 0 6px 0; font-size: 0.95rem; color:#374151;">
+                                <?= htmlspecialchars($instAddr) ?>
+                            </div>
+                        <?php endif; ?>
                         <h4>Student List</h4>
                         <p class="text-muted report-meta">
                             <?php
@@ -288,7 +301,24 @@ include '../includes/sidebar.php';
                             if (!empty($class_id)) {
                                 foreach ($classes as $c) { if ((int)$c['id'] === (int)$class_id) { $class_name = $c['class_name']; break; } }
                             }
-                            $section_label = !empty($section_id) ? 'Selected Section' : 'All';
+                            // Section label: show actual selected section name if provided
+                            $section_label = 'All';
+                            if (!empty($section_id)) {
+                                $section_label = '';
+                                // Try to derive from loaded students first
+                                if (!empty($students)) {
+                                    foreach ($students as $s) {
+                                        if ((int)($s['section_id'] ?? 0) === (int)$section_id && !empty($s['section_name'])) { $section_label = $s['section_name']; break; }
+                                    }
+                                }
+                                // Fallback: fetch from DB
+                                if ($section_label === '') {
+                                    $secRes = $conn->query("SELECT section_name FROM sections WHERE id = ".(int)$section_id." LIMIT 1");
+                                    if ($secRes && $row = $secRes->fetch_assoc()) { $section_label = $row['section_name']; }
+                                }
+                                // Final fallback: echo id if name not found
+                                if ($section_label === '' || $section_label === null) { $section_label = (string)$section_id; }
+                            }
                             $year_label = !empty($yearSel) ? $yearSel : 'All';
                             $gLabel = 'All';
                             if (!empty($gender)) {
@@ -401,6 +431,26 @@ include '../includes/sidebar.php';
                 <?php else: ?>
                     <div class="alert alert-warning text-center">No students found.</div>
                 <?php endif; ?>
+                <?php
+                // Print footer with company/developer info from config
+                $devName = isset($developer_name) ? trim($developer_name) : '';
+                $devPhone = isset($developer_phone) ? trim($developer_phone) : '';
+                $compName = isset($company_name) ? trim($company_name) : '';
+                $compWeb  = isset($company_website) ? trim($company_website) : '';
+                ?>
+                <div class="print-only text-center" style="margin-top:10px; font-size:12px; color:#555;">
+                    <?php if ($compName !== ''): ?>
+                        <span>Developed by <?= htmlspecialchars($compName) ?></span>
+                    <?php else: ?>
+                        <span>Developed by</span>
+                    <?php endif; ?>
+                    <?php if ($compWeb !== ''): ?>
+                        <span> | <?= htmlspecialchars($compWeb) ?></span>
+                    <?php endif; ?>
+                    <?php if ($devName !== '' || $devPhone !== ''): ?>
+                        <span> | <?= htmlspecialchars($devName) ?><?= ($devPhone !== '' ? ' (' . htmlspecialchars($devPhone) . ')' : '') ?></span>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
         </div>
     </section>
