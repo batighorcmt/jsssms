@@ -1,8 +1,9 @@
 <?php 
 session_start();
+@include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role']) || ($_SESSION['role'] !== 'super_admin' && $_SESSION['role'] !== 'teacher')) {
-        header("Location: ../auth/login.php");
-        exit();
+    header("Location: " . BASE_URL . "auth/login.php");
+    exit();
 }
 
 include '../config/db.php';
@@ -17,11 +18,11 @@ include '../includes/header.php';
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h1 class="bn">মার্ক এন্ট্রি</h1>
+                    <h1>Mark Entry</h1>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
                         <li class="breadcrumb-item active">Mark Entry</li>
                     </ol>
                 </div>
@@ -35,22 +36,22 @@ include '../includes/header.php';
             <div class="card-body">
     <form id="markFilterForm" class="row g-3">
         <div class="col-md-3">
-            <label>পরীক্ষা</label>
+            <label>Exam</label>
             <select name="exam_id" id="exam_id" class="form-control" required>
-                <option value="">সিলেক্ট করুন</option>
+                <option value="">Select</option>
                 <?php
-                $exams = $conn->query("SELECT * FROM exams ORDER BY exam_name");
+                $exams = $conn->query("SELECT exams.id, exams.exam_name, classes.class_name FROM exams JOIN classes ON exams.class_id = classes.id ORDER BY exams.exam_name");
                 while ($exam = $exams->fetch_assoc()):
                 ?>
-                <option value="<?= $exam['id'] ?>"><?= htmlspecialchars($exam['exam_name']) ?></option>
+                <option value="<?= $exam['id'] ?>"><?= htmlspecialchars($exam['exam_name'] . ' - ' . $exam['class_name']) ?></option>
                 <?php endwhile; ?>
             </select>
         </div>
 
         <div class="col-md-3">
-            <label>শ্রেণি</label>
+            <label>Class</label>
             <select name="class_id" id="class_id" class="form-control" required>
-                <option value="">সিলেক্ট করুন</option>
+                <option value="">Select</option>
                 <?php
                 $classes = $conn->query("SELECT * FROM classes ORDER BY class_name");
                 while ($cls = $classes->fetch_assoc()):
@@ -61,27 +62,27 @@ include '../includes/header.php';
         </div>
 
         <div class="col-md-3">
-            <label>গ্রুপ</label>
+            <label>Group</label>
             <select name="group" id="group" class="form-control" required>
-                <option value="">গ্রুপ নির্বাচন করুন</option>
-                <option value="none">কোন গ্রুপ নই</option>
-                <option value="Science">বিজ্ঞান</option>
-                <option value="Humanities">মানবিক</option>
-                <option value="Business Studies">ব্যবসায় শিক্ষা</option>
+                <option value="">Select group</option>
+                <option value="none">No group</option>
+                <option value="Science">Science</option>
+                <option value="Humanities">Humanities</option>
+                <option value="Business Studies">Business Studies</option>
             </select>
         </div>
 
         <div class="col-md-3">
-            <label>বিষয়</label>
+            <label>Subject</label>
             <select name="subject_id" id="subject_id" class="form-control" required>
-                <option value="">বিষয় নির্বাচন করুন</option>
+                <option value="">Select subject</option>
             </select>
         </div>
 
         <div class="col-md-3">
-            <label>সাল</label>
+            <label>Year</label>
             <select name="year" id="year" class="form-control" required>
-                <option value="">সাল নির্বাচন</option>
+                <option value="">Select year</option>
                 <?php
                 $years = $conn->query("SELECT DISTINCT year FROM students ORDER BY year DESC");
                 while ($yr = $years->fetch_assoc()):
@@ -92,7 +93,7 @@ include '../includes/header.php';
         </div>
 
         <div class="col-md-12 mt-2">
-            <button type="button" id="loadStudents" class="btn btn-primary">লোড করুন</button>
+            <button type="button" id="loadStudents" class="btn btn-primary">Load</button>
         </div>
     </form>
             </div>
@@ -109,28 +110,29 @@ window.addEventListener('load', function() {
     var $ = window.jQuery;
     if (!$) return;
 
-    // শ্রেণি অথবা গ্রুপ পরিবর্তন করলে বিষয় লোড হবে
+    // When class or group changes, load subjects
     $('#class_id, #group').change(function() {
-        var class_id = $('#class_id').val();
-        var group = $('#group').val();
+                var class_id = $('#class_id').val();
+                var group = $('#group').val();
         // Normalize group value to match database (NONE vs none)
         if (group && group.toLowerCase() === 'none') {
             group = 'NONE';
         }
 
-        if (class_id && group) {
-            $.post('fetch_subjects.php', {
-                class_id: class_id,
-                group: group
-            }, function(data) {
-                $('#subject_id').html(data);
-            });
+                if (class_id && group) {
+                    $.post('fetch_subjects.php', {
+                        class_id: class_id,
+                        group: group,
+                        exam_id: $('#exam_id').val() // may be used for filtering by assignment
+                    }, function(data) {
+                        $('#subject_id').html(data);
+                    });
         } else {
-            $('#subject_id').html('<option value="">বিষয় নির্বাচন করুন</option>');
+            $('#subject_id').html('<option value="">Select subject</option>');
         }
     });
 
-    // লোড বাটনে ক্লিক করলে মার্ক এন্ট্রি ফর্ম লোড হবে
+    // Load mark entry form on click
     $('#loadStudents').click(function() {
         var exam_id = $('#exam_id').val();
         var class_id = $('#class_id').val();
@@ -139,7 +141,7 @@ window.addEventListener('load', function() {
         var year = $('#year').val();
 
         if (!exam_id || !class_id || !group || !subject_id || !year) {
-            alert('সব ফিল্ড সিলেক্ট করুন');
+            alert('Please select all fields');
             return;
         }
 
@@ -157,14 +159,14 @@ window.addEventListener('load', function() {
                 $('#markEntryArea').html(response);
             },
             error: function() {
-                alert('ডাটা লোড করতে সমস্যা হয়েছে।');
+                alert('Failed to load data.');
             }
         });
     });
 
 });
 
-// মার্ক অটো সেভ ফাংশন (load_students_mark_form.php-র ইনপুটে কল করা হবে)
+// Auto save mark function (called from inputs in load_students_mark_form.php)
 function saveMark(student_id, exam_subject_id, field, value) {
     $.post('save_mark.php', {
         student_id: student_id,
@@ -176,7 +178,7 @@ function saveMark(student_id, exam_subject_id, field, value) {
             var resp = JSON.parse(res);
             if (resp.status === 'error') alert(resp.message);
         } catch {
-            alert('সার্ভার থেকে অজানা উত্তর এসেছে।');
+            alert('Unknown response from server.');
         }
     });
 }

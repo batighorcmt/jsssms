@@ -1,6 +1,14 @@
 <?php
-include "includes/header.php";
+@include_once __DIR__ . '/config/config.php';
+// Allow both super_admin and teacher to pass the session gate, we'll redirect teachers below
+$ALLOWED_ROLES = ['super_admin','teacher'];
 include "auth/session.php";
+// If a teacher lands here, redirect them to the teacher dashboard using BASE_URL BEFORE any output
+if (isset($_SESSION['role']) && $_SESSION['role'] === 'teacher') {
+  header('Location: ' . BASE_URL . 'dashboard_teacher.php');
+  exit();
+}
+include "includes/header.php";
 ?>
 
 <?php include "includes/sidebar.php"; ?>
@@ -16,7 +24,7 @@ include "auth/session.php";
         </div>
         <div class="col-sm-6">
           <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+            <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
             <li class="breadcrumb-item active">Dashboard</li>
           </ol>
         </div>

@@ -1,5 +1,6 @@
 <?php
 $ALLOWED_ROLES = ['super_admin'];
+@include_once __DIR__ . '/../config/config.php';
 include '../auth/session.php';
 include '../config/db.php';
 include '../includes/header.php';
@@ -16,7 +17,7 @@ include '../includes/sidebar.php';
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
                         <li class="breadcrumb-item active">Transcript</li>
                     </ol>
                 </div>

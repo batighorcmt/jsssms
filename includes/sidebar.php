@@ -2,14 +2,16 @@
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
-$BASE_URL = '/jsssms/';
+@include_once __DIR__ . '/../config/config.php';
+$BASE_URL = BASE_URL; // keep variable for existing template echos
 $current = basename($_SERVER['PHP_SELF']);
 ?>
 
 <!-- Main Sidebar Container -->
 <aside class="main-sidebar sidebar-dark-primary elevation-4">
   <!-- Brand Logo -->
-  <a href="<?= $BASE_URL ?>dashboard.php" class="brand-link">
+  <?php $dashHref = (isset($_SESSION['role']) && $_SESSION['role']==='teacher') ? ($BASE_URL . 'dashboard_teacher.php') : ($BASE_URL . 'dashboard.php'); ?>
+  <a href="<?= $dashHref ?>" class="brand-link">
     <i class="fas fa-school brand-image img-circle elevation-3" style="opacity:.8"></i>
     <span class="brand-text font-weight-light">JSSSMS</span>
   </a>
@@ -30,9 +32,10 @@ $current = basename($_SERVER['PHP_SELF']);
     <nav class="mt-2">
       <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
         <li class="nav-item">
-          <a href="<?= $BASE_URL ?>dashboard.php" class="nav-link <?= ($current=='dashboard.php')?'active':'' ?>">
+          <?php $isTeacher = (isset($_SESSION['role']) && $_SESSION['role']==='teacher'); ?>
+          <a href="<?= $isTeacher ? ($BASE_URL.'dashboard_teacher.php') : ($BASE_URL.'dashboard.php') ?>" class="nav-link <?= ($current==($isTeacher?'dashboard_teacher.php':'dashboard.php'))?'active':'' ?>">
             <i class="nav-icon fas fa-tachometer-alt"></i>
-            <p>Dashboard</p>
+            <p><?= $isTeacher ? 'Teacher Dashboard' : 'Dashboard' ?></p>
           </a>
         </li>
 
@@ -80,7 +83,7 @@ $current = basename($_SERVER['PHP_SELF']);
           </a>
         </li>
         <li class="nav-item">
-          <a href="<?= $BASE_URL ?>exam_results.php" class="nav-link <?= ($current=='exam_results.php')?'active':'' ?>">
+          <a href="<?= $BASE_URL ?>results/exam_results.php" class="nav-link <?= ($current=='exam_results.php')?'active':'' ?>">
             <i class="nav-icon fas fa-file"></i>
             <p>Exam Results</p>
           </a>
@@ -89,27 +92,15 @@ $current = basename($_SERVER['PHP_SELF']);
 
         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'teacher'): ?>
         <li class="nav-item">
-          <a href="<?= $BASE_URL ?>my_classes.php" class="nav-link <?= ($current=='my_classes.php')?'active':'' ?>">
-            <i class="nav-icon fas fa-folder-open"></i>
-            <p>My Classes</p>
-          </a>
-        </li>
-        <li class="nav-item">
           <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current=='mark_entry.php')?'active':'' ?>">
             <i class="nav-icon fas fa-pen"></i>
             <p>Mark Entry</p>
           </a>
         </li>
-        <li class="nav-item">
-          <a href="<?= $BASE_URL ?>student_list.php" class="nav-link <?= ($current=='student_list.php')?'active':'' ?>">
-            <i class="nav-icon fas fa-list"></i>
-            <p>Student List</p>
-          </a>
-        </li>
         <?php endif; ?>
 
         <li class="nav-item">
-          <a href="<?= $BASE_URL ?>profile.php" class="nav-link <?= ($current=='profile.php')?'active':'' ?>">
+          <a href="<?= $BASE_URL ?>auth/profile.php" class="nav-link <?= ($current=='profile.php' || $current=='auth.php' || $current=='auth/profile.php')?'active':'' ?>">
             <i class="nav-icon fas fa-user"></i>
             <p>My Profile</p>
           </a>

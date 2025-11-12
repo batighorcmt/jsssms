@@ -1,7 +1,8 @@
 <?php
 session_start();
+@include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
+    header("Location: " . BASE_URL . "auth/login.php");
     exit();
 }
 
@@ -21,8 +22,8 @@ include '../includes/header.php';
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
-                        <li class="breadcrumb-item"><a href="manage_exams.php">Manage Exams</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>settings/manage_exams.php">Manage Exams</a></li>
                         <li class="breadcrumb-item active">Create</li>
                     </ol>
                 </div>
@@ -45,14 +46,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($conn->query($insert_exam_sql)) {
         $exam_id = $conn->insert_id;
 
-        // Step 2: Insert each subject with marks
+        // Ensure teacher_id column exists in exam_subjects
+        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) {
+            if ($chk->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id"); }
+        }
+        // Ensure pass mark columns exist
+        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'creative_pass'")) {
+            if ($chk->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN creative_pass INT NOT NULL DEFAULT 0 AFTER creative_marks"); }
+        }
+        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'objective_pass'")) {
+            if ($chk->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN objective_pass INT NOT NULL DEFAULT 0 AFTER objective_marks"); }
+        }
+        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'practical_pass'")) {
+            if ($chk->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN practical_pass INT NOT NULL DEFAULT 0 AFTER practical_marks"); }
+        }
+        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'total_pass'")) {
+            if ($chk->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN total_pass INT NOT NULL DEFAULT 0 AFTER total_marks"); }
+        }
+        // Ensure mark entry deadline column exists
+        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'")) {
+            if ($chk->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN mark_entry_deadline DATE NULL AFTER exam_time"); }
+        }
+
+        // Step 2: Insert each subject with marks and assigned teacher
         $subject_ids = $_POST['subject_id'];
         $exam_dates = $_POST['exam_date'];
         $exam_times = $_POST['exam_time'];
         $creative_marks = $_POST['creative_marks'];
         $objective_marks = $_POST['objective_marks'];
         $practical_marks = $_POST['practical_marks'];
-        $pass_types = $_POST['pass_type'];
+    $pass_types = $_POST['pass_type'];
+    $creative_pass = $_POST['creative_pass'] ?? [];
+    $objective_pass = $_POST['objective_pass'] ?? [];
+    $practical_pass = $_POST['practical_pass'] ?? [];
+    $total_pass = $_POST['total_pass'] ?? [];
+    $teacher_ids = $_POST['teacher_id'] ?? [];
+    $deadlines = $_POST['mark_entry_deadline'] ?? [];
 
         $all_success = true;
 
@@ -64,11 +93,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $practical = (int)$practical_marks[$i];
             $pass_type = $conn->real_escape_string($pass_types[$i]);
             $total = $creative + $objective + $practical;
+            $c_pass = isset($creative_pass[$i]) ? (int)$creative_pass[$i] : 0;
+            $o_pass = isset($objective_pass[$i]) ? (int)$objective_pass[$i] : 0;
+            $p_pass = isset($practical_pass[$i]) ? (int)$practical_pass[$i] : 0;
+            $t_pass = isset($total_pass[$i]) ? (int)$total_pass[$i] : 0;
 
+            $teacher_id = isset($teacher_ids[$i]) ? (int)$teacher_ids[$i] : 0;
+            $deadline = isset($deadlines[$i]) ? $deadlines[$i] : null;
+            if ($deadline && preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/',$deadline,$dm)) {
+                $deadline = $dm[3].'-'.$dm[2].'-'.$dm[1];
+            }
+            if ($deadline) { $deadline = $conn->real_escape_string($deadline); }
             $insert_subject_sql = "INSERT INTO exam_subjects 
-                (exam_id, subject_id, exam_date, exam_time, creative_marks, objective_marks, practical_marks, pass_type, total_marks)
+                (exam_id, subject_id, teacher_id, exam_date, exam_time, mark_entry_deadline, creative_marks, objective_marks, practical_marks, creative_pass, objective_pass, practical_pass, pass_type, total_marks, total_pass)
                 VALUES 
-                ($exam_id, $subject_id, '$exam_date', '$exam_time', $creative, $objective, $practical, '$pass_type', $total)";
+                ($exam_id, $subject_id, " . ($teacher_id ?: 'NULL') . ", '$exam_date', '$exam_time', " . ($deadline ? "'".$deadline."'" : 'NULL') . ", $creative, $objective, $practical, $c_pass, $o_pass, $p_pass, '$pass_type', $total, $t_pass)";
 
             if (!$conn->query($insert_subject_sql)) {
                 $all_success = false;
@@ -90,6 +129,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Load classes
 $classQuery = "SELECT * FROM classes ORDER BY class_name ASC";
 $classResult = $conn->query($classQuery);
+// Load teachers (for assigning per subject)
+$teachers = [];
+if ($tres = $conn->query("SELECT id, name FROM teachers ORDER BY name ASC")) {
+    while ($t = $tres->fetch_assoc()) { $teachers[] = $t; }
+}
 ?>
 
     <section class="content">
@@ -135,17 +179,19 @@ $classResult = $conn->query($classQuery);
                                 <table class="table table-sm table-bordered table-striped">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>বিষয়</th>
-                                            <th style="min-width:110px;">তারিখ</th>
-                                            <th style="min-width:90px;">সময়</th>
+                                            <th>Subject</th>
+                                            <th style="min-width:110px;">Exam Date</th>
+                                            <th style="min-width:130px;">Mark Entry Deadline</th>
+                                            <th style="min-width:90px;">Exam Time</th>
                                             <th>সৃজনশীল</th>
                                             <th>নৈর্ব্যক্তিক</th>
                                             <th>ব্যবহারিক</th>
-                                            <th>মোট</th>
-                                            <th>সৃজনশীল পাশ</th>
-                                            <th>নৈর্ব্যক্তিক পাশ</th>
-                                            <th>ব্যবহারিক পাশ</th>
-                                            <th>পাস টাইপ</th>
+                                            <th>Total</th>
+                                            <th>Creative Pass</th>
+                                            <th>Objective Pass</th>
+                                            <th>Practical Pass</th>
+                                            <th>Pass Type</th>
+                                            <th>Subject Teacher</th>
                                         </tr>
                                     </thead>
                                     <tbody id="subjectsTableBody">
@@ -155,7 +201,7 @@ $classResult = $conn->query($classQuery);
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-success" id="submitBtn" style="display:none;">সেভ করুন</button>
+                        <button type="submit" class="btn btn-success" id="submitBtn" style="display:none;">Save</button>
                     </form>
                 </div><!-- /.card-body -->
             </div><!-- /.card -->
@@ -165,6 +211,9 @@ $classResult = $conn->query($classQuery);
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Expose teachers list for the per-subject dropdown
+    const TEACHERS = <?php echo json_encode($teachers); ?>;
+    const teacherOptions = TEACHERS.map(t => `<option value="${t.id}">${t.name.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</option>`).join('');
     const classSelect = document.getElementById('class_id');
     const subjectsContainer = document.getElementById('subjectsContainer');
     const subjectsTableBody = document.getElementById('subjectsTableBody');
@@ -202,6 +251,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <input type="hidden" name="subject_id[]" value="${subject.id}">
                             </td>
                             <td><input type="text" name="exam_date[]" class="form-control date-input" placeholder="dd/mm/yyyy"></td>
+                            <td><input type="text" name="mark_entry_deadline[]" class="form-control date-input" placeholder="dd/mm/yyyy"></td>
                             <td><input type="time" name="exam_time[]" class="form-control" ></td>
                             <td>
                                 <input type="number" name="creative_marks[]" class="form-control creative_marks" min="0" value="0" ${hasC ? '' : 'disabled'} required>
@@ -232,6 +282,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <select name="pass_type[]" class="form-control">
                                     <option value="total" ${passType === 'total' ? 'selected' : ''}>মোট নাম্বার</option>
                                     <option value="individual" ${passType === 'individual' ? 'selected' : ''}>আলাদা আলাদা</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="teacher_id[]" class="form-control">
+                                    <option value="">-- শিক্ষক --</option>
+                                    ${teacherOptions}
                                 </select>
                             </td>
                         </tr>

@@ -1,5 +1,6 @@
 <?php  
 $ALLOWED_ROLES = ['super_admin'];
+@include_once __DIR__ . '/../config/config.php';
 include '../auth/session.php';
 include '../config/db.php';
 include '../includes/header.php';
@@ -16,7 +17,7 @@ include '../includes/sidebar.php';
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/jsssms/dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
                         <li class="breadcrumb-item active">Exams</li>
                     </ol>
                 </div>
@@ -29,7 +30,7 @@ include '../includes/sidebar.php';
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4>তৈরিকৃত পরীক্ষার তালিকা</h4>
-        <a href="create_exam.php" class="btn btn-success">+ নতুন পরীক্ষা</a>
+    <a href="<?= BASE_URL ?>settings/create_exam.php" class="btn btn-success">+ নতুন পরীক্ষা</a>
     </div>
 
     <?php if (isset($_SESSION['success'])): ?>
@@ -100,13 +101,13 @@ include '../includes/sidebar.php';
 <div class="custom-dropdown">
     <button class="btn btn-sm btn-primary" onclick="toggleDropdown(this)">নির্বাচন করুন</button>
     <div class="custom-dropdown-menu">
-        <a href="exam_details.php?exam_id=<?= $exam_id ?>">বিস্তারিত</a>
-    <a href="update_exam.php?exam_id=<?= $exam_id ?>">সমষ্টিগত আপডেট</a>
-        <a href="../results/tabulation_sheet.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">টেবুলেশন শীট রোল নং অনুসারে</a>
-        <a href="../results/tabulation_sheet_sort.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">টেবুলেশন শীট মেধাক্রম অনুসারে</a>
-        <a href="../results/marksheet.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">একাডেমিক ট্রান্সক্রিপ্ট</a>
-        <a href="../results/merit_list_sort.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">মেরিট লিস্ট</a>
-        <a href="../results/statistics.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">সার্বিক পরিসংখ্যান</a>
+        <a href="<?= BASE_URL ?>settings/exam_details.php?exam_id=<?= $exam_id ?>">বিস্তারিত</a>
+        <a href="<?= BASE_URL ?>settings/update_exam.php?exam_id=<?= $exam_id ?>">সমষ্টিগত আপডেট</a>
+        <a href="<?= BASE_URL ?>exam/admit_v2.php?exam_id=<?= $exam_id ?>">অ্যাডমিট কার্ড (V2)</a>
+        <a href="<?= BASE_URL ?>exam/admit_v3.php?exam_id=<?= $exam_id ?>">অ্যাডমিট কার্ড (V3)</a>
+        <a href="<?= BASE_URL ?>exam/exam_attendance.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">পরীক্ষার উপস্থিতি</a>
+        <a href="<?= BASE_URL ?>exam/blank_mark_entry_form.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">ফাকা নম্বরপত্র</a>
+        <a href="<?= BASE_URL ?>exam/filled_mark_entry_form.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">পূরণকৃত নম্বরপত্র</a>
     </div>
 </div>
 
