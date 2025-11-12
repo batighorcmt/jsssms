@@ -192,20 +192,48 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
                 return '';
             };
 
-            // Prepare insert statement
-            $sql = "INSERT INTO students
-                (student_id, roll_no, student_name, father_name, mother_name, gender, mobile_no, religion, nationality,
-                 date_of_birth, blood_group, village, post_office, upazilla, district, status, class_id, section_id,
-                 student_group, year, photo, optional_subject_id)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON DUPLICATE KEY UPDATE
-                  roll_no=VALUES(roll_no), student_name=VALUES(student_name), father_name=VALUES(father_name),
-                  mother_name=VALUES(mother_name), gender=VALUES(gender), mobile_no=VALUES(mobile_no),
-                  religion=VALUES(religion), nationality=VALUES(nationality), date_of_birth=VALUES(date_of_birth),
-                  blood_group=VALUES(blood_group), village=VALUES(village), post_office=VALUES(post_office),
-                  upazilla=VALUES(upazilla), district=VALUES(district), status=VALUES(status), class_id=VALUES(class_id),
-                  section_id=VALUES(section_id), student_group=VALUES(student_group), year=VALUES(year), photo=VALUES(photo),
-                  optional_subject_id=VALUES(optional_subject_id)";
+            // Prepare insert statement (be compatible if students.optional_subject_id is missing on live DB)
+            $hasOptionalCol = false;
+            if ($cc = $conn->query("SHOW COLUMNS FROM students LIKE 'optional_subject_id'")) {
+                $hasOptionalCol = ($cc->num_rows > 0);
+            }
+            if (!$hasOptionalCol) {
+                // Best-effort add column (may fail without privilege; fallback will still work without it)
+                @mysqli_query($conn, "ALTER TABLE students ADD COLUMN optional_subject_id INT NULL");
+                if ($cc2 = $conn->query("SHOW COLUMNS FROM students LIKE 'optional_subject_id'")) {
+                    $hasOptionalCol = ($cc2->num_rows > 0);
+                }
+            }
+
+            $withOptional = $hasOptionalCol;
+            if ($withOptional) {
+                $sql = "INSERT INTO students
+                    (student_id, roll_no, student_name, father_name, mother_name, gender, mobile_no, religion, nationality,
+                     date_of_birth, blood_group, village, post_office, upazilla, district, status, class_id, section_id,
+                     student_group, year, photo, optional_subject_id)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON DUPLICATE KEY UPDATE
+                      roll_no=VALUES(roll_no), student_name=VALUES(student_name), father_name=VALUES(father_name),
+                      mother_name=VALUES(mother_name), gender=VALUES(gender), mobile_no=VALUES(mobile_no),
+                      religion=VALUES(religion), nationality=VALUES(nationality), date_of_birth=VALUES(date_of_birth),
+                      blood_group=VALUES(blood_group), village=VALUES(village), post_office=VALUES(post_office),
+                      upazilla=VALUES(upazilla), district=VALUES(district), status=VALUES(status), class_id=VALUES(class_id),
+                      section_id=VALUES(section_id), student_group=VALUES(student_group), year=VALUES(year), photo=VALUES(photo),
+                      optional_subject_id=VALUES(optional_subject_id)";
+            } else {
+                $sql = "INSERT INTO students
+                    (student_id, roll_no, student_name, father_name, mother_name, gender, mobile_no, religion, nationality,
+                     date_of_birth, blood_group, village, post_office, upazilla, district, status, class_id, section_id,
+                     student_group, year, photo)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON DUPLICATE KEY UPDATE
+                      roll_no=VALUES(roll_no), student_name=VALUES(student_name), father_name=VALUES(father_name),
+                      mother_name=VALUES(mother_name), gender=VALUES(gender), mobile_no=VALUES(mobile_no),
+                      religion=VALUES(religion), nationality=VALUES(nationality), date_of_birth=VALUES(date_of_birth),
+                      blood_group=VALUES(blood_group), village=VALUES(village), post_office=VALUES(post_office),
+                      upazilla=VALUES(upazilla), district=VALUES(district), status=VALUES(status), class_id=VALUES(class_id),
+                      section_id=VALUES(section_id), student_group=VALUES(student_group), year=VALUES(year), photo=VALUES(photo)";
+            }
             $stmt = $conn->prepare($sql);
             if (!$stmt) { $uploadErrors[] = 'Prepare failed: ' . $conn->error; }
             else {
@@ -261,7 +289,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
                     $photo        = $getCol($row, ['photo','ছবি']);
                     $optional_sub = $getCol($row, ['optional_subject_id','optional_subject','ঐচ্ছিক_বিষয়_আইডি']); $optional_sub = is_numeric($optional_sub) ? (int)$optional_sub : 0;
 
-                    $stmt->bind_param('iissssssssssssssiiissi', $student_id, $roll_no, $student_name, $father_name, $mother_name, $gender, $mobile_no, $religion, $nationality, $dob, $blood_group, $village, $post_office, $upazilla, $district, $status, $cid, $section_id, $student_group, $year, $photo, $optional_sub);
+                    if ($withOptional) {
+                        // 22 params (with optional_subject_id)
+                        $stmt->bind_param('iissssssssssssssiiissi', $student_id, $roll_no, $student_name, $father_name, $mother_name, $gender, $mobile_no, $religion, $nationality, $dob, $blood_group, $village, $post_office, $upazilla, $district, $status, $cid, $section_id, $student_group, $year, $photo, $optional_sub);
+                    } else {
+                        // 21 params (without optional_subject_id)
+                        $stmt->bind_param('iissssssssssssssiiiss', $student_id, $roll_no, $student_name, $father_name, $mother_name, $gender, $mobile_no, $religion, $nationality, $dob, $blood_group, $village, $post_office, $upazilla, $district, $status, $cid, $section_id, $student_group, $year, $photo);
+                    }
                     if ($stmt->execute()) { if ($stmt->affected_rows === 1) $inserted++; else $updated++; }
                     else { $skipped++; $uploadErrors[] = "Row $lineNo: " . $stmt->error; }
                     $lineNo++;
