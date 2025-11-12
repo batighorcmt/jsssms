@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['success'] = "শিক্ষার্থীর তথ্য সফলভাবে আপডেট করা হয়েছে";
         // On success, go to subject assignment page for this student
         $conn->close();
-        header("Location: add_subject.php?student_id=" . urlencode($student_id));
+        header("Location: add_subjects.php?student_id=" . urlencode($student_id));
         exit;
     } else {
         $_SESSION['error'] = "শিক্ষার্থীর তথ্য আপডেট করতে সমস্যা হয়েছে: " . $conn->error;

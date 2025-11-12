@@ -275,73 +275,134 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="card p-3 mb-4">
             <h5>শিক্ষার্থীর তথ্য</h5>
-            <p><strong>নাম:</strong> <?= $student['student_name'] ?></p>
-            <p><strong>শ্রেণি:</strong> <?= $student['class_name'] ?></p>
-            <p><strong>গ্রুপ:</strong> <?= $student['student_group'] ?></p>
+            <p><strong>নাম:</strong> <?= htmlspecialchars($student['student_name']) ?></p>
+            <p><strong>শ্রেণি:</strong> <?= htmlspecialchars($student['class_name']) ?></p>
+            <p><strong>গ্রুপ:</strong> <?= htmlspecialchars($student['student_group']) ?></p>
         </div>
 
     <form method="POST" id="subject-form">
             <input type="hidden" name="student_id" value="<?= $student_id ?>">
             <div class="card p-3">
                 <h5>বিষয় তালিকা</h5>
-                <table class="table table-bordered">
-                    <thead>
-                        <tr>
-                            <th>ক্রমিক</th>
-                            <th>বিষয় কোড</th>
-                            <th>বিষয়ের নাম</th>
-                            <th>ধরণ</th>
-                            <th>নির্বাচন</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php
-                        $i = 1;
-                        // Track pre-checked by subject id to avoid checking both Compulsory and Optional rows for same subject
-                        $precheckedById = [];
-                        // Load user's last chosen types (from session) to reflect Optional vs Compulsory correctly after save
-                        $preferred_types = isset($_SESSION['selected_types_memory'][$student_id]) && is_array($_SESSION['selected_types_memory'][$student_id])
-                            ? $_SESSION['selected_types_memory'][$student_id]
-                            : [];
-                        foreach ($subjects as $sub):
-                            $sid = $sub['id'];
-                            $isAssigned = in_array($sid, $assigned_subjects);
-                            $alreadyChecked = isset($precheckedById[$sid]);
-                            $prefType = $preferred_types[$sid] ?? '';
-                            $prefType = is_string($prefType) ? strtolower($prefType) : '';
-                            $rowType = strtolower($sub['type'] ?? '');
-                            // If we have a preferred type for this subject, only check the matching row; else check the first occurrence (sorted: Compulsory first)
-                            if ($isAssigned && !$alreadyChecked) {
-                                if ($prefType !== '') {
-                                    $is_checked = ($rowType === $prefType);
-                                } else {
-                                    $is_checked = true;
-                                }
-                            } else {
-                                $is_checked = false;
-                            }
-                            if ($is_checked) { $precheckedById[$sid] = true; }
-                            $is_compulsory = ($sub['type'] === 'Compulsory');
-                    ?>
-                        <tr>
-                            <td><?= $i++ ?></td>
-                            <td><?= htmlspecialchars($sub['subject_code']) ?></td>
-                            <td><?= htmlspecialchars($sub['subject_name']) ?></td>
-                            <td><?= $sub['type'] ?></td>
-                            <td>
-                    <input class="form-check-input subject-checkbox"
-                                       type="checkbox"
-                                       name="subjects[]"
-                                       value="<?= $sub['id'] ?>"
-                                       id="subject_<?= $sub['id'] ?>"
-                                       data-subject-code="<?= $sub['subject_code'] ?>"
-                                       data-type="<?= $sub['type'] ?>"
-                                       <?= $is_checked ? 'checked' : '' ?>>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <?php
+                    // Split subjects into compartments
+                    $subjects_compulsory = [];
+                    $subjects_optional = [];
+                    foreach ($subjects as $row) {
+                        $t = strtolower($row['type'] ?? '');
+                        if ($t === 'compulsory') { $subjects_compulsory[] = $row; }
+                        elseif ($t === 'optional') { $subjects_optional[] = $row; }
+                    }
+                    // Prepare precheck memory once
+                    $precheckedById = [];
+                    $preferred_types = isset($_SESSION['selected_types_memory'][$student_id]) && is_array($_SESSION['selected_types_memory'][$student_id])
+                        ? $_SESSION['selected_types_memory'][$student_id]
+                        : [];
+                ?>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-2"><strong>বাধ্যতামূলক বিষয়</strong></div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>ক্রমিক</th>
+                                        <th>বিষয় কোড</th>
+                                        <th>বিষয়ের নাম</th>
+                                        <th>নির্বাচন</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                <?php $i = 1; foreach ($subjects_compulsory as $sub):
+                                    $sid = $sub['id'];
+                                    $isAssigned = in_array($sid, $assigned_subjects);
+                                    $alreadyChecked = isset($precheckedById[$sid]);
+                                    $prefType = $preferred_types[$sid] ?? '';
+                                    $prefType = is_string($prefType) ? strtolower($prefType) : '';
+                                    $rowType = 'compulsory';
+                                    if ($isAssigned && !$alreadyChecked) {
+                                        if ($prefType !== '') {
+                                            $is_checked = ($rowType === $prefType);
+                                        } else {
+                                            $is_checked = true;
+                                        }
+                                    } else {
+                                        $is_checked = false;
+                                    }
+                                    if ($is_checked) { $precheckedById[$sid] = true; }
+                                ?>
+                                    <tr>
+                                        <td><?= $i++ ?></td>
+                                        <td><?= htmlspecialchars($sub['subject_code']) ?></td>
+                                        <td><?= htmlspecialchars($sub['subject_name']) ?></td>
+                                        <td>
+                                            <input class="form-check-input subject-checkbox"
+                                                   type="checkbox"
+                                                   name="subjects[]"
+                                                   value="<?= $sub['id'] ?>"
+                                                   id="subject_<?= $sub['id'] ?>"
+                                                   data-subject-code="<?= htmlspecialchars($sub['subject_code']) ?>"
+                                                   data-type="Compulsory"
+                                                   <?= $is_checked ? 'checked' : '' ?>>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-2"><strong>ঐচ্ছিক বিষয়</strong> <small class="text-muted">(শুধুমাত্র একটি নির্বাচন করা যাবে)</small></div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>ক্রমিক</th>
+                                        <th>বিষয় কোড</th>
+                                        <th>বিষয়ের নাম</th>
+                                        <th>নির্বাচন</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                <?php $j = 1; foreach ($subjects_optional as $sub):
+                                    $sid = $sub['id'];
+                                    $isAssigned = in_array($sid, $assigned_subjects);
+                                    $alreadyChecked = isset($precheckedById[$sid]);
+                                    $prefType = $preferred_types[$sid] ?? '';
+                                    $prefType = is_string($prefType) ? strtolower($prefType) : '';
+                                    $rowType = 'optional';
+                                    if ($isAssigned && !$alreadyChecked) {
+                                        if ($prefType !== '') {
+                                            $is_checked = ($rowType === $prefType);
+                                        } else {
+                                            $is_checked = true;
+                                        }
+                                    } else {
+                                        $is_checked = false;
+                                    }
+                                    if ($is_checked) { $precheckedById[$sid] = true; }
+                                ?>
+                                    <tr>
+                                        <td><?= $j++ ?></td>
+                                        <td><?= htmlspecialchars($sub['subject_code']) ?></td>
+                                        <td><?= htmlspecialchars($sub['subject_name']) ?></td>
+                                        <td>
+                                            <input class="form-check-input subject-checkbox"
+                                                   type="checkbox"
+                                                   name="subjects[]"
+                                                   value="<?= $sub['id'] ?>"
+                                                   id="subject_<?= $sub['id'] ?>_opt"
+                                                   data-subject-code="<?= htmlspecialchars($sub['subject_code']) ?>"
+                                                   data-type="Optional"
+                                                   <?= $is_checked ? 'checked' : '' ?>>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
                 <button type="submit" class="btn btn-success mt-3">সংরক্ষণ করুন</button>
             </div>
         </form>
