@@ -13,7 +13,7 @@ include '../includes/sidebar.php';
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h1 class="bn">তৈরিকৃত পরীক্ষার তালিকা</h1>
+                    <h1 class="bn">Created Exams</h1>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -29,8 +29,8 @@ include '../includes/sidebar.php';
         <div class="container-fluid">
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4>তৈরিকৃত পরীক্ষার তালিকা</h4>
-    <a href="<?= BASE_URL ?>settings/create_exam.php" class="btn btn-success">+ নতুন পরীক্ষা</a>
+        <h4>Created Exams</h4>
+    <a href="<?= BASE_URL ?>settings/create_exam.php" class="btn btn-success">+ New Exam</a>
     </div>
 
     <?php if (isset($_SESSION['success'])): ?>
@@ -40,11 +40,11 @@ include '../includes/sidebar.php';
     <table class="table table-bordered table-hover">
         <thead class="table-light">
             <tr>
-                <th>ক্রমিক</th>
-                <th>পরীক্ষার নাম</th>
-                <th>শ্রেণি</th>
-                <th>বছর</th>
-                <th>অ্যাকশন</th>
+                <th>No.</th>
+                <th>Exam Name</th>
+                <th>Class</th>
+                <th>Year</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -58,7 +58,7 @@ include '../includes/sidebar.php';
             while ($row = $result->fetch_assoc()):
                 $exam_id = $row['id'];
                 $class_id = $row['class_id'];
-                $year = date('Y'); // চাইলে এখানে dynamic year বসাতে পারেন
+                $year = date('Y'); // Use dynamic year if needed
             ?>
             <tr>
                 <td><?= $i++ ?></td>
@@ -99,15 +99,15 @@ include '../includes/sidebar.php';
 </style>
 
 <div class="custom-dropdown">
-    <button class="btn btn-sm btn-primary" onclick="toggleDropdown(this)">নির্বাচন করুন</button>
+    <button class="btn btn-sm btn-primary" onclick="toggleDropdown(this)">Actions</button>
     <div class="custom-dropdown-menu">
-        <a href="<?= BASE_URL ?>settings/exam_details.php?exam_id=<?= $exam_id ?>">বিস্তারিত</a>
-        <a href="<?= BASE_URL ?>settings/update_exam.php?exam_id=<?= $exam_id ?>">সমষ্টিগত আপডেট</a>
-        <a href="<?= BASE_URL ?>exam/admit_v2.php?exam_id=<?= $exam_id ?>">অ্যাডমিট কার্ড (V2)</a>
-        <a href="<?= BASE_URL ?>exam/admit_v3.php?exam_id=<?= $exam_id ?>">অ্যাডমিট কার্ড (V3)</a>
-        <a href="<?= BASE_URL ?>exam/exam_attendance.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">পরীক্ষার উপস্থিতি</a>
-        <a href="<?= BASE_URL ?>exam/blank_mark_entry_form.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">ফাকা নম্বরপত্র</a>
-        <a href="<?= BASE_URL ?>exam/filled_mark_entry_form.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">পূরণকৃত নম্বরপত্র</a>
+        <a href="<?= BASE_URL ?>settings/exam_details.php?exam_id=<?= $exam_id ?>">Details</a>
+        <a href="<?= BASE_URL ?>settings/update_exam.php?exam_id=<?= $exam_id ?>">Bulk Update</a>
+        <a href="<?= BASE_URL ?>exam/admit_v2.php?exam_id=<?= $exam_id ?>">Admit Card (V2)</a>
+        <a href="<?= BASE_URL ?>exam/admit_v3.php?exam_id=<?= $exam_id ?>">Admit Card (V3)</a>
+        <a href="<?= BASE_URL ?>exam/exam_attendance.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">Exam Attendance</a>
+        <a href="<?= BASE_URL ?>exam/blank_mark_entry_form.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">Blank Mark Entry Sheet</a>
+        <a href="<?= BASE_URL ?>exam/filled_mark_entry_form.php?exam_id=<?= $exam_id ?>&class_id=<?= $class_id ?>&year=<?= $year ?>">Filled Mark Entry Sheet</a>
     </div>
 </div>
 

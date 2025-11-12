@@ -22,6 +22,13 @@ if (isset($_GET['download_template']) && $_GET['download_template'] === '1') {
 // ================= File Upload Handler (CSV or XLSX) =================
 $importSummaryHtml = '';
 $importNotesHtml = '';
+// Pick flash messages from session (PRG)
+if (session_status() === PHP_SESSION_NONE) { @session_start(); }
+if (!empty($_SESSION['import_summary_html']) || !empty($_SESSION['import_notes_html'])) {
+    $importSummaryHtml = $_SESSION['import_summary_html'] ?? '';
+    $importNotesHtml = $_SESSION['import_notes_html'] ?? '';
+    unset($_SESSION['import_summary_html'], $_SESSION['import_notes_html']);
+}
 if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILES['csv_file'])) {
     // Enable robust logging in production to catch 500s
     $logFile = __DIR__ . '/../logs/import_errors.log';
@@ -307,13 +314,18 @@ if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILE
         }
     }
 
-    // Build alert HTML to show near the form
-    $importSummaryHtml = '<div class="alert alert-info sticky-alert"><strong>Import Summary:</strong> Inserted: ' . $inserted . ', Updated: ' . $updated . ', Skipped: ' . $skipped . '.</div>';
+    // Build alert HTML and redirect (PRG) to avoid resubmission on reload
+    $sumHtml = '<div class="alert alert-info sticky-alert"><strong>Import Summary:</strong> Inserted: ' . $inserted . ', Updated: ' . $updated . ', Skipped: ' . $skipped . '.</div>';
+    $notesHtml = '';
     if (!empty($uploadErrors)) {
-        $importNotesHtml = '<div class="alert alert-warning sticky-alert" style="max-height:220px; overflow:auto;"><strong>Notes:</strong><ul style="margin-bottom:0;">';
-        foreach ($uploadErrors as $e) { $importNotesHtml .= '<li>' . htmlspecialchars($e) . '</li>'; }
-        $importNotesHtml .= '</ul></div>';
+        $notesHtml = '<div class="alert alert-warning sticky-alert" style="max-height:220px; overflow:auto;"><strong>Notes:</strong><ul style="margin-bottom:0;">';
+        foreach ($uploadErrors as $e) { $notesHtml .= '<li>' . htmlspecialchars($e) . '</li>'; }
+        $notesHtml .= '</ul></div>';
     }
+    $_SESSION['import_summary_html'] = $sumHtml;
+    if ($notesHtml) { $_SESSION['import_notes_html'] = $notesHtml; } else { unset($_SESSION['import_notes_html']); }
+    header('Location: manage_students.php?import=1');
+    exit;
 }
 ?>
 

@@ -160,3 +160,17 @@ if (session_status() == PHP_SESSION_NONE) {
         });
       });
     </script>
+    <script>
+      // Prevent double form submissions globally
+      document.addEventListener('DOMContentLoaded', function(){
+        document.body.addEventListener('submit', function(e){
+          var form = e.target;
+          if (!(form instanceof HTMLFormElement)) return;
+          if (form.__submitted) { e.preventDefault(); return false; }
+          form.__submitted = true;
+          // Disable all submit buttons
+          var btns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+          btns.forEach(function(b){ b.disabled = true; if (b.tagName === 'BUTTON' && !b.dataset.origText){ b.dataset.origText = b.innerHTML; b.innerHTML = 'Please wait…'; } });
+        }, true);
+      });
+    </script>

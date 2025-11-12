@@ -36,6 +36,41 @@ if (!empty($student['class_id'])) {
     $section_stmt->execute();
     $sections = $section_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
+
+// Prepare Date of Birth display value with default 01/01/1970 when empty/invalid
+function formatDobForInput($value) {
+    $default = '01/01/1970';
+    if (!isset($value)) return $default;
+    $value = trim((string)$value);
+    if ($value === '' || $value === '0000-00-00') return $default;
+
+    // yyyy-mm-dd
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        $dt = DateTime::createFromFormat('Y-m-d', $value);
+        if ($dt && $dt->format('Y-m-d') === $value) {
+            return $dt->format('d/m/Y');
+        }
+        return $default;
+    }
+
+    // dd/mm/yyyy
+    if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $value)) {
+        $dt = DateTime::createFromFormat('d/m/Y', $value);
+        if ($dt) {
+            return $dt->format('d/m/Y');
+        }
+        return $default;
+    }
+
+    // Try generic parse
+    $ts = strtotime($value);
+    if ($ts !== false) {
+        return date('d/m/Y', $ts);
+    }
+    return $default;
+}
+
+$dob_display = formatDobForInput($student['date_of_birth'] ?? '');
 ?>
 
 <?php include '../includes/header.php'; ?>
@@ -130,7 +165,7 @@ if (!empty($student['class_id'])) {
                     <div class="col-md-6">
                         <label class="form-label">Date of Birth</label>
                         <input type="text" name="date_of_birth" class="form-control form-control-lg date-input" 
-                               placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($student['date_of_birth']) ?>">
+                               placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($dob_display) ?>">
                         <div class="form-text">(Optional)</div>
                     </div>
 

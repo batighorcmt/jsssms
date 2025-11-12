@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $conn->query("UPDATE exam_subjects SET mark_entry_deadline = NULL WHERE id = ".(int)$id." AND exam_id = ".(int)$exam_id);
             }
         }
-        $_SESSION['success'] = 'পরীক্ষার তথ্য সফলভাবে আপডেট হয়েছে';
+        $_SESSION['success'] = 'Exam updated successfully';
         if (!headers_sent()) {
             header("Location: " . BASE_URL . "settings/manage_exams.php");
             exit();
@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($exam_id <= 0) {
-    echo '<div class="alert alert-danger">অবৈধ পরীক্ষা আইডি।</div>';
+    echo '<div class="alert alert-danger">Invalid exam ID.</div>';
     exit;
 }
 
@@ -155,7 +155,7 @@ if ($exam_id <= 0) {
 $examInfoRes = $conn->query("SELECT e.*, c.class_name FROM exams e JOIN classes c ON e.class_id = c.id WHERE e.id = " . (int)$exam_id);
 $exam = $examInfoRes ? $examInfoRes->fetch_assoc() : null;
 if (!$exam) {
-    echo '<div class="alert alert-danger">পরীক্ষার তথ্য পাওয়া যায়নি।</div>';
+    echo '<div class="alert alert-danger">Exam information not found.</div>';
     exit;
 }
 
@@ -239,7 +239,7 @@ while ($srow = $subRes->fetch_assoc()) {
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h1 class="bn">পরীক্ষা আপডেট: <?= htmlspecialchars($exam['exam_name']) ?> (<?= htmlspecialchars($exam['class_name']) ?>)</h1>
+                    <h1 class="bn">Update Exam: <?= htmlspecialchars($exam['exam_name']) ?> (<?= htmlspecialchars($exam['class_name']) ?>)</h1>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -256,25 +256,25 @@ while ($srow = $subRes->fetch_assoc()) {
         <div class="container-fluid">
             <div class="card">
                 <div class="card-body">
-        <h4 class="mb-3">পরীক্ষা আপডেট ফর্ম</h4>
+    <h4 class="mb-3">Exam Update Form</h4>
     <?php if (isset($_SESSION['error'])) { echo '<div class="alert alert-danger">'.htmlspecialchars($_SESSION['error']).'</div>'; unset($_SESSION['error']); } ?>
 
     <form method="POST" action="update_exam.php">
         <input type="hidden" name="exam_id" value="<?= (int)$exam_id ?>">
         <div class="row mb-3">
             <div class="col-md-4">
-                <label class="form-label">পরীক্ষার নাম</label>
+                <label class="form-label">Exam Name</label>
                 <input type="text" name="exam_name" class="form-control" value="<?= htmlspecialchars($exam['exam_name']) ?>" required>
             </div>
             <div class="col-md-4">
-                <label class="form-label">শ্রেণি</label>
+                <label class="form-label">Class</label>
                 <input type="text" class="form-control" value="<?= htmlspecialchars($exam['class_name']) ?>" disabled>
             </div>
             <div class="col-md-4">
-                <label class="form-label">পরীক্ষার ধরন</label>
+                <label class="form-label">Exam Type</label>
                 <select name="exam_type" class="form-control" required>
                     <?php
-                    $types = ['Half Yearly' => 'অর্ধবার্ষিক', 'Final' => 'বার্ষিক', 'Monthly' => 'মাসিক'];
+                    $types = ['Half Yearly' => 'Half Yearly', 'Final' => 'Final', 'Monthly' => 'Monthly'];
                     foreach ($types as $val => $label) {
                         $sel = ($exam['exam_type'] === $val) ? 'selected' : '';
                         echo '<option value="'.htmlspecialchars($val).'" '.$sel.'>'.htmlspecialchars($label).'</option>';
@@ -285,28 +285,28 @@ while ($srow = $subRes->fetch_assoc()) {
         </div>
 
         <div class="mb-3">
-            <label class="form-label">মোট বিষয় সংখ্যা (চতুর্থ ছাড়া)</label>
-            <input type="number" name="subjects_without_fourth" class="form-control" min="1" value="<?= htmlspecialchars($exam['total_subjects_without_fourth'] ?? '') ?>" placeholder="উদাহরণ: 6">
-            <div class="form-text">GPA বিভাজকের জন্য ব্যবহৃত হবে (ঐচ্ছিক/চতুর্থ বিষয় বাদে)।</div>
+            <label class="form-label">Total Subjects (excluding 4th)</label>
+            <input type="number" name="subjects_without_fourth" class="form-control" min="1" value="<?= htmlspecialchars($exam['total_subjects_without_fourth'] ?? '') ?>" placeholder="e.g., 6">
+            <div class="form-text">Used as GPA divisor (excluding optional/4th subject).</div>
         </div>
 
-        <h5 class="mt-3">বিষয়ভিত্তিক নম্বর/তারিখ/শিক্ষক হালনাগাদ</h5>
+        <h5 class="mt-3">Update subject-wise marks/date/teacher</h5>
         <table class="table table-bordered">
             <thead class="table-light">
                 <tr>
-                    <th>বিষয়</th>
-                    <th>তারিখ</th>
-                    <th>সময়</th>
-                    <th>ডেডলাইন (dd/mm/yyyy)</th>
-                    <th>সৃজনশীল</th>
-                    <th>নৈর্ব্যক্তিক</th>
-                    <th>ব্যবহারিক</th>
-                    <th>মোট</th>
-                    <th>সৃজনশীল পাশ</th>
-                    <th>নৈর্ব্যক্তিক পাশ</th>
-                    <th>ব্যবহারিক পাশ</th>
-                    <th>পাস টাইপ</th>
-                    <th>বিষয় শিক্ষক</th>
+                    <th>Subject</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Deadline (dd/mm/yyyy)</th>
+                    <th>Creative</th>
+                    <th>Objective</th>
+                    <th>Practical</th>
+                    <th>Total</th>
+                    <th>Creative Pass</th>
+                    <th>Objective Pass</th>
+                    <th>Practical Pass</th>
+                    <th>Pass Type</th>
+                    <th>Subject Teacher</th>
                 </tr>
             </thead>
             <tbody>
@@ -372,8 +372,8 @@ while ($srow = $subRes->fetch_assoc()) {
                     </td>
                     <td>
                         <select name="pass_type[]" class="form-control pt">
-                            <option value="total" <?= ($rowPassType === 'total') ? 'selected' : '' ?>>মোট নাম্বার</option>
-                            <option value="individual" <?= ($rowPassType === 'individual') ? 'selected' : '' ?>>আলাদা আলাদা</option>
+                            <option value="total" <?= ($rowPassType === 'total') ? 'selected' : '' ?>>Total Marks</option>
+                            <option value="individual" <?= ($rowPassType === 'individual') ? 'selected' : '' ?>>Individual</option>
                         </select>
                     </td>
                     <td>
@@ -388,7 +388,7 @@ while ($srow = $subRes->fetch_assoc()) {
                         }
                         ?>
                         <select name="teacher_id[]" class="form-control">
-                            <option value="">-- শিক্ষক --</option>
+                            <option value="">-- Teacher --</option>
                             <?php foreach ($teachersList as $t): ?>
                                 <option value="<?= (int)$t['id'] ?>" <?= ((int)($r['teacher_id'] ?? 0) === (int)$t['id']) ? 'selected' : '' ?>><?= htmlspecialchars($t['name']) ?></option>
                             <?php endforeach; ?>
@@ -399,8 +399,8 @@ while ($srow = $subRes->fetch_assoc()) {
             </tbody>
         </table>
 
-                <button type="submit" class="btn btn-primary">আপডেট সংরক্ষণ</button>
-                <a href="manage_exams.php" class="btn btn-secondary">বাতিল</a>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="manage_exams.php" class="btn btn-secondary">Cancel</a>
         </form>
                 </div><!-- /.card-body -->
             </div><!-- /.card -->

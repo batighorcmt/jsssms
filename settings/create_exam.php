@@ -10,6 +10,8 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 include '../config/db.php';
 // Handle POST before any HTML output to avoid "headers already sent"
 $message = "";
+// Flash message from previous redirect
+if (!empty($_SESSION['flash_error'])) { $message = $_SESSION['flash_error']; unset($_SESSION['flash_error']); }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         // Basic validation
@@ -128,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$conn->query($insert_subject_sql)) {
                 $all_success = false;
-                $message = '<div class="alert alert-danger">ত্রুটি হয়েছে: ' . htmlspecialchars($conn->error) . '</div>';
+                $message = '<div class="alert alert-danger">Error: ' . htmlspecialchars($conn->error) . '</div>';
                 break;
             }
         }
@@ -138,12 +140,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         } else {
             if (method_exists($conn, 'rollback')) { $conn->rollback(); }
+            $_SESSION['flash_error'] = '<div class="alert alert-danger">Failed to save. Please check your inputs.</div>';
+            header('Location: create_exam.php?status=error');
+            exit();
         }
     } catch (Throwable $e) {
         if (method_exists($conn, 'rollback')) { @ $conn->rollback(); }
         // Log and show generic message (details in logs)
         if (function_exists('error_log')) { @error_log('[create_exam] ' . $e->getMessage()); }
-        $message = '<div class="alert alert-danger">সেভ করতে সমস্যা হয়েছে। অনুগ্রহ করে ইনপুটগুলো যাচাই করুন।</div>';
+    $_SESSION['flash_error'] = '<div class="alert alert-danger">Failed to save. Please check your inputs.</div>';
+        header('Location: create_exam.php?status=error');
+        exit();
     }
 }
 
@@ -158,7 +165,7 @@ include '../includes/header.php';
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h1 class="bn">নতুন পরীক্ষা তৈরি করুন</h1>
+                    <h1 class="bn">Create New Exam</h1>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -190,37 +197,37 @@ if ($tres = $conn->query("SELECT id, name FROM teachers ORDER BY name ASC")) {
                     <form method="POST" action="">
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label for="exam_name" class="form-label">পরীক্ষার নাম</label>
+                                <label for="exam_name" class="form-label">Exam Name</label>
                                 <input type="text" name="exam_name" id="exam_name" class="form-control" required>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="class_id" class="form-label">শ্রেণি</label>
+                                <label for="class_id" class="form-label">Class</label>
                                 <select name="class_id" id="class_id" class="form-control" required>
-                                    <option value="">-- শ্রেণি নির্বাচন করুন --</option>
+                                    <option value="">-- Select Class --</option>
                                     <?php while ($class = $classResult->fetch_assoc()): ?>
                                         <option value="<?= $class['id']; ?>"><?= htmlspecialchars($class['class_name']); ?></option>
                                     <?php endwhile; ?>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="exam_type" class="form-label">পরীক্ষার ধরন</label>
+                                <label for="exam_type" class="form-label">Exam Type</label>
                                 <select name="exam_type" id="exam_type" class="form-control" required>
-                                    <option value="Half Yearly">অর্ধবার্ষিক</option>
-                                    <option value="Final">বার্ষিক</option>
-                                    <option value="Monthly">মাসিক</option>
+                                    <option value="Half Yearly">Half Yearly</option>
+                                    <option value="Final">Final</option>
+                                    <option value="Monthly">Monthly</option>
                                 </select>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label for="subjects_without_fourth" class="form-label">মোট বিষয় সংখ্যা (চতুর্থ বিষয় ছাড়া)</label>
-                                <input type="number" name="subjects_without_fourth" id="subjects_without_fourth" class="form-control" min="1" placeholder="উদাহরণ: 6">
-                                <small class="text-muted">টেবুলেশন শীটে মোট GPA গণনার সময় এই সংখ্যাটি দ্বারা ভাগ করা হবে (চতুর্থ/ঐচ্ছিক বিষয় বাদে)।</small>
+                                <label for="subjects_without_fourth" class="form-label">Total Subjects (excluding 4th)</label>
+                                <input type="number" name="subjects_without_fourth" id="subjects_without_fourth" class="form-control" min="1" placeholder="e.g., 6">
+                                <small class="text-muted">Used as the divisor for total GPA in tabulation (excluding the 4th/optional subject).</small>
                             </div>
                         </div>
 
                         <div id="subjectsContainer" style="display:none;">
-                            <h5 class="mt-4 mb-2">বিষয়ভিত্তিক নম্বর নির্ধারণ</h5>
+                            <h5 class="mt-4 mb-2">Set Subject-wise Marks</h5>
                             <div class="table-responsive">
                                 <table class="table table-sm table-bordered table-striped">
                                     <thead class="table-light">
@@ -229,9 +236,9 @@ if ($tres = $conn->query("SELECT id, name FROM teachers ORDER BY name ASC")) {
                                             <th style="min-width:110px;">Exam Date</th>
                                             <th style="min-width:130px;">Mark Entry Deadline</th>
                                             <th style="min-width:90px;">Exam Time</th>
-                                            <th>সৃজনশীল</th>
-                                            <th>নৈর্ব্যক্তিক</th>
-                                            <th>ব্যবহারিক</th>
+                                            <th>Creative</th>
+                                            <th>Objective</th>
+                                            <th>Practical</th>
                                             <th>Total</th>
                                             <th>Creative Pass</th>
                                             <th>Objective Pass</th>
@@ -241,7 +248,7 @@ if ($tres = $conn->query("SELECT id, name FROM teachers ORDER BY name ASC")) {
                                         </tr>
                                     </thead>
                                     <tbody id="subjectsTableBody">
-                                        <!-- AJAX দিয়ে লোড হবে -->
+                                        <!-- Will be loaded via AJAX -->
                                     </tbody>
                                 </table>
                             </div>
@@ -277,7 +284,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(res => res.json())
             .then(data => {
                 if (data.length === 0) {
-                    subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">এই শ্রেণিতে কোনো বিষয় পাওয়া যায়নি।</td></tr>';
+                    subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">No subjects found for this class.</td></tr>';
                     subjectsContainer.style.display = 'block';
                     submitBtn.style.display = 'none';
                     return;
@@ -326,13 +333,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             </td>
                             <td>
                                 <select name="pass_type[]" class="form-control">
-                                    <option value="total" ${passType === 'total' ? 'selected' : ''}>মোট নাম্বার</option>
-                                    <option value="individual" ${passType === 'individual' ? 'selected' : ''}>আলাদা আলাদা</option>
+                                    <option value="total" ${passType === 'total' ? 'selected' : ''}>Total Marks</option>
+                                    <option value="individual" ${passType === 'individual' ? 'selected' : ''}>Individual</option>
                                 </select>
                             </td>
                             <td>
                                 <select name="teacher_id[]" class="form-control">
-                                    <option value="">-- শিক্ষক --</option>
+                                    <option value="">-- Teacher --</option>
                                     ${teacherOptions}
                                 </select>
                             </td>
@@ -355,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateTotals();
             })
             .catch(() => {
-                subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">বিষয় লোড করতে ব্যর্থ।</td></tr>';
+                subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Failed to load subjects.</td></tr>';
                 subjectsContainer.style.display = 'block';
                 submitBtn.style.display = 'none';
             });
@@ -374,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // Toast trigger if serverMessage exists
 if (document.getElementById('serverMessage')) {
     var sm = document.getElementById('serverMessage');
-    if (window.showToast) window.showToast('ত্রুটি', sm.innerHTML, 'error');
+    if (window.showToast) window.showToast('Error', sm.innerHTML, 'error');
 }
 </script>
 
