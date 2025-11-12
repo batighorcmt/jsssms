@@ -188,13 +188,20 @@ for ($cc=1; $cc<=3; $cc++){
     *, *::before, *::after { box-sizing: border-box; }
         .col-title { text-align: center; font-weight: 700; margin-bottom: 6px; }
         .bench { border: 1px dashed #bbb; padding: 8px; margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
-        .seat { width: 48%; text-align: center; padding: 6px 4px; font-size: 13px; position: relative; min-height: 32px; }
-        .seat img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; position: absolute; top: 4px; }
-        .seat.left img { left: -32px; }
-        .seat.right img { right: -32px; }
-    .seat .roll { font-size: 24px; font-weight: 900; color: #b00; line-height:1; }
-    .seat .name { font-size: 12px; font-weight: 600; line-height:1.1; }
-    .seat .class { font-size: 16px; color: #333; line-height:1.1; }
+        /* Seat cell redesigned to keep photo inside border and beside roll */
+        .seat { width: 48%; padding: 6px 6px; font-size: 13px; min-height: 40px; text-align: center;
+            display: grid; align-items: center; column-gap: 6px; row-gap: 2px;
+            grid-template-columns: auto 1fr;
+            grid-template-areas: "img roll" "name name" "class class";
+        }
+        .seat.right{
+            grid-template-columns: 1fr auto;
+            grid-template-areas: "roll img" "name name" "class class";
+        }
+        .seat img { grid-area: img; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; position: static; }
+        .seat .roll { grid-area: roll; font-size: 24px; font-weight: 900; color: #b00; line-height:1; }
+        .seat .name { grid-area: name; font-size: 12px; font-weight: 600; line-height:1.1; }
+        .seat .class { grid-area: class; font-size: 16px; color: #333; line-height:1.1; }
         .stats { margin-top: 14px; border-top: 1px solid #eee; padding-top: 10px; font-size: 13px; }
         .stats h5{ margin:6px 0; }
         .stats ul{ margin:0; padding-left:18px; }
