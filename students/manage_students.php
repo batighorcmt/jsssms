@@ -3,7 +3,232 @@
 include '../auth/session.php';
 $ALLOWED_ROLES = ['super_admin'];
 include '../config/db.php';
-include '../includes/header.php'; ?>
+
+// ============ CSV/XLSX Download Template ============
+if (isset($_GET['download_template']) && $_GET['download_template'] === '1') {
+    $headers = [
+        'student_id','roll_no','student_name','class','section','year','father_name','mother_name','gender','mobile_no','religion','nationality','date_of_birth','blood_group','village','post_office','upazilla','district','status','group','photo','optional_subject_id'
+    ];
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=students_template.csv');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, $headers);
+    // example row
+    fputcsv($out, ['2507001','1','John Doe','Seven','A','2025','Father Name','Mother Name','Male','017xxxxxxxx','Islam','Bangladeshi','01/01/2013','A+','Village','PO','Upazila','District','Active','None','','0']);
+    fclose($out);
+    exit;
+}
+
+// ================= File Upload Handler (CSV or XLSX) =================
+$importSummaryHtml = '';
+$importNotesHtml = '';
+if (isset($_POST['action']) && $_POST['action'] === 'upload_csv' && isset($_FILES['csv_file'])) {
+    $uploadErrors = [];
+    $inserted = 0; $updated = 0; $skipped = 0;
+    $hasHeader = isset($_POST['has_header']) ? true : false;
+
+    // Minimal XLSX reader (first sheet) with proper column alignment
+    $parseXlsx = function($filePath) use (&$uploadErrors) {
+        $rows = [];
+        $zip = new ZipArchive();
+        if ($zip->open($filePath) !== true) { $uploadErrors[] = 'Unable to open .xlsx file.'; return $rows; }
+        // read shared strings (text pool)
+        $shared = [];
+        if (($entry = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
+            $xml = @simplexml_load_string($entry);
+            if ($xml && isset($xml->si)) {
+                foreach ($xml->si as $si) {
+                    $t = '';
+                    if (isset($si->t)) {
+                        $t = (string)$si->t;
+                    } elseif (isset($si->r)) {
+                        foreach ($si->r as $r) { $t .= (string)$r->t; }
+                    }
+                    $shared[] = $t;
+                }
+            }
+        }
+        // get first sheet
+        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        if ($sheetXml === false) { $uploadErrors[] = 'First sheet not found in .xlsx'; $zip->close(); return $rows; }
+        $sx = @simplexml_load_string($sheetXml);
+        if (!$sx) { $uploadErrors[] = 'Invalid sheet XML'; $zip->close(); return $rows; }
+
+        foreach ($sx->sheetData->row as $row) {
+            $r = [];
+            foreach ($row->c as $c) {
+                $t = (string)$c['t'];
+                $v = (string)$c->v;
+                // determine column index by cell reference (e.g., A1, C3)
+                $ref = isset($c['r']) ? (string)$c['r'] : '';
+                $idx = null;
+                if ($ref !== '') {
+                    $refU = strtoupper($ref);
+                    if (preg_match('~^([A-Z]+)\d+$~', $refU, $m)) {
+                        $letters = $m[1];
+                        $n = 0;
+                        $len = strlen($letters);
+                        for ($i = 0; $i < $len; $i++) {
+                            $n = $n * 26 + (ord($letters[$i]) - 64); // A=1 ... Z=26
+                        }
+                        $idx = $n - 1; // 0-based
+                    }
+                }
+                if ($idx === null) { // fallback: append
+                    $idx = empty($r) ? 0 : (max(array_keys($r)) + 1);
+                }
+                // decode value
+                if ($t === 's') { // shared string table
+                    $sidx = is_numeric($v) ? (int)$v : -1;
+                    $value = ($sidx >= 0 && isset($shared[$sidx])) ? $shared[$sidx] : '';
+                } elseif ($t === 'inlineStr' && isset($c->is->t)) {
+                    $value = (string)$c->is->t;
+                } elseif ($t === 'b') { // boolean
+                    $value = ($v === '1') ? 'TRUE' : 'FALSE';
+                } else {
+                    // numbers, dates (serials) and general types come as raw value; keep as-is
+                    $value = $v;
+                }
+                $r[(int)$idx] = $value;
+            }
+            // ensure sparse array doesn't break index-based access
+            if (!empty($r)) { ksort($r); }
+            $rows[] = $r;
+        }
+        $zip->close();
+        return $rows;
+    };
+
+    if (!is_uploaded_file($_FILES["csv_file"]["tmp_name"])) {
+        $uploadErrors[] = 'No file received.';
+    } else {
+        $tmp = $_FILES['csv_file']['tmp_name'];
+        $name = $_FILES['csv_file']['name'];
+        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+        $allRows = [];
+        if ($ext === 'xlsx') {
+            if (!class_exists('ZipArchive') || !function_exists('simplexml_load_string')) {
+                $uploadErrors[] = 'XLSX support requires ZipArchive and SimpleXML PHP extensions. You can upload CSV instead.';
+            } else {
+                $allRows = $parseXlsx($tmp);
+            }
+        } else { // default CSV
+            $fh = fopen($tmp, 'r');
+            if (!$fh) { $uploadErrors[] = 'Unable to open uploaded file.'; }
+            else {
+                while (($row = fgetcsv($fh)) !== false) { $allRows[] = $row; }
+                fclose($fh);
+            }
+        }
+
+        if (!empty($allRows)) {
+            // Header handling
+            $header = [];
+            $startIndex = 0;
+            if ($hasHeader) {
+                $row = $allRows[0];
+                if (isset($row[0])) { $row[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string)$row[0]); }
+                foreach ($row as $i => $h) { $header[$i] = strtolower(trim((string)$h)); }
+                $startIndex = 1;
+            }
+
+            $getCol = function(array $row, array $keys) use ($header) {
+                foreach ($keys as $k) {
+                    if (is_numeric($k) && isset($row[(int)$k])) return trim((string)$row[(int)$k]);
+                    if (!empty($header)) {
+                        foreach ($header as $idx => $name) {
+                            if ($name === strtolower($k)) { return isset($row[$idx]) ? trim((string)$row[$idx]) : ''; }
+                        }
+                    }
+                }
+                return '';
+            };
+
+            // Prepare insert statement
+            $sql = "INSERT INTO students
+                (student_id, roll_no, student_name, father_name, mother_name, gender, mobile_no, religion, nationality,
+                 date_of_birth, blood_group, village, post_office, upazilla, district, status, class_id, section_id,
+                 student_group, year, photo, optional_subject_id)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE
+                  roll_no=VALUES(roll_no), student_name=VALUES(student_name), father_name=VALUES(father_name),
+                  mother_name=VALUES(mother_name), gender=VALUES(gender), mobile_no=VALUES(mobile_no),
+                  religion=VALUES(religion), nationality=VALUES(nationality), date_of_birth=VALUES(date_of_birth),
+                  blood_group=VALUES(blood_group), village=VALUES(village), post_office=VALUES(post_office),
+                  upazilla=VALUES(upazilla), district=VALUES(district), status=VALUES(status), class_id=VALUES(class_id),
+                  section_id=VALUES(section_id), student_group=VALUES(student_group), year=VALUES(year), photo=VALUES(photo),
+                  optional_subject_id=VALUES(optional_subject_id)";
+            $stmt = $conn->prepare($sql);
+            if (!$stmt) { $uploadErrors[] = 'Prepare failed: ' . $conn->error; }
+            else {
+                $hasSectionsUpload = false; if ($chk = $conn->query("SHOW TABLES LIKE 'sections'")) { $hasSectionsUpload = ($chk->num_rows > 0); }
+                $lineNo = $hasHeader ? 2 : 1;
+                for ($i=$startIndex; $i<count($allRows); $i++) {
+                    $row = $allRows[$i];
+                    // Skip fully empty rows (all cells blank)
+                    $allEmpty = true; foreach ($row as $cell) { if (trim((string)$cell) !== '') { $allEmpty = false; break; } }
+                    if ($allEmpty) { $lineNo++; continue; }
+                    // Map required
+                    $student_name = $getCol($row, ['student_name','name','student','শিক্ষার্থী','শিক্ষার্থীর নাম']);
+                    $class_name   = $getCol($row, ['class','class_name','শ্রেণি']);
+                    $section_name = $getCol($row, ['section','section_name','শাখা']);
+                    $year         = $getCol($row, ['year','session','শিক্ষাবর্ষ']);
+                    if ($student_name === '' || $class_name === '' || ($hasSectionsUpload && $section_name === '') || $year === '') {
+                        $skipped++; $uploadErrors[] = "Row $lineNo: missing required fields (name/class/section/year)."; $lineNo++; continue;
+                    }
+                    // Resolve class
+                    $cid = 0; if ($pr = $conn->prepare("SELECT id FROM classes WHERE LOWER(class_name)=LOWER(?) LIMIT 1")) { $pr->bind_param('s', $class_name); $pr->execute(); $pr->bind_result($cid); $pr->fetch(); $pr->close(); }
+                    if (!$cid) { $skipped++; $uploadErrors[] = "Row $lineNo: class '".htmlspecialchars($class_name)."' not found."; $lineNo++; continue; }
+                    // Resolve section
+                    $section_id = 0; if ($hasSectionsUpload) { if ($pr = $conn->prepare("SELECT id FROM sections WHERE LOWER(section_name)=LOWER(?) AND class_id=? LIMIT 1")) { $pr->bind_param('si', $section_name, $cid); $pr->execute(); $pr->bind_result($section_id); $pr->fetch(); $pr->close(); } if (!$section_id) { $skipped++; $uploadErrors[] = "Row $lineNo: section '".htmlspecialchars($section_name)."' (class: ".htmlspecialchars($class_name).") not found."; $lineNo++; continue; } }
+
+                    // Optional
+                    $student_id   = $getCol($row, ['student_id','sid','আইডি']);
+                    $roll_no      = $getCol($row, ['roll','roll_no','রোল']);
+                    $father_name  = $getCol($row, ['father_name','পিতার নাম']);
+                    $mother_name  = $getCol($row, ['mother_name','মাতার নাম']);
+                    $gender       = $getCol($row, ['gender','লিঙ্গ']);
+                    $mobile_no    = $getCol($row, ['mobile','mobile_no','phone','মোবাইল']);
+                    $religion     = $getCol($row, ['religion','ধর্ম']);
+                    $nationality  = $getCol($row, ['nationality','জাতীয়তা']);
+                    $dob          = $getCol($row, ['date_of_birth','dob','জন্ম তারিখ']);
+                    $dob = trim($dob); if ($dob !== '') { if (preg_match('~^(\d{2})/(\d{2})/(\d{4})$~', $dob, $m)) { $dob = $m[3].'-'.$m[2].'-'.$m[1]; } elseif (!preg_match('~^(\d{4})-(\d{2})-(\d{2})$~', $dob)) { $dob = '0000-00-00'; } } else { $dob = '0000-00-00'; }
+                    $blood_group  = $getCol($row, ['blood_group','রক্তের_গ্রুপ']);
+                    $village      = $getCol($row, ['village','গ্রাম']);
+                    $post_office  = $getCol($row, ['post_office','পোস্ট অফিস']);
+                    $upazilla     = $getCol($row, ['upazilla','উপজেলা']);
+                    $district     = $getCol($row, ['district','জেলা']);
+                    $status       = $getCol($row, ['status','অবস্থা']); if ($status==='') $status='Active';
+                    $student_group= $getCol($row, ['group','student_group','গ্রুপ']);
+                    $student_group = trim((string)$student_group);
+                    if ($student_group === '' || $student_group === '0' || strcasecmp($student_group,'none') === 0) { $student_group = 'None'; }
+                    $photo        = $getCol($row, ['photo','ছবি']);
+                    $optional_sub = $getCol($row, ['optional_subject_id','optional_subject','ঐচ্ছিক_বিষয়_আইডি']); $optional_sub = is_numeric($optional_sub) ? (int)$optional_sub : 0;
+
+                    $stmt->bind_param('iissssssssssssssiiissi', $student_id, $roll_no, $student_name, $father_name, $mother_name, $gender, $mobile_no, $religion, $nationality, $dob, $blood_group, $village, $post_office, $upazilla, $district, $status, $cid, $section_id, $student_group, $year, $photo, $optional_sub);
+                    if ($stmt->execute()) { if ($stmt->affected_rows === 1) $inserted++; else $updated++; }
+                    else { $skipped++; $uploadErrors[] = "Row $lineNo: " . $stmt->error; }
+                    $lineNo++;
+                }
+                $stmt->close();
+            }
+        } else {
+            $uploadErrors[] = 'The uploaded file appears to be empty.';
+        }
+    }
+
+    // Build alert HTML to show near the form
+    $importSummaryHtml = '<div class="alert alert-info sticky-alert"><strong>Import Summary:</strong> Inserted: ' . $inserted . ', Updated: ' . $updated . ', Skipped: ' . $skipped . '.</div>';
+    if (!empty($uploadErrors)) {
+        $importNotesHtml = '<div class="alert alert-warning sticky-alert" style="max-height:220px; overflow:auto;"><strong>Notes:</strong><ul style="margin-bottom:0;">';
+        foreach ($uploadErrors as $e) { $importNotesHtml .= '<li>' . htmlspecialchars($e) . '</li>'; }
+        $importNotesHtml .= '</ul></div>';
+    }
+}
+?>
+
+<?php include '../includes/header.php'; ?>
 <?php include '../includes/sidebar.php';
 
 // --- Pagination & Filters ---
@@ -15,7 +240,7 @@ include '../includes/header.php'; ?>
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
-                    <h1 class="bn">শিক্ষার্থী ব্যবস্থাপনা</h1>
+                    <h1>Student Management</h1>
                 </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -100,23 +325,57 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
 
 <style>
     .truncate{max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sticky-alert{position:sticky;top:8px;z-index:1050}
     @media (max-width:576px){ .card .card-header h3{font-size:1.05rem} }
 </style>
 
 <div class="row">
     <div class="col-12">
+            <div class="card mb-3" id="importCard">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Import Students (CSV / Excel)</h3>
+                    <div class="card-tools">
+                        <a href="?download_template=1" class="btn btn-xs btn-outline-secondary"><i class="fas fa-download mr-1"></i>Sample CSV</a>
+                        <button class="btn btn-xs btn-outline-primary" type="button" data-toggle="collapse" data-target="#importCollapse" aria-expanded="false" aria-controls="importCollapse">Toggle</button>
+                    </div>
+                </div>
+                <div class="card-body collapse" id="importCollapse">
+                    <?php if ($importSummaryHtml) { echo $importSummaryHtml; } ?>
+                    <?php if ($importNotesHtml) { echo $importNotesHtml; } ?>
+                    <form method="post" enctype="multipart/form-data" class="form-inline">
+                        <input type="hidden" name="action" value="upload_csv">
+                        <div class="form-group mr-2 mb-2">
+                            <label class="mr-2">File</label>
+                            <input type="file" name="csv_file" accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="form-control-file" required>
+                        </div>
+                        <div class="form-group mr-2 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="has_header" id="has_header" checked>
+                                <label class="form-check-label" for="has_header">First row is header</label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary mb-2">Upload File</button>
+                    </form>
+                    <div class="small text-muted mt-2">
+                        Required columns: <strong>student_name, class, section, year</strong> (section required only if Sections table exists).<br>
+                        Optional columns include: student_id, roll_no, father_name, mother_name, gender, mobile_no, religion, nationality, date_of_birth (dd/mm/yyyy or yyyy-mm-dd), blood_group, village, post_office, upazilla, district, status, group, photo, optional_subject_id.<br>
+                        Tip: You can open the sample CSV in Excel, fill it in, and upload either the same CSV or save as <strong>.xlsx</strong> and upload.
+                    </div>
+                </div>
+            </div>
             <div class="card mb-3">
                 <div class="card-header">
-                    <h3 class="card-title mb-0 bn">ছাত্র/ছাত্রী তালিকা</h3>
+                    <h3 class="card-title mb-0">Student List – Filters</h3>
                     <div class="card-tools">
+                        <button class="btn btn-xs btn-outline-primary mr-2" type="button" data-toggle="collapse" data-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse">Toggle</button>
                         <a href="add_student.php" class="btn btn-sm btn-success"><i class="fas fa-user-plus mr-1"></i> Add Student</a>
                     </div>
                 </div>
-            <div class="card-body">
+            <div class="card-body collapse" id="filtersCollapse">
                     <form method="get" id="filterForm">
                     <div class="form-row">
                         <div class="col-6 col-md-2 mb-2">
-                            <label class="small mb-1">প্রতি পৃষ্ঠা</label>
+                            <label class="small mb-1">Per page</label>
                             <select name="per_page" class="form-control form-control-sm">
                                 <?php foreach ([10,25,50,100] as $opt): ?>
                                     <option value="<?php echo $opt; ?>" <?php echo $per_page===$opt ? 'selected' : ''; ?>><?php echo $opt; ?></option>
@@ -124,24 +383,24 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                             </select>
                         </div>
                         <div class="col-6 col-md-3 mb-2">
-                            <label class="small mb-1">শ্রেণি</label>
+                            <label class="small mb-1">Class</label>
                             <select name="class_id" class="form-control form-control-sm">
-                                <option value="0">সব শ্রেণি</option>
+                                <option value="0">All Classes</option>
                                 <?php if($classesRes) while($c = $classesRes->fetch_assoc()): ?>
                                     <option value="<?php echo $c['id']; ?>" <?php echo $filter_class===(int)$c['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['class_name']); ?></option>
                                 <?php endwhile; ?>
                             </select>
                         </div>
                         <div class="col-6 col-md-2 mb-2">
-                            <label class="small mb-1">গ্রুপ</label>
+                            <label class="small mb-1">Group</label>
                             <select name="group" id="group" class="form-control form-control-sm">
-                                <option value="">সব গ্রুপ</option>
+                                <option value="">All Groups</option>
                             </select>
                         </div>
                         <div class="col-6 col-md-3 mb-2">
-                            <label class="small mb-1">বিষয়</label>
+                            <label class="small mb-1">Subject</label>
                             <select name="subject_id" id="subject_id" class="form-control form-control-sm">
-                                <option value="0">সব বিষয়</option>
+                                <option value="0">All Subjects</option>
                             </select>
                         </div>
                                     <div class="col-12 col-md-3 mb-2">
@@ -168,18 +427,18 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                     <table class="table table-striped table-hover table-sm mb-0">
                         <thead class="thead-dark">
                             <tr>
-                                <th>ক্রমিক</th>
-                                <th>আইডি</th>
-                                <th>নাম</th>
-                                <th class="d-none d-sm-table-cell">পিতার নাম</th>
-                                <th class="d-none d-md-table-cell">মাতার নাম</th>
-                                <th>শ্রেণি</th>
-                                <th class="d-none d-sm-table-cell">শাখা</th>
-                                <th>রোল</th>
-                                <th class="d-none d-md-table-cell">গ্রুপ</th>
-                                <th>বিষয় কোড</th>
-                                <th class="d-none d-md-table-cell">ছবি</th>
-                                <th>অ্যাকশন</th>
+                                <th>SL</th>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th class="d-none d-sm-table-cell">Father Name</th>
+                                <th class="d-none d-md-table-cell">Mother Name</th>
+                                <th>Class</th>
+                                <th class="d-none d-sm-table-cell">Section</th>
+                                <th>Roll</th>
+                                <th class="d-none d-md-table-cell">Group</th>
+                                <th>Subject Codes</th>
+                                <th class="d-none d-md-table-cell">Photo</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -395,13 +654,13 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
 
             function loadGroups(){
                 var cid = classSel.value;
-                groupSel.innerHTML = '<option value="">লোড হচ্ছে...</option>';
-                subjectSel.innerHTML = '<option value="0">সব বিষয়</option>';
-                if(!cid){ groupSel.innerHTML = '<option value="">সব গ্রুপ</option>'; return; }
+                groupSel.innerHTML = '<option value="">Loading...</option>';
+                subjectSel.innerHTML = '<option value="0">All Subjects</option>';
+                if(!cid){ groupSel.innerHTML = '<option value="">All Groups</option>'; return; }
                 fetch('../ajax/get_groups.php?class_id=' + encodeURIComponent(cid))
                   .then(r=>r.json())
                   .then(list => {
-                      var opts = '<option value="">সব গ্রুপ</option>';
+                      var opts = '<option value="">All Groups</option>';
                       list.forEach(function(g){ opts += '<option value="'+g+'">'+g+'</option>'; });
                       groupSel.innerHTML = opts;
                       // restore selection
@@ -410,29 +669,40 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                       if(gv && groupSel.querySelector('option[value="'+gv+'"]')) groupSel.value = gv;
                       loadSubjects();
                   })
-                  .catch(()=>{ groupSel.innerHTML = '<option value="">সব গ্রুপ</option>'; });
+                  .catch(()=>{ groupSel.innerHTML = '<option value="">All Groups</option>'; });
             }
 
             function loadSubjects(){
                 var cid = classSel.value;
-                if(!cid){ subjectSel.innerHTML = '<option value="0">সব বিষয়</option>'; return; }
-                subjectSel.innerHTML = '<option value="0">লোড হচ্ছে...</option>';
+                if(!cid){ subjectSel.innerHTML = '<option value="0">All Subjects</option>'; return; }
+                subjectSel.innerHTML = '<option value="0">Loading...</option>';
                 fetch('../ajax/get_subjects_by_class.php?class_id=' + encodeURIComponent(cid))
                   .then(r=>r.json())
                   .then(list => {
-                      var opts = '<option value="0">সব বিষয়</option>';
+                      var opts = '<option value="0">All Subjects</option>';
                       list.forEach(function(s){ opts += '<option value="'+s.id+'">'+s.name+'</option>'; });
                       subjectSel.innerHTML = opts;
                       var url = new URL(window.location.href);
                       var sv = url.searchParams.get('subject_id') || '0';
                       if(sv && subjectSel.querySelector('option[value="'+sv+'"]')) subjectSel.value = sv;
                   })
-                  .catch(()=>{ subjectSel.innerHTML = '<option value="0">সব বিষয়</option>'; });
+                  .catch(()=>{ subjectSel.innerHTML = '<option value="0">All Subjects</option>'; });
             }
 
             classSel.addEventListener('change', loadGroups);
             // initial load if page reloaded with class
             if(classSel.value){ loadGroups(); }
+        })();
+
+        // If import messages exist, scroll the import card into view
+        (function(){
+            var card = document.getElementById('importCard');
+            if(!card) return;
+            if(card.querySelector('.sticky-alert')){
+                var coll = document.getElementById('importCollapse');
+                if (coll && !coll.classList.contains('show')) { coll.classList.add('show'); }
+                card.scrollIntoView({behavior:'smooth', block:'start'});
+            }
         })();
     </script>
     </section>

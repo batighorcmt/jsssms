@@ -1,17 +1,14 @@
 <?php
-session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
-
+@include_once __DIR__ . '/../config/config.php';
+include '../auth/session.php';
+$ALLOWED_ROLES = ['super_admin'];
 include '../config/db.php';
 
 // Get student ID from URL
 $student_id = $_GET['student_id'] ?? '';
 if (!$student_id) {
-    $_SESSION['error'] = "শিক্ষার্থী ID পাওয়া যায়নি";
-    header("Location: manage_student.php");
+    $_SESSION['error'] = "Student ID not provided";
+    header("Location: manage_students.php");
     exit;
 }
 
@@ -23,8 +20,8 @@ $result = $stmt->get_result();
 $student = $result->fetch_assoc();
 
 if (!$student) {
-    $_SESSION['error'] = "শিক্ষার্থী পাওয়া যায়নি";
-    header("Location: manage_student.php");
+    $_SESSION['error'] = "Student not found";
+    header("Location: manage_students.php");
     exit;
 }
 
@@ -33,7 +30,7 @@ $classes = $conn->query("SELECT * FROM classes");
 
 // Fetch sections for the student's class
 $sections = [];
-if ($student['class_id']) {
+if (!empty($student['class_id'])) {
     $section_stmt = $conn->prepare("SELECT * FROM sections WHERE class_id = ?");
     $section_stmt->bind_param("i", $student['class_id']);
     $section_stmt->execute();
@@ -42,16 +39,41 @@ if ($student['class_id']) {
 ?>
 
 <?php include '../includes/header.php'; ?>
-<div class="d-flex">
 <?php include '../includes/sidebar.php'; ?>
 
+<!-- Content Wrapper -->
+<div class="content-wrapper">
+    <section class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1>Edit Student</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li>
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>students/manage_students.php">Students</a></li>
+                        <li class="breadcrumb-item active">Edit</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="content">
+<style>
+/* Compact image preview frame */
+.img-frame{width:96px;height:96px;border:1px solid #ddd;border-radius:.25rem;background:#f8f9fa;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.img-frame img{width:100%;height:100%;object-fit:cover}
+</style>
 <div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-11">
     <div class="card shadow-lg">
         <div class="card-header bg-primary text-white">
             <div class="d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">শিক্ষার্থী তথ্য সম্পাদনা করুন</h4>
+                <h4 class="mb-0">Edit Student</h4>
                 <a href="manage_students.php" class="btn btn-light btn-sm">
-                    <i class="bi bi-arrow-left"></i> ফিরে যান
+                    <i class="bi bi-arrow-left"></i> Back to List
                 </a>
             </div>
         </div>
@@ -77,129 +99,140 @@ if ($student['class_id']) {
                 <div class="row g-3">
                     <!-- Personal Information Section -->
                     <div class="col-md-12">
-                        <h5 class="text-primary mb-3"><i class="bi bi-person-vcard"></i> ব্যক্তিগত তথ্য</h5>
+                        <h5 class="text-primary mb-3"><i class="bi bi-person-vcard"></i> Personal Information</h5>
                     </div>
 
                     <!-- Student Name -->
                     <div class="col-md-6">
-                        <label class="form-label">শিক্ষার্থীর নাম <span class="text-danger">*</span></label>
+                        <label class="form-label">Student Name <span class="text-danger">*</span></label>
                         <input type="text" name="student_name" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['student_name']) ?>" required>
-                        <div class="invalid-feedback">অনুগ্রহ করে শিক্ষার্থীর নাম লিখুন</div>
+                        <div class="invalid-feedback">Please enter student name</div>
                     </div>
 
                     <!-- Father's Name -->
                     <div class="col-md-6">
-                        <label class="form-label">পিতার নাম <span class="text-danger">*</span></label>
+                        <label class="form-label">Father's Name <span class="text-danger">*</span></label>
                         <input type="text" name="father_name" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['father_name']) ?>" required>
-                        <div class="invalid-feedback">অনুগ্রহ করে পিতার নাম লিখুন</div>
+                        <div class="invalid-feedback">Please enter father's name</div>
                     </div>
 
                     <!-- Mother's Name -->
                     <div class="col-md-6">
-                        <label class="form-label">মাতার নাম <span class="text-danger">*</span></label>
+                        <label class="form-label">Mother's Name <span class="text-danger">*</span></label>
                         <input type="text" name="mother_name" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['mother_name']) ?>" required>
-                        <div class="invalid-feedback">অনুগ্রহ করে মাতার নাম লিখুন</div>
+                        <div class="invalid-feedback">Please enter mother's name</div>
                     </div>
 
                     <!-- Date of Birth (optional) -->
                     <div class="col-md-6">
-                        <label class="form-label">জন্ম তারিখ</label>
+                        <label class="form-label">Date of Birth</label>
                         <input type="text" name="date_of_birth" class="form-control form-control-lg date-input" 
                                placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($student['date_of_birth']) ?>">
-                        <div class="form-text">(ঐচ্ছিক)</div>
+                        <div class="form-text">(Optional)</div>
                     </div>
 
                     <!-- Photo -->
                     <div class="col-md-4">
-                        <label class="form-label">ছবি</label>
-                        <input type="file" name="student_photo" id="student_photo" class="form-control form-control-lg" 
-                               accept="image/*" onchange="previewImage(this)">
-                        <input type="hidden" name="existing_photo" value="<?= htmlspecialchars($student['student_photo']) ?>">
-                        <div class="mt-3 text-center">
-                            <div id="imagePreview" style="width: 150px; height: 180px; border: 1px dashed #ccc; margin: 0 auto; position: relative; overflow: hidden;">
-                                <?php if ($student['student_photo']): ?>
-                                    <img id="previewImgTag" src="../uploads/students/<?= htmlspecialchars($student['student_photo']) ?>" 
-                                         alt="Current Photo" style="max-width: 100%; max-height: 100%; object-fit: cover;">
-                                <?php else: ?>
-                                    <div class="d-flex align-items-center justify-content-center h-100 text-muted" id="previewImgTag">
-                                        <i class="bi bi-person-bounding-box" style="font-size: 3rem;"></i>
-                                    </div>
-                                <?php endif; ?>
+                        <label class="form-label">Photo</label>
+                        <div class="d-flex align-items-center">
+                            <div class="mr-3">
+                                <div id="imagePreview" class="img-frame">
+                                    <?php if (!empty($student['photo'])): ?>
+                                        <img id="previewImgTag" src="../uploads/students/<?= htmlspecialchars($student['photo']) ?>" alt="Current Photo">
+                                    <?php else: ?>
+                                        <div id="previewImgTag" class="text-muted">
+                                            <i class="bi bi-person-bounding-box" style="font-size: 2rem;"></i>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                            <small class="text-muted d-block mt-1">ছবির সাইজ সর্বোচ্চ 500KB</small>
+                            <div class="flex-grow-1">
+                                <input type="file" name="student_photo" id="student_photo" class="form-control form-control-lg mb-1" accept="image/*" onchange="previewImage(this)">
+                                <input type="hidden" name="existing_photo" value="<?= isset($student['photo']) ? htmlspecialchars($student['photo']) : '' ?>">
+                                <small class="text-muted">JPG/PNG • Max 500KB</small>
+                            </div>
                         </div>
                     </div>
-                            <option value="Buddhist" <?= $student['religion'] == 'Buddhist' ? 'selected' : '' ?>>বৌদ্ধ</option>
+
+                    <!-- Religion -->
+                    <div class="col-md-4">
+                        <label class="form-label">Religion</label>
+                        <select name="religion" class="form-control form-control-lg">
+                            <option value="">Select</option>
+                            <option value="Islam" <?= (isset($student['religion']) && $student['religion'] == 'Islam') ? 'selected' : '' ?>>Islam</option>
+                            <option value="Hinduism" <?= (isset($student['religion']) && $student['religion'] == 'Hinduism') ? 'selected' : '' ?>>Hinduism</option>
+                            <option value="Christianity" <?= (isset($student['religion']) && $student['religion'] == 'Christianity') ? 'selected' : '' ?>>Christianity</option>
+                            <option value="Buddhism" <?= (isset($student['religion']) && $student['religion'] == 'Buddhism') ? 'selected' : '' ?>>Buddhism</option>
                         </select>
-                        <div class="invalid-feedback">অনুগ্রহ করে ধর্ম নির্বাচন করুন</div>
+                        <div class="invalid-feedback">Please select religion</div>
                     </div>
 
                     <!-- Blood Group -->
                     <div class="col-md-4">
-                        <label class="form-label">ব্লাড গ্রুপ</label>
-                        <select name="blood_group" class="form-select form-select-lg">
-                            <option value="">নির্বাচন করুন</option>
-                            <option value="A+" <?= $student['blood_group'] == 'A+' ? 'selected' : '' ?>>A+</option>
-                            <option value="A-" <?= $student['blood_group'] == 'A-' ? 'selected' : '' ?>>A-</option>
-                            <option value="B+" <?= $student['blood_group'] == 'B+' ? 'selected' : '' ?>>B+</option>
-                            <option value="B-" <?= $student['blood_group'] == 'B-' ? 'selected' : '' ?>>B-</option>
-                            <option value="O+" <?= $student['blood_group'] == 'O+' ? 'selected' : '' ?>>O+</option>
-                            <option value="O-" <?= $student['blood_group'] == 'O-' ? 'selected' : '' ?>>O-</option>
-                            <option value="AB+" <?= $student['blood_group'] == 'AB+' ? 'selected' : '' ?>>AB+</option>
-                            <option value="AB-" <?= $student['blood_group'] == 'AB-' ? 'selected' : '' ?>>AB-</option>
+                        <label class="form-label">Blood Group</label>
+                        <select name="blood_group" class="form-control form-control-lg">
+                            <option value="">Select</option>
+                            <option value="A+" <?= (isset($student['blood_group']) && $student['blood_group'] == 'A+') ? 'selected' : '' ?>>A+</option>
+                            <option value="A-" <?= (isset($student['blood_group']) && $student['blood_group'] == 'A-') ? 'selected' : '' ?>>A-</option>
+                            <option value="B+" <?= (isset($student['blood_group']) && $student['blood_group'] == 'B+') ? 'selected' : '' ?>>B+</option>
+                            <option value="B-" <?= (isset($student['blood_group']) && $student['blood_group'] == 'B-') ? 'selected' : '' ?>>B-</option>
+                            <option value="O+" <?= (isset($student['blood_group']) && $student['blood_group'] == 'O+') ? 'selected' : '' ?>>O+</option>
+                            <option value="O-" <?= (isset($student['blood_group']) && $student['blood_group'] == 'O-') ? 'selected' : '' ?>>O-</option>
+                            <option value="AB+" <?= (isset($student['blood_group']) && $student['blood_group'] == 'AB+') ? 'selected' : '' ?>>AB+</option>
+                            <option value="AB-" <?= (isset($student['blood_group']) && $student['blood_group'] == 'AB-') ? 'selected' : '' ?>>AB-</option>
                         </select>
                     </div>
 
                     <!-- Contact Information Section -->
                     <div class="col-md-12 mt-4">
-                        <h5 class="text-primary mb-3"><i class="bi bi-telephone"></i> যোগাযোগের তথ্য</h5>
+                        <h5 class="text-primary mb-3"><i class="bi bi-telephone"></i> Contact Information</h5>
                     </div>
 
                     <!-- Mobile Number -->
                     <div class="col-md-6">
-                        <label class="form-label">মোবাইল নাম্বার</label>
+                        <label class="form-label">Mobile Number</label>
                         <input type="text" name="mobile_no" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['mobile_no']) ?>">
                     </div>
 
                     <!-- Address -->
                     <div class="col-md-6">
-                        <label class="form-label">গ্রাম</label>
+                        <label class="form-label">Village</label>
                         <input type="text" name="village" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['village']) ?>">
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">ডাকঘর</label>
+                        <label class="form-label">Post Office</label>
                         <input type="text" name="post_office" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['post_office']) ?>">
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">উপজেলা</label>
+                        <label class="form-label">Upazila</label>
                         <input type="text" name="upazilla" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['upazilla']) ?>">
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">জেলা</label>
+                        <label class="form-label">District</label>
                         <input type="text" name="district" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['district']) ?>">
                     </div>
 
                     <!-- Academic Information Section -->
                     <div class="col-md-12 mt-4">
-                        <h5 class="text-primary mb-3"><i class="bi bi-book"></i> একাডেমিক তথ্য</h5>
+                        <h5 class="text-primary mb-3"><i class="bi bi-book"></i> Academic Information</h5>
                     </div>
 
                     <!-- Class -->
                     <div class="col-md-4">
-                        <label class="form-label">শ্রেণি <span class="text-danger">*</span></label>
-                        <select name="class_id" id="class_id" class="form-select form-select-lg" required>
-                            <option value="">নির্বাচন করুন</option>
+                        <label class="form-label">Class <span class="text-danger">*</span></label>
+                        <select name="class_id" id="class_id" class="form-control form-control-lg" required>
+                            <option value="">Select</option>
                             <?php while ($class = $classes->fetch_assoc()): ?>
                                 <option value="<?= $class['id'] ?>" 
                                     <?= $student['class_id'] == $class['id'] ? 'selected' : '' ?>>
@@ -207,14 +240,14 @@ if ($student['class_id']) {
                                 </option>
                             <?php endwhile; ?>
                         </select>
-                        <div class="invalid-feedback">অনুগ্রহ করে শ্রেণি নির্বাচন করুন</div>
+                        <div class="invalid-feedback">Please select class</div>
                     </div>
 
                     <!-- Section -->
                     <div class="col-md-4">
-                        <label class="form-label">শাখা <span class="text-danger">*</span></label>
-                        <select name="section_id" id="section_id" class="form-select form-select-lg" required>
-                            <option value="">শাখা নির্বাচন করুন</option>
+                        <label class="form-label">Section <span class="text-danger">*</span></label>
+                        <select name="section_id" id="section_id" class="form-control form-control-lg" required>
+                            <option value="">Select Section</option>
                             <?php foreach ($sections as $section): ?>
                                 <option value="<?= $section['id'] ?>" 
                                     <?= $student['section_id'] == $section['id'] ? 'selected' : '' ?>>
@@ -222,82 +255,68 @@ if ($student['class_id']) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="invalid-feedback">অনুগ্রহ করে শাখা নির্বাচন করুন</div>
+                        <div class="invalid-feedback">Please select section</div>
                     </div>
 
                     <!-- Group -->
                     <div class="col-md-4">
-                        <label class="form-label">গ্রুপ</label>
-                        <select name="student_group" class="form-select form-select-lg">
-                            <option value="">নির্বাচন করুন</option>
-                            <option value="none" <?= $student['student_group'] == 'none' ? 'selected' : '' ?>>কোন গ্রুপ না</option>
-                            <option value="Science" <?= $student['student_group'] == 'Science' ? 'selected' : '' ?>>বিজ্ঞান</option>
-                            <option value="Humanities" <?= $student['student_group'] == 'Humanities' ? 'selected' : '' ?>>মানবিক</option>
-                            <option value="Business Studies" <?= $student['student_group'] == 'Business Studies' ? 'selected' : '' ?>>ব্যবসায় শিক্ষা</option>
+                        <label class="form-label">Group</label>
+                        <?php
+                            $groupVal = isset($student['student_group']) ? trim((string)$student['student_group']) : '';
+                            // Normalize legacy values to 'None' for display selection
+                            if ($groupVal === 'none' || $groupVal === '0') { $groupVal = 'None'; }
+                        ?>
+                        <select name="student_group" class="form-control form-control-lg">
+                            <option value="">Select</option>
+                            <option value="None" <?= $groupVal === 'None' ? 'selected' : '' ?>>None</option>
+                            <option value="Science" <?= $groupVal === 'Science' ? 'selected' : '' ?>>Science</option>
+                            <option value="Humanities" <?= $groupVal === 'Humanities' ? 'selected' : '' ?>>Humanities</option>
+                            <option value="Business Studies" <?= $groupVal === 'Business Studies' ? 'selected' : '' ?>>Business Studies</option>
                         </select>
                     </div>
 
                     <!-- Roll No & Year -->
                     <div class="col-md-4">
-                        <label class="form-label">রোল নং <span class="text-danger">*</span></label>
+                        <label class="form-label">Roll No <span class="text-danger">*</span></label>
                         <input type="text" name="roll_no" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['roll_no']) ?>" required>
-                        <div class="invalid-feedback">অনুগ্রহ করে রোল নং লিখুন</div>
+                        <div class="invalid-feedback">Please enter roll no</div>
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">শিক্ষাবর্ষ <span class="text-danger">*</span></label>
+                        <label class="form-label">Year <span class="text-danger">*</span></label>
                         <input type="text" name="year" class="form-control form-control-lg" 
                                value="<?= htmlspecialchars($student['year']) ?>" required>
-                        <div class="invalid-feedback">অনুগ্রহ করে শিক্ষাবর্ষ লিখুন</div>
-                    </div>
-
-                    <!-- Photo -->
-                    <div class="col-md-4">
-                        <label class="form-label">ছবি</label>
-                        <input type="file" name="student_photo" id="student_photo" class="form-control form-control-lg" 
-                               accept="image/*" onchange="previewImage(this)">
-                        <input type="hidden" name="existing_photo" value="<?= htmlspecialchars($student['student_photo']) ?>
-                        
-                        <div class="mt-3 text-center">
-                            <div id="imagePreview" style="width: 150px; height: 180px; border: 1px dashed #ccc; margin: 0 auto; position: relative;">
-                                <?php if ($student['student_photo']): ?>
-                                    <img src="../uploads/students/<?= htmlspecialchars($student['student_photo']) ?>" 
-                                         alt="Current Photo" style="max-width: 100%; max-height: 100%; object-fit: cover;">
-                                <?php else: ?>
-                                    <div class="d-flex align-items-center justify-content-center h-100 text-muted">
-                                        <i class="bi bi-person-bounding-box" style="font-size: 3rem;"></i>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                            <small class="text-muted d-block mt-1">ছবির সাইজ সর্বোচ্চ 500KB</small>
-                        </div>
+                        <div class="invalid-feedback">Please enter year</div>
                     </div>
                 </div>
 
                 <div class="d-flex justify-content-between mt-4">
                     <button type="reset" class="btn btn-outline-secondary btn-lg">
-                        <i class="bi bi-arrow-counterclockwise"></i> রিসেট করুন
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
                     </button>
                     <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="bi bi-check-circle"></i> আপডেট করুন
+                        <i class="bi bi-check-circle"></i> Update
                     </button>
                 </div>
             </form>
         </div>
     </div>
-</div>
-</div>
+                </div> <!-- /.col -->
+        </div> <!-- /.row -->
+    </div> <!-- /.container-fluid -->
+    </section>
+</div> <!-- /.content-wrapper -->
 
 <script>
     // AJAX to load sections based on class
     document.getElementById('class_id').addEventListener('change', function () {
         var classId = this.value;
-        fetch('../ajax/get_sections.php?class_id=' + classId)
+        fetch('../ajax/get_sections.php?class_id=' + encodeURIComponent(classId))
             .then(res => res.json())
             .then(data => {
                 let section = document.getElementById('section_id');
-                section.innerHTML = '<option value="">শাখা নির্বাচন করুন</option>';
+                section.innerHTML = '<option value="">Select Section</option>';
                 data.forEach(row => {
                     let option = document.createElement('option');
                     option.value = row.id;
@@ -335,11 +354,7 @@ if ($student['class_id']) {
     // Form validation
     (function () {
         'use strict'
-        
-        // Fetch all the forms we want to apply custom Bootstrap validation styles to
         var forms = document.querySelectorAll('.needs-validation')
-        
-        // Loop over them and prevent submission
         Array.prototype.slice.call(forms)
             .forEach(function (form) {
                 form.addEventListener('submit', function (event) {
@@ -347,7 +362,6 @@ if ($student['class_id']) {
                         event.preventDefault()
                         event.stopPropagation()
                     }
-                    
                     form.classList.add('was-validated')
                 }, false)
             })
