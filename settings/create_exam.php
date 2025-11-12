@@ -10,15 +10,28 @@ include '../config/db.php';
 // Handle POST before any HTML output to avoid "headers already sent"
 $message = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $exam_name = $conn->real_escape_string($_POST['exam_name']);
-    $class_id = (int)$_POST['class_id'];
-    $exam_type = $conn->real_escape_string($_POST['exam_type']);
-    $created_by = $_SESSION['user_id'] ?? 0;
+    try {
+        // Basic validation
+        $exam_name = isset($_POST['exam_name']) ? trim((string)$_POST['exam_name']) : '';
+        $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
+        $exam_type = isset($_POST['exam_type']) ? trim((string)$_POST['exam_type']) : '';
+        $created_by = $_SESSION['user_id'] ?? 0;
+        if ($exam_name === '' || $class_id <= 0 || $exam_type === '') {
+            throw new Exception('Invalid form data');
+        }
 
-    // Step 1: Insert into exams table
-    $insert_exam_sql = "INSERT INTO exams (exam_name, class_id, exam_type, created_by, created_at)
-                        VALUES ('$exam_name', $class_id, '$exam_type', $created_by, NOW())";
-    if ($conn->query($insert_exam_sql)) {
+        $exam_name_sql = $conn->real_escape_string($exam_name);
+        $exam_type_sql = $conn->real_escape_string($exam_type);
+
+        // Begin transaction
+        if (method_exists($conn, 'begin_transaction')) { $conn->begin_transaction(); }
+
+        // Step 1: Insert into exams table
+        $insert_exam_sql = "INSERT INTO exams (exam_name, class_id, exam_type, created_by, created_at)
+                            VALUES ('$exam_name_sql', $class_id, '$exam_type_sql', $created_by, NOW())";
+        if (!$conn->query($insert_exam_sql)) {
+            throw new Exception('Insert exam failed: ' . $conn->error);
+        }
         $exam_id = $conn->insert_id;
 
         // Ensure teacher_id column exists in exam_subjects
@@ -44,13 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Step 2: Insert each subject with marks and assigned teacher
-        $subject_ids = $_POST['subject_id'];
-        $exam_dates = $_POST['exam_date'];
-        $exam_times = $_POST['exam_time'];
-        $creative_marks = $_POST['creative_marks'];
-        $objective_marks = $_POST['objective_marks'];
-        $practical_marks = $_POST['practical_marks'];
-        $pass_types = $_POST['pass_type'];
+    $subject_ids = $_POST['subject_id'] ?? [];
+    $exam_dates = $_POST['exam_date'] ?? [];
+    $exam_times = $_POST['exam_time'] ?? [];
+    $creative_marks = $_POST['creative_marks'] ?? [];
+    $objective_marks = $_POST['objective_marks'] ?? [];
+    $practical_marks = $_POST['practical_marks'] ?? [];
+    $pass_types = $_POST['pass_type'] ?? [];
         $creative_pass = $_POST['creative_pass'] ?? [];
         $objective_pass = $_POST['objective_pass'] ?? [];
         $practical_pass = $_POST['practical_pass'] ?? [];
@@ -58,15 +71,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $teacher_ids = $_POST['teacher_id'] ?? [];
         $deadlines = $_POST['mark_entry_deadline'] ?? [];
 
-        $all_success = true;
+        if (!is_array($subject_ids) || count($subject_ids) === 0) {
+            throw new Exception('No subjects submitted');
+        }
 
+        $all_success = true;
         foreach ($subject_ids as $i => $subject_id) {
             $exam_date = $conn->real_escape_string($exam_dates[$i]);
             $exam_time = $conn->real_escape_string($exam_times[$i]);
             $creative = (int)$creative_marks[$i];
             $objective = (int)$objective_marks[$i];
             $practical = (int)$practical_marks[$i];
-            $pass_type = $conn->real_escape_string($pass_types[$i]);
+            $pass_type = isset($pass_types[$i]) ? $conn->real_escape_string($pass_types[$i]) : 'total';
             $total = $creative + $objective + $practical;
             $c_pass = isset($creative_pass[$i]) ? (int)$creative_pass[$i] : 0;
             $o_pass = isset($objective_pass[$i]) ? (int)$objective_pass[$i] : 0;
@@ -86,18 +102,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$conn->query($insert_subject_sql)) {
                 $all_success = false;
-                $message = '<div class="alert alert-danger">ত্রুটি হয়েছে: ' . $conn->error . '</div>';
+                $message = '<div class="alert alert-danger">ত্রুটি হয়েছে: ' . htmlspecialchars($conn->error) . '</div>';
                 break;
             }
         }
-
         if ($all_success) {
+            if (method_exists($conn, 'commit')) { $conn->commit(); }
             header("Location: exam_details.php?exam_id=".$exam_id."&status=success&msg=created");
             exit();
+        } else {
+            if (method_exists($conn, 'rollback')) { $conn->rollback(); }
         }
-
-    } else {
-        $message = 'পরীক্ষা তৈরি ব্যর্থ হয়েছে: ' . $conn->error;
+    } catch (Throwable $e) {
+        if (method_exists($conn, 'rollback')) { @ $conn->rollback(); }
+        // Log and show generic message (details in logs)
+        if (function_exists('error_log')) { @error_log('[create_exam] ' . $e->getMessage()); }
+        $message = '<div class="alert alert-danger">সেভ করতে সমস্যা হয়েছে। অনুগ্রহ করে ইনপুটগুলো যাচাই করুন।</div>';
     }
 }
 

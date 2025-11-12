@@ -49,7 +49,7 @@ if (session_status() == PHP_SESSION_NONE) {
       </li>
       <li class="nav-item d-none d-sm-inline-block">
         <?php $dash = (isset($_SESSION['role']) && $_SESSION['role']==='teacher') ? (BASE_URL.'dashboard_teacher.php') : (BASE_URL.'dashboard.php'); ?>
-        <a href="<?php echo htmlspecialchars($dash); ?>" class="nav-link">ড্যাশবোর্ড</a>
+        <a href="<?php echo htmlspecialchars($dash); ?>" class="nav-link">Dashboard</a>
       </li>
     </ul>
 
@@ -117,11 +117,11 @@ if (session_status() == PHP_SESSION_NONE) {
           <span class="dropdown-item-text bn"><strong><?php echo $displayName; ?></strong><?php if($role){ echo ' — ' . htmlspecialchars($role); } ?></span>
           <div class="dropdown-divider"></div>
           <a href="<?php echo BASE_URL; ?>auth/profile.php" class="dropdown-item">
-            <i class="far fa-user mr-2"></i> প্রোফাইল
+            <i class="far fa-user mr-2"></i> Profile
           </a>
           <div class="dropdown-divider"></div>
           <a href="<?php echo BASE_URL; ?>auth/logout.php" class="dropdown-item text-danger">
-            <i class="fas fa-sign-out-alt mr-2"></i> লগআউট
+            <i class="fas fa-sign-out-alt mr-2"></i> Logout
           </a>
         </div>
       </li>
