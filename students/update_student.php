@@ -118,16 +118,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $student_id);
     
     if ($stmt->execute()) {
-        $_SESSION['success'] = "শিক্ষার্থীর তথ্য সফলভাবে আপডেট করা হয়েছে";
-        // On success, go to subject assignment page for this student
-        $conn->close();
-        header("Location: add_subjects.php?student_id=" . urlencode($student_id));
-        exit;
-    } else {
-        $_SESSION['error'] = "শিক্ষার্থীর তথ্য আপডেট করতে সমস্যা হয়েছে: " . $conn->error;
+        // Close DB and show success popup on THIS page, then redirect
         $stmt->close();
         $conn->close();
-        header("Location: edit_student.php?student_id=" . urlencode($student_id));
+        @include_once __DIR__ . '/../config/config.php';
+        include '../includes/header.php';
+        echo '<div class="content-wrapper"><section class="content"><div class="container-fluid py-5 text-center">'
+            . '<h4>Processing...</h4>'
+            . '<p>Please wait, redirecting to subject assignment.</p>'
+            . '</div></section></div>';
+        echo '<script>document.addEventListener("DOMContentLoaded",function(){'
+            . 'if(window.showToast){window.showToast("Success","Student updated successfully.","success");}else{alert("Student updated successfully. Redirecting...");}'
+            . 'setTimeout(function(){window.location.href = ' . json_encode('add_subjects.php?student_id=' . urlencode($student_id)) . ';}, 1200);'
+            . '});</script>';
+        include '../includes/footer.php';
+        exit;
+    } else {
+        // Show error popup on THIS page, then return to edit form
+        $err = $conn->error;
+        $stmt->close();
+        $conn->close();
+        @include_once __DIR__ . '/../config/config.php';
+        include '../includes/header.php';
+        echo '<div class="content-wrapper"><section class="content"><div class="container-fluid py-5 text-center">'
+            . '<h4>Processing...</h4>'
+            . '<p>Returning to edit page.</p>'
+            . '</div></section></div>';
+        $msg = 'Failed to update student. Please try again.';
+        echo '<script>document.addEventListener("DOMContentLoaded",function(){'
+            . 'if(window.showToast){window.showToast("Error",' . json_encode($msg) . ',"error");}else{alert(' . json_encode($msg) . ');}'
+            . 'setTimeout(function(){window.location.href = ' . json_encode('edit_student.php?student_id=' . urlencode($student_id)) . ';}, 1500);'
+            . '});</script>';
+        include '../includes/footer.php';
         exit;
     }
 } else {

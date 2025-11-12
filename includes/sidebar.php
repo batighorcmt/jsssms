@@ -53,21 +53,15 @@ $current = basename($_SERVER['PHP_SELF']);
           </a>
         </li>
         <li class="nav-item">
-          <a href="<?= $BASE_URL ?>manage_classes.php" class="nav-link <?= ($current=='manage_classes.php')?'active':'' ?>">
-            <i class="nav-icon fas fa-school"></i>
-            <p>Class Management</p>
+          <a href="<?= $BASE_URL ?>students/student_list_print.php" class="nav-link <?= ($current=='student_list_print.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-user-graduate"></i>
+            <p>Students Report</p>
           </a>
         </li>
         <li class="nav-item">
           <a href="<?= $BASE_URL ?>settings/manage_subjects.php" class="nav-link <?= ($current=='manage_subjects.php')?'active':'' ?>">
             <i class="nav-icon fas fa-book"></i>
             <p>Manage Subjects</p>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="<?= $BASE_URL ?>manage_fees.php" class="nav-link <?= ($current=='manage_fees.php')?'active':'' ?>">
-            <i class="nav-icon fas fa-credit-card"></i>
-            <p>Fees & Payments</p>
           </a>
         </li>
         <li class="nav-item">
