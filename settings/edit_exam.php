@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $exam_date = trim($_POST['exam_date'] ?? '');
     if ($exam_date && preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/',$exam_date,$dmy)) {
         $exam_date = $dmy[3].'-'.$dmy[2].'-'.$dmy[1];
-    }
+    } else if ($exam_date === '') { $exam_date = null; }
     $exam_time = trim($_POST['exam_time'] ?? '');
     // Normalize time HH:MM -> HH:MM:SS if needed
     if ($exam_time && preg_match('/^(\d{2}):(\d{2})$/',$exam_time)) {
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mark_entry_deadline = $_POST['mark_entry_deadline'] ?? '';
     if ($mark_entry_deadline && preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/',$mark_entry_deadline,$dm)) {
         $mark_entry_deadline = $dm[3].'-'.$dm[2].'-'.$dm[1];
-    }
+    } else if ($mark_entry_deadline === '') { $mark_entry_deadline = null; }
     $creative_marks = (int)($_POST['creative_marks'] ?? 0);
     $objective_marks = (int)($_POST['objective_marks'] ?? 0);
     $practical_marks = (int)($_POST['practical_marks'] ?? 0);
@@ -69,16 +69,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $total_marks = $creative_marks + $objective_marks + $practical_marks;
     $total_pass = (int)($_POST['total_pass'] ?? ($pass_type==='total' ? ceil($total_marks * 0.33) : 0));
 
-    $update = $conn->prepare("UPDATE exam_subjects SET exam_date=?, exam_time=?, mark_entry_deadline=?, creative_marks=?, objective_marks=?, practical_marks=?, creative_pass=?, objective_pass=?, practical_pass=?, pass_type=?, teacher_id=?, total_marks=?, total_pass=? WHERE id=?");
-    // Corrected type string (14 placeholders)
-    $update->bind_param("sssiiiiiisiiii", $exam_date, $exam_time, $mark_entry_deadline, $creative_marks, $objective_marks, $practical_marks, $creative_pass, $objective_pass, $practical_pass, $pass_type, $teacher_id, $total_marks, $total_pass, $id);
-    if ($update->execute()) {
+    // Do not update total_marks if it's a generated column (avoid SQL error)
+    $update = $conn->prepare("UPDATE exam_subjects SET exam_date=?, exam_time=?, mark_entry_deadline=?, creative_marks=?, objective_marks=?, practical_marks=?, creative_pass=?, objective_pass=?, practical_pass=?, pass_type=?, teacher_id=?, total_pass=? WHERE id=?");
+    if (!$update) {
+        $error = "Update failed (prepare error): " . $conn->error;
+    } else {
+        // 13 placeholders: sssiiiiiisiii
+        $update->bind_param("sssiiiiiisiii", $exam_date, $exam_time, $mark_entry_deadline, $creative_marks, $objective_marks, $practical_marks, $creative_pass, $objective_pass, $practical_pass, $pass_type, $teacher_id, $total_pass, $id);
+    }
+    if (!isset($error) && $update->execute()) {
         // Redirect to exam details with toast
         $eid = intval($exam['exam_id'] ?? 0);
         header("Location: exam_details.php?exam_id=".$eid."&status=success&msg=updated");
         exit();
     } else {
-        $error = "Update failed (database error).";
+        if (!isset($error)) { $error = "Update failed (database error)."; }
     }
 }
 
@@ -135,7 +140,13 @@ include '../includes/sidebar.php';
                 </thead>
                 <tbody>
                     <tr>
-                        <td><input type="text" name="exam_date" class="form-control date-input" placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($exam['exam_date']) ?>" required></td>
+                        <?php
+                            $examDateDisplay = '';
+                            if (!empty($exam['exam_date']) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',$exam['exam_date'],$m)) {
+                                $examDateDisplay = $m[3].'/'.$m[2].'/'.$m[1];
+                            }
+                        ?>
+                        <td><input type="text" name="exam_date" class="form-control date-input" placeholder="dd/mm/yyyy" value="<?= htmlspecialchars($examDateDisplay) ?>" required></td>
                         <?php
                             $deadlineDisplay = '';
                             if (!empty($exam['mark_entry_deadline']) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',$exam['mark_entry_deadline'],$m)) {

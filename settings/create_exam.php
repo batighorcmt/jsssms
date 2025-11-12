@@ -338,8 +338,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </select>
                             </td>
                             <td>
-                                <select name="teacher_id[]" class="form-control">
-                                    <option value="">-- Teacher --</option>
+                                <select name="teacher_id[]" class="form-control teacher-select" data-placeholder="-- Teacher --">
+                                    <option value=""></option>
                                     ${teacherOptions}
                                 </select>
                             </td>
@@ -360,6 +360,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
                 updateTotals();
+                // Initialize Select2 on teacher selects
+                ensureSelect2(function(){ initSelect2(subjectsTableBody); });
             })
             .catch(() => {
                 subjectsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Failed to load subjects.</td></tr>';
@@ -378,6 +380,45 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+// Ensure Select2 is available; load from CDN if missing, then run callback
+function ensureSelect2(callback){
+    function ready(){ try { if (typeof callback === 'function') callback(); } catch(e){} }
+    if (window.jQuery && jQuery.fn && jQuery.fn.select2) { ready(); return; }
+    // Load CSS
+    var cssId = 'select2-css-cdn';
+    if (!document.getElementById(cssId)){
+        var l = document.createElement('link'); l.id = cssId; l.rel = 'stylesheet'; l.href = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css';
+        document.head.appendChild(l);
+        var l2 = document.createElement('link'); l2.rel = 'stylesheet'; l2.href = 'https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css';
+        document.head.appendChild(l2);
+    }
+    // Load JS if needed
+    var jsId = 'select2-js-cdn';
+    if (!document.getElementById(jsId)){
+        var s = document.createElement('script'); s.id = jsId; s.src = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js';
+        s.onload = ready; document.body.appendChild(s);
+    } else { ready(); }
+}
+
+// Apply Select2 to teacher selects inside a container
+function initSelect2(container){
+    if (!(window.jQuery && jQuery.fn && jQuery.fn.select2)) return;
+    var $ = window.jQuery;
+    var $ctx = container ? $(container) : $(document);
+    $ctx.find('select.teacher-select').each(function(){
+        var $sel = $(this);
+        // Avoid double init
+        if ($sel.data('select2')) { $sel.select2('destroy'); }
+        $sel.select2({
+            theme: 'bootstrap4',
+            width: '100%',
+            placeholder: $sel.attr('data-placeholder') || '-- Teacher --',
+            allowClear: true,
+        });
+    });
+}
+// Attempt eager load on page ready
+ensureSelect2(function(){ initSelect2(document); });
 // Toast trigger if serverMessage exists
 if (document.getElementById('serverMessage')) {
     var sm = document.getElementById('serverMessage');
