@@ -8,12 +8,12 @@ if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.ph
 include '../config/db.php';
 
 // Helpers
-function is_controller(mysqli $conn, $userId){
+function is_controller($conn, $userId){
     $userId = (int)$userId; if ($userId<=0) return false;
     $q = $conn->query('SELECT 1 FROM exam_controllers WHERE active=1 AND user_id='.$userId.' LIMIT 1');
     return ($q && $q->num_rows>0);
 }
-function require_ctrl_or_admin(mysqli $conn){
+function require_ctrl_or_admin($conn){
     if (isset($_SESSION['role']) && $_SESSION['role']==='super_admin') return true;
     if (is_controller($conn, $_SESSION['id'] ?? 0)) return true;
     header('Location: ' . BASE_URL . 'auth/forbidden.php'); exit();
