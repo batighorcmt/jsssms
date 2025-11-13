@@ -2,8 +2,6 @@
 @include_once __DIR__ . '/../includes/bootstrap.php';
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
-// Fallback for BASE_URL if config not present
-if (!defined('BASE_URL')) { define('BASE_URL', '../'); }
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
 
@@ -71,10 +69,7 @@ if ($rt = $conn->query($sqlT)) { while($r=$rt->fetch_assoc()){ $teachers[]=$r; }
 
 // Load active plans
 $plans = [];
-$hasStatus = false;
-if ($rc = $conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")) {
-  $hasStatus = ($rc->num_rows>0);
-}
+$hasStatus = ($conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")->num_rows>0);
 $sqlPlans = $hasStatus ? "SELECT id, plan_name, shift FROM seat_plans WHERE status='active' ORDER BY id DESC" : "SELECT id, plan_name, shift FROM seat_plans ORDER BY id DESC";
 if ($rp = $conn->query($sqlPlans)) { while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 
@@ -93,9 +88,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='set_contr
 $postedDutyMap = null;
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duties'){
     $duty_date = trim($_POST['duty_date'] ?? '');
+    if ($duty_date === '' || $duty_date === NULL) $duty_date = NULL;
     $plan_id = (int)($_POST['plan_id'] ?? 0);
     $map = $_POST['room_teacher'] ?? [];
-  if (!preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) || $duty_date==='0000-00-00' || $plan_id<=0){ $toast=['type'=>'error','msg'=>'Invalid date or plan']; }
+  if (!preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) || $duty_date===NULL || $plan_id<=0){ $toast=['type'=>'error','msg'=>'Invalid date or plan']; }
     else {
     // Enforce: a teacher can be assigned to only one room for the selected date+plan
     $teacherCounts = [];
@@ -114,7 +110,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
             $room_id=(int)$room_id; $teacher_user_id=(int)$teacher_user_id; if ($room_id<=0 || $teacher_user_id<=0) continue;
             // upsert
             $stmt = $conn->prepare('INSERT INTO exam_room_invigilation (duty_date, plan_id, room_id, teacher_user_id, assigned_by) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE teacher_user_id=VALUES(teacher_user_id), assigned_by=VALUES(assigned_by), assigned_at=CURRENT_TIMESTAMP');
-            $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
+            if ($duty_date === NULL) {
+                $stmt->bind_param('iiiis', $plan_id, $room_id, $teacher_user_id, $assigned_by, $duty_date);
+            } else {
+                $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
+            }
             @$stmt->execute();
         }
     $toast=['type'=>'success','msg'=>'Duties saved'];
@@ -129,19 +129,19 @@ if ($rc=$conn->query('SELECT user_id FROM exam_controllers WHERE active=1 ORDER 
 }
 
 // Selected date/plan
-$sel_date = isset($_POST['duty_date']) ? $_POST['duty_date'] : (date('Y-m-d'));
+$sel_date = isset($_POST['duty_date']) && $_POST['duty_date'] !== NULL ? $_POST['duty_date'] : date('Y-m-d');
 $sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? (int)$plans[0]['id'] : 0);
 
 // Precompute mapped exam dates for selected plan and normalize selected date
 $examDates = [];
 if ($sel_plan>0){
-  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>NULL ORDER BY es.exam_date ASC";
   if ($q = $conn->query($sqlDates)){
     while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
   }
 }
 if (empty($examDates)) { $sel_date = '1970-01-01'; }
-else if ($sel_date==='0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)$sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
+else if ($sel_date===NULL || !preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)$sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
 
 // Rooms for selected plan
 $rooms = [];
@@ -150,7 +150,7 @@ if ($sel_plan>0){
 }
 // Existing duties map
 $dutyMap = [];
-if ($sel_plan>0 && preg_match('~^\d{4}-\d{2}-\d{2}$~',$sel_date) && $sel_date!=='0000-00-00'){
+if ($sel_plan>0 && preg_match('~^\d{4}-\d{2}-\d{2}$~',$sel_date) && $sel_date!==NULL){
     $q = $conn->prepare('SELECT room_id, teacher_user_id FROM exam_room_invigilation WHERE duty_date=? AND plan_id=?');
     $q->bind_param('si', $sel_date, $sel_plan); $q->execute(); $res=$q->get_result();
     if ($res){ while($r=$res->fetch_assoc()){ $dutyMap[(int)$r['room_id']] = (int)$r['teacher_user_id']; } }
