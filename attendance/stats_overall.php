@@ -21,7 +21,7 @@ if ($plan_id===0 && !empty($plans)) $plan_id=(int)$plans[0]['id'];
 // Gather distinct exam dates strictly from exams mapped to the selected plan
 $dates = [];
 if ($plan_id>0){
-  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'' AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL ORDER BY es.exam_date ASC";
   if ($q=$conn->query($sqlDates)){
     while($r=$q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $dates[]=$d; }
   }
