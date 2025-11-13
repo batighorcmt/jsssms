@@ -10,7 +10,7 @@ function require_ctrl_or_admin(mysqli $conn){ if (($_SESSION['role'] ?? '')==='s
 
 require_ctrl_or_admin($conn);
 
-$date = $_GET['date'] ?? date('Y-m-d');
+$date = isset($_GET['date']) ? (string)$_GET['date'] : date('Y-m-d');
 $plan_id = (int)($_GET['plan_id'] ?? 0);
 
 // Load active plans
@@ -27,11 +27,17 @@ if ($q=$conn->query("SELECT DISTINCT exam_date FROM exam_subjects WHERE exam_dat
     if ($d) $dateOptions[] = $d;
   }
 }
-// Ensure current selected date is present in options
-if ($date && !in_array($date, $dateOptions, true)) array_unshift($dateOptions, $date);
+// Normalize selected date: if empty/invalid, pick first available
+if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', $date) || $date === '0000-00-00') {
+  $date = !empty($dateOptions) ? $dateOptions[0] : '';
+}
+// Ensure current selected date is present in options (only if valid)
+if ($date && preg_match('~^\d{4}-\d{2}-\d{2}$~', $date) && !in_array($date, $dateOptions, true)) {
+  array_unshift($dateOptions, $date);
+}
 
 $rows = [];
-if (preg_match('~^\d{4}-\d{2}-\d{2}$~',$date) && $plan_id>0){
+if ($date && preg_match('~^\d{4}-\d{2}-\d{2}$~',$date) && $plan_id>0){
   $sql = "SELECT r.room_no, COALESCE(c1.class_name, c2.class_name) AS class_name,
                  SUM(CASE WHEN a.status='present' THEN 1 ELSE 0 END) AS present_cnt,
                  SUM(CASE WHEN a.status='absent' THEN 1 ELSE 0 END) AS absent_cnt
