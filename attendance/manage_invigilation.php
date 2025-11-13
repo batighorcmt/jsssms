@@ -150,7 +150,7 @@ if ($sel_plan>0){
   }
 }
 if (empty($examDates)) { $sel_date = NULL; }
-else if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)$sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
+else if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)$sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = NULL; }
 
 // Rooms for selected plan
 $rooms = [];
@@ -224,6 +224,7 @@ include '../includes/sidebar.php';
                 <label>Date</label>
                 <?php if (!empty($examDates)): ?>
                   <select id="filterDate" name="duty_date" class="form-control" required>
+                    <option value="" <?= $sel_date ? '' : 'selected' ?>>— তারিখ নির্বাচন করুন —</option>
                     <?php foreach($examDates as $d): ?>
                       <?php $disp = ($t=strtotime($d)) ? date('d/m/Y',$t) : $d; ?>
                       <option value="<?= htmlspecialchars($d) ?>" <?= $sel_date===$d?'selected':'' ?>><?= htmlspecialchars($disp) ?></option>
