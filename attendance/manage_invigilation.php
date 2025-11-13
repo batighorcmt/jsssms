@@ -201,7 +201,8 @@ include '../includes/sidebar.php';
                   // Load distinct mapped exam dates for the selected plan (yyyy-mm-dd)
                   $examDates = [];
                   if ($sel_plan>0){
-                    $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'' AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+                    // Avoid comparing DATE to '' (strict mode). Check only for NOT NULL and not '0000-00-00'.
+                    $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
                     if ($q = $conn->query($sqlDates)){
                       while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
                     }

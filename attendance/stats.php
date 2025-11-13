@@ -1,6 +1,6 @@
 <?php
 @include_once __DIR__ . '/../includes/bootstrap.php';
-session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
@@ -23,7 +23,8 @@ if ($plan_id===0 && !empty($plans)) $plan_id=(int)$plans[0]['id'];
 $dateOptions = [];
 if ($plan_id > 0) {
   // Only use dates from exams mapped to this plan; no fallback
-  $sqlDatesExam = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'' AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  // Avoid comparing DATE to '' (strict mode). Check only for NOT NULL and not '0000-00-00'.
+  $sqlDatesExam = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
   if ($q0 = $conn->query($sqlDatesExam)) { while($r=$q0->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $dateOptions[]=$d; } }
 }
 // Normalize selected date against plan-scoped options
