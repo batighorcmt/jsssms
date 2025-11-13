@@ -280,8 +280,10 @@ document.querySelectorAll('.seat-cell').forEach(el=>{
 // Prevent modal opening when clicking the small Clear buttons inside a seat
 // Stop propagation on clear buttons inside a seat
 document.addEventListener('click', function(e){
-    if (e.target && e.target.classList && e.target.classList.contains('js-clear-seat')){
+    var btn = e.target && (e.target.closest ? e.target.closest('.js-clear-seat') : null);
+    if (btn){
         e.stopPropagation();
+        e.preventDefault();
     }
 }, true);
 // Initialize Select2 with AJAX search, excluding already-assigned by plan (server-side)
@@ -410,12 +412,14 @@ $(function(){
     <?php endif; ?>
     // Unassign via AJAX
     document.addEventListener('click', function(e){
-        var btn = e.target.closest('.js-clear-seat');
+        var btn = e.target.closest && e.target.closest('.js-clear-seat');
         if (!btn) return;
         e.preventDefault();
         var c = btn.getAttribute('data-c');
         var b = btn.getAttribute('data-b');
         var p = btn.getAttribute('data-p');
+        // disable button while processing
+        var prevHtml = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Clearing…';
         fetch('seat_plan_api.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
@@ -434,7 +438,8 @@ $(function(){
             var cell = document.querySelector(sel);
             if (cell){ renderSeatEmpty(cell); }
             showToast('success', 'Seat cleared');
-        }).catch(function(){ showToast('danger', 'Clear failed'); });
+        }).catch(function(){ showToast('danger', 'Clear failed'); })
+        .finally(function(){ if (btn){ btn.disabled = false; btn.innerHTML = prevHtml; }});
     });
 });
 
