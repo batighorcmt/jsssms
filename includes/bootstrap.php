@@ -30,11 +30,48 @@ if (!function_exists('app_log')) {
     }
 }
 
-// Shutdown handler to catch fatals
-register_shutdown_function(function(){
+// Collect runtime errors for this request
+$__caught_errors = [];
+
+// Custom error handler to record warnings/notices too
+set_error_handler(function($errno, $errstr, $errfile, $errline){
+    $types = [
+        E_ERROR=>'E_ERROR', E_WARNING=>'E_WARNING', E_PARSE=>'E_PARSE', E_NOTICE=>'E_NOTICE',
+        E_CORE_ERROR=>'E_CORE_ERROR', E_CORE_WARNING=>'E_CORE_WARNING', E_COMPILE_ERROR=>'E_COMPILE_ERROR', E_COMPILE_WARNING=>'E_COMPILE_WARNING',
+        E_USER_ERROR=>'E_USER_ERROR', E_USER_WARNING=>'E_USER_WARNING', E_USER_NOTICE=>'E_USER_NOTICE',
+        E_STRICT=>'E_STRICT', E_RECOVERABLE_ERROR=>'E_RECOVERABLE_ERROR', E_DEPRECATED=>'E_DEPRECATED', E_USER_DEPRECATED=>'E_USER_DEPRECATED'
+    ];
+    $label = isset($types[$errno]) ? $types[$errno] : (string)$errno;
+    $msg = $label . ': ' . $errstr . ' in ' . $errfile . ':' . $errline;
+    app_log($msg);
+    global $__caught_errors; $__caught_errors[] = ['type'=>$label,'message'=>$errstr,'file'=>$errfile,'line'=>$errline];
+    return true; // handled
+});
+
+// Shutdown handler to catch fatals and surface a friendly banner
+register_shutdown_function(function() use (&$__caught_errors){
     $err = error_get_last();
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR])) {
         app_log('FATAL: ' . $err['message'] . ' in ' . $err['file'] . ':' . $err['line']);
+        $__caught_errors[] = ['type'=>'FATAL','message'=>$err['message'],'file'=>$err['file'],'line'=>$err['line']];
+    }
+
+    if (!empty($__caught_errors) && php_sapi_name() !== 'cli'){
+        // Try to print a compact warning banner at the end of the HTML
+        $safe = function($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+        $items = array_slice($__caught_errors, 0, 3);
+        $html = '<div style="position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:4px;padding:8px 10px;box-shadow:0 2px 6px rgba(0,0,0,.15);font:13px/1.25 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">';
+        $html .= '<strong>Warning:</strong> A runtime error occurred on this page.';
+        $html .= '<ul style="margin:6px 0 0 18px;padding:0;">';
+        foreach($items as $e){
+            $html .= '<li>'.$safe($e['type']).': '.$safe($e['message']).' — <em>'.$safe($e['file']).':'.$safe($e['line']).'</em></li>';
+        }
+        if (count($__caught_errors) > 3){ $html .= '<li>…and more (see logs)</li>'; }
+        $html .= '</ul>';
+        $html .= '<div style="margin-top:6px;color:#6c757d;">Logged to server. File: '. $safe(ini_get('error_log')) .'</div>';
+        $html .= '</div>';
+        // Attempt to print even if headers sent
+        echo $html;
     }
 });
 
@@ -43,7 +80,11 @@ set_exception_handler(function($ex){
     app_log('EXCEPTION: ' . $ex->getMessage() . ' in ' . $ex->getFile() . ':' . $ex->getLine());
     // Avoid revealing details on production; rely on logs
     http_response_code(500);
-    echo '';
+    // Also surface a warning banner similar to the shutdown handler
+    $safe = function($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+    echo '<div style="position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:4px;padding:8px 10px;box-shadow:0 2px 6px rgba(0,0,0,.15);font:13px/1.25 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
+       .'<strong>Warning:</strong> Uncaught exception — '.$safe($ex->getMessage()).' <em>'.$safe($ex->getFile()).':'.$safe($ex->getLine()).'</em>'
+       .'</div>';
 });
 
 // Suppress libxml global errors (callers can inspect if needed)
