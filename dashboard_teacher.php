@@ -52,6 +52,12 @@ include "includes/sidebar.php";
           background-size: 220% 220%;
           animation: gradientShift 10s ease infinite;
         }
+        /* Extra colorful palette for seat search */
+        .tile-primary {
+          background: linear-gradient(135deg, #6d28d9 0%, #db2777 50%, #f97316 100%);
+          background-size: 220% 220%;
+          animation: gradientShift 10s ease infinite;
+        }
   .tile-footer { position:absolute; left:0; right:0; bottom:0; padding:10px 16px; background: rgba(0,0,0,.32); color:#ffffff; text-align:right; font-weight:700; letter-spacing:.2px; text-shadow: 0 1px 2px rgba(0,0,0,.65); }
   .tile-footer i{ margin-left:6px; }
 
@@ -65,9 +71,24 @@ include "includes/sidebar.php";
         @media (prefers-reduced-motion: reduce) {
           .tile-info, .tile-warning { animation: none; background-size: auto; }
         }
+
+        /* Subtle colorful background for dashboard section */
+        .content-wrapper { background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 35%, #fff7ed 100%); }
       </style>
 
       <div class="row justify-content-center link-tiles">
+        <!-- Seat Find tile (placed before Mark Entry) -->
+        <div class="col-sm-10 col-md-5 col-lg-4">
+          <a class="link-tile tile-primary" href="<?= BASE_URL ?>exam/seat_plan_find.php">
+            <div class="inner">
+              <h4 class="bn">সীট খুঁজুন</h4>
+              <p class="bn">শিক্ষার্থীর আসন খুঁজে নিন</p>
+              <div class="icon-wrap"><i class="fas fa-search"></i></div>
+            </div>
+            <div class="tile-footer bn">খুলুন <i class="fas fa-arrow-right"></i></div>
+          </a>
+        </div>
+        <!-- Mark Entry tile -->
         <div class="col-sm-10 col-md-5 col-lg-4">
           <a class="link-tile tile-info" href="<?= BASE_URL ?>exam/mark_entry.php">
             <div class="inner">
@@ -78,6 +99,7 @@ include "includes/sidebar.php";
             <div class="tile-footer bn">খুলুন <i class="fas fa-arrow-right"></i></div>
           </a>
         </div>
+        <!-- Profile tile -->
         <div class="col-sm-10 col-md-5 col-lg-4">
           <a class="link-tile tile-warning" href="<?= BASE_URL ?>auth/profile.php">
             <div class="inner">

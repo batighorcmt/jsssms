@@ -9,9 +9,14 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['super_admin','te
 }
 include '../config/db.php';
 
-// Load plans for dropdown
+// Load only ACTIVE plans for dropdown (fallback if status column missing)
 $plans = [];
-$rp = $conn->query('SELECT id, plan_name, shift FROM seat_plans ORDER BY id DESC');
+$hasStatus = false;
+if ($chk = $conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")) { $hasStatus = ($chk->num_rows>0); }
+$sqlPlans = $hasStatus
+  ? "SELECT id, plan_name, shift FROM seat_plans WHERE status='active' ORDER BY id DESC"
+  : "SELECT id, plan_name, shift FROM seat_plans ORDER BY id DESC";
+$rp = $conn->query($sqlPlans);
 if ($rp) { while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 
 $plan_id = (int)($_GET['plan_id'] ?? 0);

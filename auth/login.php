@@ -47,20 +47,29 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 
 		<div class="mb-3">
 			<label for="password" class="form-label">পাসওয়ার্ড</label>
-			<input type="password" name="password" id="password" class="form-control" required />
-		</div>
-
-		<div class="mb-3">
-			<label for="role" class="form-label">লগইন রোল</label>
-			<select name="role" id="role" class="form-select" required>
-				<option value="">-- রোল সিলেক্ট করুন --</option>
-				<option value="super_admin">Super Admin</option>
-				<option value="teacher">Teacher</option>
-			</select>
+			<div class="input-group">
+				<input type="password" name="password" id="password" class="form-control" required />
+				<button type="button" class="btn btn-outline-secondary" id="togglePassword" tabindex="-1" aria-label="Show password">Show</button>
+			</div>
 		</div>
 
 		<button type="submit" class="btn btn-primary w-100">লগইন</button>
 	</form>
 </div>
+<script>
+// Toggle password visibility
+document.addEventListener('DOMContentLoaded', function(){
+  var btn = document.getElementById('togglePassword');
+  var pw = document.getElementById('password');
+  if (btn && pw) {
+	btn.addEventListener('click', function(){
+	  var isHidden = pw.type === 'password';
+	  pw.type = isHidden ? 'text' : 'password';
+	  btn.textContent = isHidden ? 'Hide' : 'Show';
+	  btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+	});
+  }
+});
+</script>
 </body>
 </html>

@@ -21,8 +21,16 @@ $conn->query("CREATE TABLE IF NOT EXISTS seat_plans (
   id INT AUTO_INCREMENT PRIMARY KEY,
   plan_name VARCHAR(150) NOT NULL,
   shift VARCHAR(20) NOT NULL DEFAULT 'Morning',
+    status ENUM('active','inactive','completed') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 )");
+
+// Ensure status column exists in case of older installs
+if ($chk = $conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")) {
+        if ($chk->num_rows === 0) {
+                @$conn->query("ALTER TABLE seat_plans ADD COLUMN status ENUM('active','inactive','completed') NOT NULL DEFAULT 'active' AFTER shift");
+        }
+}
 
 // seat_plan_classes: classes included in a plan
 $conn->query("CREATE TABLE IF NOT EXISTS seat_plan_classes (
@@ -74,7 +82,7 @@ function fetch_classes(mysqli $conn){
 // Plans helpers
 function fetch_plans(mysqli $conn){
     $out = [];
-    $res = $conn->query('SELECT id, plan_name, shift, created_at FROM seat_plans ORDER BY id DESC');
+    $res = $conn->query('SELECT id, plan_name, shift, status, created_at FROM seat_plans ORDER BY id DESC');
     if ($res) { while($r=$res->fetch_assoc()){ $out[]=$r; } }
     return $out;
 }
@@ -117,6 +125,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->query('DELETE FROM seat_plan_classes WHERE plan_id='.$pid);
         $conn->query('DELETE FROM seat_plans WHERE id='.$pid);
         $toast = ['type'=>'success','msg'=>'Plan deleted'];
+        }
+    }
+    if ($action === 'update_status') {
+        $pid = (int)($_POST['plan_id'] ?? 0);
+        $status = strtolower(trim((string)($_POST['status'] ?? '')));
+        $allowed = ['active','inactive','completed'];
+        if ($pid>0 && in_array($status, $allowed, true)){
+            $st = $conn->prepare('UPDATE seat_plans SET status=? WHERE id=?');
+            $st->bind_param('si', $status, $pid);
+            if ($st->execute()) { $toast = ['type'=>'success','msg'=>'Status updated']; }
+            else { $toast = ['type'=>'danger','msg'=>'Failed to update status']; }
         }
     }
 }
@@ -195,6 +214,7 @@ include '../includes/sidebar.php';
                                 <th>#</th>
                                 <th>Plan Name</th>
                                 <th>Shift</th>
+                                <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
                             </tr>
@@ -207,6 +227,18 @@ include '../includes/sidebar.php';
                                 <td><?= $i++ ?></td>
                                 <td><?= htmlspecialchars($p['plan_name']) ?></td>
                                 <td><?= htmlspecialchars($p['shift']) ?></td>
+                                <td>
+                                    <form method="post" action="" class="d-inline">
+                                        <input type="hidden" name="action" value="update_status">
+                                        <input type="hidden" name="plan_id" value="<?= (int)$p['id'] ?>">
+                                        <select name="status" class="form-control form-control-sm" onchange="this.form.submit()">
+                                            <?php $st = strtolower($p['status'] ?? 'active'); ?>
+                                            <option value="active" <?= $st==='active'?'selected':'' ?>>Active</option>
+                                            <option value="inactive" <?= $st==='inactive'?'selected':'' ?>>Inactive</option>
+                                            <option value="completed" <?= $st==='completed'?'selected':'' ?>>Completed</option>
+                                        </select>
+                                    </form>
+                                </td>
                                 <td><?= htmlspecialchars($p['created_at']) ?></td>
                                 <td>
                                     <a class="btn btn-sm btn-primary" href="seat_plan_rooms.php?plan_id=<?= (int)$p['id'] ?>">View Rooms</a>
@@ -227,16 +259,17 @@ include '../includes/sidebar.php';
             (function(){
                 var input = document.getElementById('plansFilter');
                 if (!input) return;
-                var table = input.closest('.card').querySelector('table');
+                        var table = input.closest('.card').querySelector('table');
                 var tbody = table ? table.querySelector('tbody') : null;
                 function filter(){
                     var term = (input.value || '').toLowerCase().trim();
                     if (!tbody) return;
                     Array.prototype.forEach.call(tbody.rows, function(tr){
                         if (tr.querySelector('td[colspan]')) return; // skip empty row
-                        var name = (tr.cells[1]?.innerText || '').toLowerCase();
-                        var shift = (tr.cells[2]?.innerText || '').toLowerCase();
-                        tr.style.display = (!term || name.indexOf(term)>-1 || shift.indexOf(term)>-1) ? '' : 'none';
+                                var name = (tr.cells[1]?.innerText || '').toLowerCase();
+                                var shift = (tr.cells[2]?.innerText || '').toLowerCase();
+                                var statusText = (tr.cells[3]?.innerText || '').toLowerCase();
+                                tr.style.display = (!term || name.indexOf(term)>-1 || shift.indexOf(term)>-1 || statusText.indexOf(term)>-1) ? '' : 'none';
                     });
                 }
                 input.addEventListener('input', filter);

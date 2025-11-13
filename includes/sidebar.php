@@ -5,6 +5,25 @@ if (session_status() == PHP_SESSION_NONE) {
 @include_once __DIR__ . '/../config/config.php';
 $BASE_URL = BASE_URL; // keep variable for existing template echos
 $current = basename($_SERVER['PHP_SELF']);
+// Helper: detect active Exam Controller
+if (!function_exists('jss_is_exam_controller')) {
+  function jss_is_exam_controller() {
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $uid = (int)($_SESSION['id'] ?? 0);
+    if ($uid <= 0) { $cached = false; return $cached; }
+    // Ensure DB connection
+    if (!isset($GLOBALS['conn'])) { @include_once __DIR__ . '/../config/db.php'; }
+    $conn = $GLOBALS['conn'] ?? null;
+    if (!$conn) { $cached = false; return $cached; }
+    // Table might not exist yet on older installs; guard gracefully
+    $tbl = $conn->query("SHOW TABLES LIKE 'exam_controllers'");
+    if (!$tbl || $tbl->num_rows === 0) { $cached = false; return $cached; }
+    $q = $conn->query('SELECT 1 FROM exam_controllers WHERE active=1 AND user_id=' . $uid . ' LIMIT 1');
+    $cached = ($q && $q->num_rows > 0);
+    return $cached;
+  }
+}
 ?>
 
 <!-- Main Sidebar Container -->
@@ -94,6 +113,25 @@ $current = basename($_SERVER['PHP_SELF']);
             <p>Exam Results</p>
           </a>
         </li>
+        <!-- Attendance (Admin/Controller) -->
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>attendance/manage_invigilation.php" class="nav-link <?= ($current=='manage_invigilation.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-clipboard-check"></i>
+            <p>Manage Invigilation</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>attendance/mark_room_attendance.php" class="nav-link <?= ($current=='mark_room_attendance.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-user-check"></i>
+            <p>Mark Room Attendance</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>attendance/stats.php" class="nav-link <?= ($current=='stats.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-chart-bar"></i>
+            <p>Attendance Stats</p>
+          </a>
+        </li>
         <?php endif; ?>
 
         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'teacher'): ?>
@@ -109,6 +147,29 @@ $current = basename($_SERVER['PHP_SELF']);
             <p>Find Student Seat</p>
           </a>
         </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>attendance/mark_room_attendance.php" class="nav-link <?= ($current=='mark_room_attendance.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-user-check"></i>
+            <p>Mark Room Attendance</p>
+          </a>
+        </li>
+        <?php endif; ?>
+
+        <?php
+          // Show controller-only links when logged in as controller (even if not super_admin)
+          if ((isset($_SESSION['role']) && $_SESSION['role'] !== 'super_admin') && jss_is_exam_controller()): ?>
+          <li class="nav-item">
+            <a href="<?= $BASE_URL ?>attendance/manage_invigilation.php" class="nav-link <?= ($current=='manage_invigilation.php')?'active':'' ?>">
+              <i class="nav-icon fas fa-clipboard-check"></i>
+              <p>Manage Invigilation</p>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="<?= $BASE_URL ?>attendance/stats.php" class="nav-link <?= ($current=='stats.php')?'active':'' ?>">
+              <i class="nav-icon fas fa-chart-bar"></i>
+              <p>Attendance Stats</p>
+            </a>
+          </li>
         <?php endif; ?>
 
         <li class="nav-item">

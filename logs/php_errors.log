@@ -90,3 +90,5 @@
 [12-Nov-2025 23:58:18 Europe/Berlin] [2025-11-12 23:58:18] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
 [12-Nov-2025 23:58:18 Europe/Berlin] [2025-11-12 23:58:18] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
 [12-Nov-2025 23:58:32 Europe/Berlin] [2025-11-12 23:58:32] EXCEPTION: Unknown column 's1.group' in 'field list' in L:\xampp\htdocs\jsssms\exam\seat_plan_print.php:55
+[13-Nov-2025 16:42:21 Europe/Berlin] [2025-11-13 16:42:21] EXCEPTION: Duplicate entry '1-102' for key 'uniq_plan_room' in L:\xampp\htdocs\jsssms\exam\seat_plan_rooms.php:36
+[13-Nov-2025 16:43:10 Europe/Berlin] [2025-11-13 16:43:10] EXCEPTION: Duplicate entry '1-103' for key 'uniq_plan_room' in L:\xampp\htdocs\jsssms\exam\seat_plan_rooms.php:36

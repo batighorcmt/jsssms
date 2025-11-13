@@ -14,17 +14,16 @@ function test_input($data) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = test_input($_POST['username'] ?? '');
     $password = test_input($_POST['password'] ?? '');
-    $role = test_input($_POST['role'] ?? '');
 
-    if (!$username || !$password || !$role) {
-        header("Location: ../auth/login.php?error=সব ফিল্ড পূরণ করুন");
+        if (!$username || !$password) {
+                header("Location: ../auth/login.php?error=সব ফিল্ড পূরণ করুন");
         exit();
     }
 
-    // প্রস্তুতকৃত স্টেটমেন্ট দিয়ে ইউজার ও রোল চেক করুন
-  $sql = "SELECT id, username, password, name, role FROM users WHERE username = ? AND role = ? LIMIT 1";
+        // ইউজারনেম দিয়ে ইউজার খুঁজে বের করুন; রোল ডিবি থেকে নিন
+    $sql = "SELECT id, username, password, name, role FROM users WHERE username = ? LIMIT 1";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("ss", $username, $role);
+$stmt->bind_param("s", $username);
 $stmt->execute();
 
 $stmt->store_result();
@@ -48,7 +47,7 @@ if ($stmt->num_rows === 1) {
         exit();
     }
 } else {
-    header("Location: ../auth/login.php?error=ইউজারনেম অথবা রোল ভুল");
+    header("Location: ../auth/login.php?error=ইউজারনেম ভুল");
     exit();
 }
 

@@ -11,8 +11,8 @@ $role = $_SESSION['role'] ?? '';
 $name = $_SESSION['name'] ?? '';
 $msg = null;
 
-// Handle updates for teacher profile
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $role === 'teacher') {
+// Handle updates for teacher profile (only when that form is submitted)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $role === 'teacher' && ($_POST['action'] ?? '') === 'update_profile') {
   $name = trim($_POST['name'] ?? $name);
   $email = trim($_POST['email'] ?? '');
   $address = trim($_POST['address'] ?? '');
@@ -60,6 +60,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $role === 'teacher') {
   }
 }
 
+// Handle password change (all roles)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'change_password') {
+  $current = trim($_POST['current_password'] ?? '');
+  $new = trim($_POST['new_password'] ?? '');
+  $confirm = trim($_POST['confirm_password'] ?? '');
+  try {
+    if ($current === '' || $new === '' || $confirm === '') { throw new Exception('সব ঘর পূরণ করুন'); }
+    if (strlen($new) < 6) { throw new Exception('নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে'); }
+    if ($new !== $confirm) { throw new Exception('নতুন পাসওয়ার্ড ও নিশ্চিত পাসওয়ার্ড মিলছে না'); }
+    if ($new === $current) { throw new Exception('নতুন পাসওয়ার্ড পুরনোটির থেকে ভিন্ন হতে হবে'); }
+
+    // Fetch current hashed password from users table
+    $st = $conn->prepare('SELECT password FROM users WHERE username=? AND role=? LIMIT 1');
+    $st->bind_param('ss', $username, $role);
+    $st->execute();
+    $res = $st->get_result();
+    if (!$res || $res->num_rows === 0) { throw new Exception('ব্যবহারকারী খুঁজে পাওয়া যায়নি'); }
+    $row = $res->fetch_assoc();
+    $hash = (string)($row['password'] ?? '');
+    if (!password_verify($current, $hash)) { throw new Exception('বর্তমান পাসওয়ার্ড সঠিক নয়'); }
+
+    $newHash = password_hash($new, PASSWORD_DEFAULT);
+    $up = $conn->prepare('UPDATE users SET password=? WHERE username=? AND role=? LIMIT 1');
+    $up->bind_param('sss', $newHash, $username, $role);
+    if (!$up->execute()) { throw new Exception('পাসওয়ার্ড সংরক্ষণ ব্যর্থ হয়েছে'); }
+    $msg = ['type'=>'success','text'=>'পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে'];
+  } catch (Throwable $e) {
+    $msg = ['type'=>'error','text'=>$e->getMessage()];
+  }
+}
+
 // Load profile data
 $profile = ['name'=>$name,'email'=>'','address'=>'','photo'=>''];
 if ($role === 'teacher' && $username) {
@@ -101,6 +132,7 @@ $avatar = $profile['photo'] ? (BASE_URL . ltrim($profile['photo'],'/')) : (BASE_
             <div class="card-body">
               <?php if ($role === 'teacher'): ?>
               <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="update_profile">
                 <div class="form-group">
                   <label class="bn">নাম</label>
                   <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($profile['name'] ?? '') ?>" required>
@@ -122,6 +154,28 @@ $avatar = $profile['photo'] ? (BASE_URL . ltrim($profile['photo'],'/')) : (BASE_
               <?php else: ?>
                 <p class="text-muted">এই রোলের জন্য প্রোফাইল সম্পাদনা সক্রিয় নয়।</p>
               <?php endif; ?>
+            </div>
+          </div>
+          <!-- Password change card (available for all roles) -->
+          <div class="card">
+            <div class="card-header"><h3 class="card-title bn">পাসওয়ার্ড পরিবর্তন</h3></div>
+            <div class="card-body">
+              <form method="post">
+                <input type="hidden" name="action" value="change_password">
+                <div class="form-group">
+                  <label class="bn">বর্তমান পাসওয়ার্ড</label>
+                  <input type="password" name="current_password" class="form-control" required>
+                </div>
+                <div class="form-group">
+                  <label class="bn">নতুন পাসওয়ার্ড</label>
+                  <input type="password" name="new_password" class="form-control" minlength="6" required>
+                </div>
+                <div class="form-group">
+                  <label class="bn">নতুন পাসওয়ার্ড (পুনঃনিশ্চিত)</label>
+                  <input type="password" name="confirm_password" class="form-control" minlength="6" required>
+                </div>
+                <button type="submit" class="btn btn-warning">পাসওয়ার্ড পরিবর্তন</button>
+              </form>
             </div>
           </div>
         </div>
