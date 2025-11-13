@@ -83,7 +83,9 @@ register_shutdown_function(function() use (&$__caught_errors, &$__banner_trigger
 set_exception_handler(function($ex) use (&$__banner_trigger){
     app_log('EXCEPTION: ' . $ex->getMessage() . ' in ' . $ex->getFile() . ':' . $ex->getLine());
     // Avoid revealing details on production; rely on logs
-    http_response_code(500);
+    if (function_exists('http_response_code') && !headers_sent()) {
+        http_response_code(500);
+    }
     // Also surface a banner only for 500 cases
     $__banner_trigger = true;
     $safe = function($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
