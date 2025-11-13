@@ -145,8 +145,26 @@ if (!$exam_info) {
             <tr>
                 <td><?= $i++ ?></td>
                 <td><?= htmlspecialchars($row['subject_name']) ?></td>
-                <td><?= date('d/m/Y', strtotime($row['exam_date'])) ?></td>
-                <td><?= date('h:i A', strtotime($row['exam_time'])) ?></td>
+                <td>
+                    <?php
+                        $ed = $row['exam_date'] ?? '';
+                        if ($ed && $ed !== '0000-00-00') {
+                            echo date('d/m/Y', strtotime($ed));
+                        } else {
+                            echo '<span class="text-muted">—</span>';
+                        }
+                    ?>
+                </td>
+                <td>
+                    <?php
+                        $et = $row['exam_time'] ?? '';
+                        if ($et && $et !== '00:00:00') {
+                            echo date('h:i A', strtotime($et));
+                        } else {
+                            echo '<span class="text-muted">—</span>';
+                        }
+                    ?>
+                </td>
                 <?php if ($hasDeadline): ?>
                 <td>
                     <?php
