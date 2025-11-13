@@ -2,6 +2,8 @@
 @include_once __DIR__ . '/../includes/bootstrap.php';
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
+// Fallback for BASE_URL if config not present/doesn't define it
+if (!defined('BASE_URL')) { define('BASE_URL', '../'); }
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
 
@@ -69,7 +71,10 @@ if ($rt = $conn->query($sqlT)) { while($r=$rt->fetch_assoc()){ $teachers[]=$r; }
 
 // Load active plans
 $plans = [];
-$hasStatus = ($conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")->num_rows>0);
+$hasStatus = false;
+if ($rc = $conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")) {
+  $hasStatus = ($rc->num_rows>0);
+}
 $sqlPlans = $hasStatus ? "SELECT id, plan_name, shift FROM seat_plans WHERE status='active' ORDER BY id DESC" : "SELECT id, plan_name, shift FROM seat_plans ORDER BY id DESC";
 if ($rp = $conn->query($sqlPlans)) { while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 
@@ -135,7 +140,7 @@ $sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? 
 // Precompute mapped exam dates for selected plan and normalize selected date
 $examDates = [];
 if ($sel_plan>0){
-  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>NULL ORDER BY es.exam_date ASC";
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
   if ($q = $conn->query($sqlDates)){
     while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
   }
