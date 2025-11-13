@@ -134,7 +134,7 @@ if ($sel_plan>0){
 }
 // Existing duties map
 $dutyMap = [];
-if ($sel_plan>0 && preg_match('~^\d{4}-\d{2}-\d{2}$~',$sel_date)){
+if ($sel_plan>0 && preg_match('~^\d{4}-\d{2}-\d{2}$~',$sel_date) && $sel_date!=='0000-00-00'){
     $q = $conn->prepare('SELECT room_id, teacher_user_id FROM exam_room_invigilation WHERE duty_date=? AND plan_id=?');
     $q->bind_param('si', $sel_date, $sel_plan); $q->execute(); $res=$q->get_result();
     if ($res){ while($r=$res->fetch_assoc()){ $dutyMap[(int)$r['room_id']] = (int)$r['teacher_user_id']; } }
@@ -148,9 +148,9 @@ include '../includes/sidebar.php';
 
 <div class="content-wrapper">
   <section class="content-header">
-                  // Normalize selected date: restrict to mapped dates only; fallback to 1970-01-01 to avoid strict-mode errors
-                  if (empty($examDates)) { $sel_date = '1970-01-01'; }
-                  else if ($sel_date==='0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
+    <div class="container-fluid">
+      <div class="row mb-2">
+        <div class="col-sm-6"><h4>Exam Duty Management</h4></div>
         <div class="col-sm-6"><ol class="breadcrumb float-sm-right"><li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li><li class="breadcrumb-item active">Exam Duty</li></ol></div>
       </div>
     </div>
