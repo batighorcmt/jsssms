@@ -1,6 +1,6 @@
 <?php
 @include_once __DIR__ . '/../includes/bootstrap.php';
-session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 // Optional debug: enable via ?debug=1
 if (isset($_GET['debug']) && $_GET['debug'] == '1') {
     ini_set('display_errors', '1');
