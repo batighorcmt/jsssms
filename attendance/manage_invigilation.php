@@ -1,6 +1,6 @@
 <?php
 @include_once __DIR__ . '/../includes/bootstrap.php';
-session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
@@ -222,6 +222,12 @@ include '../includes/sidebar.php';
                     <option value="">-- No mapped exam dates --</option>
                   </select>
                   <small class="form-text text-muted">Seat Plan → Edit এ গিয়ে Exams নির্বাচন করুন; তখন তারিখগুলো এখানে দেখাবে।</small>
+                  <?php if ($sel_plan>0): ?>
+                  <div class="alert alert-warning mt-2" role="alert">
+                    No exam dates available for this plan. Please map exams to the plan.
+                    <a class="alert-link" href="<?= BASE_URL ?>exam/seat_plan_edit.php?plan_id=<?= (int)$sel_plan ?>">Open Seat Plan → Edit</a>
+                  </div>
+                  <?php endif; ?>
                 <?php endif; ?>
               </div>
             </div>

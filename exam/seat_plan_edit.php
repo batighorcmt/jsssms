@@ -1,6 +1,6 @@
 <?php
 @include_once __DIR__ . '/../includes/bootstrap.php';
-session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
@@ -46,6 +46,34 @@ if ($rse = $conn->query('SELECT exam_id FROM seat_plan_exams WHERE plan_id='.$pl
 $toast = null;
 if ($_SERVER['REQUEST_METHOD']==='POST'){
     $action = $_POST['action'] ?? '';
+    if ($action==='auto_map_exams'){
+        // Auto-map exams by classes included in this plan
+        $classIds = [];
+        if ($rs = $conn->query('SELECT class_id FROM seat_plan_classes WHERE plan_id='.$plan_id)){
+            while($r=$rs->fetch_assoc()){ $classIds[] = (int)$r['class_id']; }
+        }
+        if (empty($classIds)){
+            $toast = ['type'=>'danger','msg'=>'Add classes to the plan first to auto-map exams.'];
+        } else {
+            $in = implode(',', array_map('intval', $classIds));
+            $examIds = [];
+            if ($re = $conn->query('SELECT id FROM exams WHERE class_id IN ('.$in.')')){
+                while($row=$re->fetch_assoc()){ $examIds[] = (int)$row['id']; }
+            }
+            if (empty($examIds)){
+                $toast = ['type'=>'danger','msg'=>'No exams found for the selected classes.'];
+            } else {
+                $ei = $conn->prepare('INSERT INTO seat_plan_exams (plan_id, exam_id) VALUES (?,?) ON DUPLICATE KEY UPDATE exam_id=VALUES(exam_id)');
+                foreach ($examIds as $eid){ $e=(int)$eid; if ($e>0){ $ei->bind_param('ii', $plan_id, $e); @$ei->execute(); } }
+                // Reload selected exams
+                $selectedExams = [];
+                if ($rse2 = $conn->query('SELECT exam_id FROM seat_plan_exams WHERE plan_id='.$plan_id)){
+                    while($r=$rse2->fetch_assoc()){ $selectedExams[] = (int)$r['exam_id']; }
+                }
+                $toast = ['type'=>'success','msg'=>'Exams auto-mapped by classes.'];
+            }
+        }
+    }
     if ($action==='update_plan'){
         $plan_name = trim($_POST['plan_name'] ?? '');
         $shift = trim($_POST['shift'] ?? 'Morning');
@@ -114,7 +142,13 @@ include '../includes/sidebar.php';
             <?php endif; ?>
 
             <div class="card">
-                <div class="card-header"><strong>Update Plan</strong></div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Update Plan</strong>
+                    <form method="post" class="m-0 p-0">
+                        <input type="hidden" name="action" value="auto_map_exams">
+                        <button class="btn btn-sm btn-outline-primary" type="submit" title="Map all exams of the selected classes to this plan">Auto Map Exams by Classes</button>
+                    </form>
+                </div>
                 <div class="card-body">
                     <form method="post">
                         <input type="hidden" name="action" value="update_plan">
