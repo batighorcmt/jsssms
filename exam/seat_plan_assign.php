@@ -24,6 +24,9 @@ if (!$plan || !$room) { header('Location: seat_plan.php'); exit(); }
 
 $columns = max(1, min(3, (int)($room['columns_count'] ?? 3)));
 $colBenches = [1=>(int)$room['col1_benches'], 2=>(int)$room['col2_benches'], 3=>(int)$room['col3_benches']];
+$hl_c = (int)($_GET['highlight_c'] ?? 0);
+$hl_b = (int)($_GET['highlight_b'] ?? 0);
+$hl_p = ($_GET['highlight_p'] ?? '') === 'R' ? 'R' : (($_GET['highlight_p'] ?? '') === 'L' ? 'L' : '');
 
 $toast = null;
 if ($_SERVER['REQUEST_METHOD']==='POST'){
@@ -104,7 +107,7 @@ include '../includes/sidebar.php';
 
     <section class="content">
         <div class="container-fluid">
-            <div class="mb-2 d-flex justify-content-between align-items-center">
+            <div class="mb-2 d-flex justify-content-between align-items-center flex-wrap">
                 <div>
                     <a class="btn btn-sm btn-outline-secondary" href="seat_plan_rooms.php?plan_id=<?= (int)$plan_id ?>"><i class="fas fa-arrow-left"></i> Back to Rooms</a>
                     <a class="btn btn-sm btn-outline-primary" target="_blank" href="seat_plan_print.php?plan_id=<?= (int)$plan_id ?>&room_id=<?= (int)$room_id ?>"><i class="fas fa-print"></i> Print This Room</a>
@@ -113,9 +116,7 @@ include '../includes/sidebar.php';
                     <a class="btn btn-sm btn-outline-dark" href="seat_plan.php"><i class="fas fa-th-large"></i> All Seat Plans</a>
                 </div>
             </div>
-            <?php if ($toast): ?>
-            <div class="alert alert-<?= $toast['type'] ?>"><?= htmlspecialchars($toast['msg']) ?></div>
-            <?php endif; ?>
+            <?php /* Toasts are shown via JS as top-right popups; no inline alert here. */ ?>
             <div class="row">
                 <div class="col-md-8">
                     <div class="card">
@@ -123,23 +124,17 @@ include '../includes/sidebar.php';
                         <div class="card-body">
                             <div id="grid" class="d-flex" style="gap:16px;">
                                 <?php for($c=1;$c<=$columns;$c++): $maxB=$colBenches[$c]??0; ?>
-                                <div class="flex-fill" style="min-width:220px;">
+                                <div class="seat-column flex-fill" style="min-width:220px;">
                                     <div class="text-center font-weight-bold mb-2">Column <?= $c ?> (<?= $maxB ?> benches)</div>
                                     <?php for($b=1;$b<=$maxB;$b++): $kL=$c.'-'.$b.'-L'; $kR=$c.'-'.$b.'-R'; $L=$alloc[$kL]??null; $R=$alloc[$kR]??null; ?>
-                                    <div class="d-flex align-items-center mb-2" style="border:1px dashed #bbb; padding:6px;">
+                                    <div class="bench-row d-flex align-items-center mb-2" style="border:1px dashed #bbb; padding:6px;">
                                         <div class="seat-cell p-2 mr-2 flex-fill border" data-c="<?= $c ?>" data-b="<?= $b ?>" data-p="L" style="cursor:pointer; background:#f8f9fa;">
                                             <div class="small text-muted">L</div>
                                             <?php if($L): ?>
                                                 <div class="seat-roll"><strong><?= htmlspecialchars($L['roll_no'] ?? '') ?></strong></div>
                                                 <div class="seat-name"><?= htmlspecialchars($L['student_name'] ?? '') ?></div>
                                                 <div class="seat-class text-muted">Class: <?= htmlspecialchars($L['class_name'] ?? '') ?></div>
-                                                <form method="post" class="mt-1">
-                                                    <input type="hidden" name="action" value="unassign">
-                                                    <input type="hidden" name="col_no" value="<?= $c ?>">
-                                                    <input type="hidden" name="bench_no" value="<?= $b ?>">
-                                                    <input type="hidden" name="position" value="L">
-                                                    <button class="btn btn-xs btn-outline-danger">Clear</button>
-                                                </form>
+                                                <button type="button" class="btn btn-xs btn-outline-danger mt-1 js-clear-seat" data-c="<?= $c ?>" data-b="<?= $b ?>" data-p="L">Clear</button>
                                             <?php else: ?>
                                                 <em class="text-muted">Empty</em>
                                             <?php endif; ?>
@@ -150,13 +145,7 @@ include '../includes/sidebar.php';
                                                 <div class="seat-roll"><strong><?= htmlspecialchars($R['roll_no'] ?? '') ?></strong></div>
                                                 <div class="seat-name"><?= htmlspecialchars($R['student_name'] ?? '') ?></div>
                                                 <div class="seat-class text-muted">Class: <?= htmlspecialchars($R['class_name'] ?? '') ?></div>
-                                                <form method="post" class="mt-1">
-                                                    <input type="hidden" name="action" value="unassign">
-                                                    <input type="hidden" name="col_no" value="<?= $c ?>">
-                                                    <input type="hidden" name="bench_no" value="<?= $b ?>">
-                                                    <input type="hidden" name="position" value="R">
-                                                    <button class="btn btn-xs btn-outline-danger">Clear</button>
-                                                </form>
+                                                <button type="button" class="btn btn-xs btn-outline-danger mt-1 js-clear-seat" data-c="<?= $c ?>" data-b="<?= $b ?>" data-p="R">Clear</button>
                                             <?php else: ?>
                                                 <em class="text-muted">Empty</em>
                                             <?php endif; ?>
@@ -166,7 +155,7 @@ include '../includes/sidebar.php';
                                 </div>
                                 <?php endfor; ?>
                             </div>
-                            <div class="mt-2 text-muted">Tip: Click a seat to open the assign modal, then choose class and student.</div>
+                            <div class="mt-2 text-muted">Tip: Click a seat, choose class, then click a student name to assign instantly.</div>
                         </div>
                     </div>
                 </div>
@@ -198,6 +187,36 @@ include '../includes/sidebar.php';
     .seat-roll{ font-size: 22px; font-weight: 900; color:#b00020; line-height:1; }
     .seat-name{ font-size: 13px; font-weight: 700; line-height:1.1; }
     .seat-class{ font-size: 16px; }
+
+    /* Top-right toast notifications */
+    .app-toast-container{ position:fixed; top:16px; right:16px; z-index:3000; display:flex; flex-direction:column; gap:10px; }
+    .app-toast{ min-width: 260px; max-width: 380px; background:#343a40; color:#fff; padding:10px 14px; border-radius:4px; box-shadow:0 6px 20px rgba(0,0,0,.2); opacity:0; transform:translateX(12px); transition:opacity .2s ease, transform .2s ease; font-weight:600; letter-spacing:.2px; }
+    .app-toast.show{ opacity:1; transform:translateX(0); }
+    .app-toast--success{ background:#28a745; }
+    .app-toast--danger{ background:#dc3545; }
+    .app-toast--warning{ background:#ffc107; color:#212529; }
+
+    /* Responsive adjustments */
+    #grid{ flex-wrap: wrap; }
+    @media (max-width: 767.98px){
+        .content-header h1{ font-size: 1.3rem; }
+        .seat-column{ min-width: 100% !important; }
+        /* Keep both ends of a bench side-by-side on mobile */
+        .bench-row{ flex-wrap: nowrap; }
+        .bench-row .seat-cell{ flex: 0 0 calc(50% - 4px); }
+        .bench-row .mr-2{ margin-right: 8px !important; }
+        .seat-roll{ font-size: 18px; }
+        .seat-class{ font-size: 14px; }
+        .card .btn{ margin-top: 6px; }
+        .mb-2.d-flex.flex-wrap > div{ margin-top: 6px; }
+        /* Toast: make it nearly full-width */
+        .app-toast-container{ left: 8px; right: 8px; align-items: stretch; }
+        .app-toast{ max-width: none; width: 100%; }
+    }
+
+    /* Highlight animation for located seat */
+    .seat-highlight{ box-shadow: 0 0 0 3px rgba(23,162,184,.45) inset, 0 0 0 2px rgba(23,162,184,.6); animation: seatPulse 1.2s ease-in-out 3; }
+    @keyframes seatPulse{ 0%{ background:#e8f7fa; } 50%{ background:#d1f0f7; } 100%{ background:#e8f7fa; } }
 </style>
 
 <!-- Assign Modal -->
@@ -234,10 +253,7 @@ include '../includes/sidebar.php';
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                <button type="submit" form="assignForm" class="btn btn-primary">Assign</button>
-            </div>
+            <div class="modal-footer d-none"><!-- Buttons removed: assign happens on select --></div>
         </div>
     </div>
     </div>
@@ -262,9 +278,12 @@ document.querySelectorAll('.seat-cell').forEach(el=>{
     });
 });
 // Prevent modal opening when clicking the small Clear buttons inside a seat
-document.querySelectorAll('.seat-cell form button').forEach(function(btn){
-    btn.addEventListener('click', function(e){ e.stopPropagation(); });
-});
+// Stop propagation on clear buttons inside a seat
+document.addEventListener('click', function(e){
+    if (e.target && e.target.classList && e.target.classList.contains('js-clear-seat')){
+        e.stopPropagation();
+    }
+}, true);
 // Initialize Select2 with AJAX search, excluding already-assigned by plan (server-side)
 $(function(){
         var $student = $('#student_select');
@@ -272,7 +291,7 @@ $(function(){
         theme: 'bootstrap4',
         width: '100%',
         dropdownParent: $('#assignModal'),
-        placeholder: 'শিক্ষার্থী নির্বাচন করুন',
+        placeholder: 'Select student',
         allowClear: true,
         minimumInputLength: 0,
         ajax: {
@@ -291,27 +310,26 @@ $(function(){
                     var id = s.student_id || s.id;
                     var roll = s.roll_no || '';
                     var name = s.student_name || '';
-                    // Format: (রোল - নাম)
-                    return { id: id, text: (roll ? roll : '') + (roll && name ? ' - ' : (name? '' : '')) + (name? name : '') };
+                    return { id: id, text: (roll ? roll : '') + (roll && name ? ' - ' : (name? '' : '')) + (name? name : ''), roll: roll, name: name };
                 });
                 return { results: results };
             }
         },
-                templateResult: function (data) {
-                    if (!data.id) { return data.text; }
-                    var text = data.text || '';
-                    // Ensure only (Roll - Name) is shown; collapse extra spaces
-                    text = String(text).replace(/\s+/g,' ').trim();
-                    return $('<span>').text(text);
-                },
-                templateSelection: function (data) {
-                    var text = data.text || '';
-                    text = String(text).replace(/\s+/g,' ').trim();
-                    return text;
-                },
+        templateResult: function (data) {
+            if (!data.id) { return data.text; }
+            var $row = $('<div class="d-flex justify-content-between align-items-center">'
+                + '<div><strong class="mr-2">'+ (data.roll || '') +'</strong><span>'+ (data.name || '') +'</span></div>'
+                + '</div>');
+            return $row;
+        },
+        templateSelection: function (data) {
+            var text = data.text || '';
+            text = String(text).replace(/\s+/g,' ').trim();
+            return text;
+        },
         language: {
-          noResults: function(){ return 'কোন ফলাফল নেই'; },
-          searching: function(){ return 'খোঁজা হচ্ছে…'; }
+          noResults: function(){ return 'No results'; },
+          searching: function(){ return 'Searching…'; }
         }
     });
 
@@ -330,6 +348,43 @@ $(function(){
             }, 80);
         });
 
+    // Auto-assign on select: submit form immediately when a student is selected
+    $student.on('select2:select', function(e){
+        var data = e.params && e.params.data ? e.params.data : null;
+        var sid = data ? data.id : $('#student_select').val();
+        var c = document.getElementById('m_col_no').value;
+        var b = document.getElementById('m_bench_no').value;
+        var p = document.getElementById('m_position').value;
+        if (!sid || !c || !b || !p){ return; }
+        // AJAX assign to avoid page reload
+        fetch('seat_plan_api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: new URLSearchParams({
+                action: 'assign',
+                plan_id: '<?= (int)$plan_id ?>',
+                room_id: '<?= (int)$room_id ?>',
+                student_id: sid,
+                col_no: c,
+                bench_no: b,
+                position: p
+            })
+        }).then(r=>r.json()).then(function(res){
+            if (!res || !res.success){
+                showToast('danger', (res && res.message) ? res.message : 'Assign failed');
+                return;
+            }
+            // Update seat cell DOM
+            var sel = '.seat-cell[data-c="'+c+'"][data-b="'+b+'"][data-p="'+p+'"]';
+            var cell = document.querySelector(sel);
+            if (cell){
+                renderSeatAssigned(cell, res.data);
+            }
+            $('#assignModal').modal('hide');
+            showToast('success', 'Seat assigned');
+        }).catch(function(){ showToast('danger', 'Assign failed'); });
+    });
+
     // When modal opens, if class selected, open dropdown, else focus class select
     $('#assignModal').on('shown.bs.modal', function(){
         if ($('#modal_class_id').val()) {
@@ -340,5 +395,119 @@ $(function(){
             $('#modal_class_id').focus();
         }
     });
+
+    // If highlight params are provided, highlight and scroll to the seat
+    <?php if ($hl_c>0 && $hl_b>0 && $hl_p!==''): ?>
+    setTimeout(function(){
+        var sel = '.seat-cell[data-c="<?= (int)$hl_c ?>"][data-b="<?= (int)$hl_b ?>"][data-p="<?= $hl_p ?>"]';
+        var el = document.querySelector(sel);
+        if (el){
+            el.classList.add('seat-highlight');
+            el.scrollIntoView({ behavior:'smooth', block:'center' });
+            showToast('info', 'Highlighted seat: C<?= (int)$hl_c ?>-B<?= (int)$hl_b ?>-<?= $hl_p ?>', 2200);
+        }
+    }, 300);
+    <?php endif; ?>
+    // Unassign via AJAX
+    document.addEventListener('click', function(e){
+        var btn = e.target.closest('.js-clear-seat');
+        if (!btn) return;
+        e.preventDefault();
+        var c = btn.getAttribute('data-c');
+        var b = btn.getAttribute('data-b');
+        var p = btn.getAttribute('data-p');
+        fetch('seat_plan_api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: new URLSearchParams({
+                action: 'unassign',
+                plan_id: '<?= (int)$plan_id ?>',
+                room_id: '<?= (int)$room_id ?>',
+                col_no: c,
+                bench_no: b,
+                position: p
+            })
+        }).then(r=>r.json()).then(function(res){
+            if (!res || !res.success){ showToast('danger', 'Clear failed'); return; }
+            // Update the seat cell to empty state
+            var sel = '.seat-cell[data-c="'+c+'"][data-b="'+b+'"][data-p="'+p+'"]';
+            var cell = document.querySelector(sel);
+            if (cell){ renderSeatEmpty(cell); }
+            showToast('success', 'Seat cleared');
+        }).catch(function(){ showToast('danger', 'Clear failed'); });
+    });
 });
+
+// Helpers to render seat cell content (assigned / empty) without reload
+function renderSeatAssigned(cell, data){
+    if (!cell) return;
+    var roll = (data && data.roll_no) ? String(data.roll_no) : '';
+    var name = (data && data.student_name) ? String(data.student_name) : '';
+    var cls = (data && data.class_name) ? String(data.class_name) : '';
+    var c = cell.getAttribute('data-c');
+    var b = cell.getAttribute('data-b');
+    var p = cell.getAttribute('data-p');
+    // Build inner HTML
+    var html = '';
+    html += '<div class="small text-muted">'+ (p==='R'?'R':'L') +'</div>';
+    html += '<div class="seat-roll"><strong>'+ escapeHtml(roll) +'</strong></div>';
+    html += '<div class="seat-name">'+ escapeHtml(name) +'</div>';
+    html += '<div class="seat-class text-muted">Class: '+ escapeHtml(cls) +'</div>';
+    html += '<button type="button" class="btn btn-xs btn-outline-danger mt-1 js-clear-seat" data-c="'+c+'" data-b="'+b+'" data-p="'+p+'">Clear</button>';
+    cell.innerHTML = html;
+}
+function renderSeatEmpty(cell){
+    if (!cell) return;
+    var p = cell.getAttribute('data-p');
+    var html = '';
+    html += '<div class="small text-muted">'+ (p==='R'?'R':'L') +'</div>';
+    html += '<em class="text-muted">Empty</em>';
+    cell.innerHTML = html;
+}
+function escapeHtml(s){
+    return String(s||'').replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]); });
+}
+</script>
+
+<!-- Toast helper and auto-show from PHP $toast -->
+<script>
+(function(){
+    function ensureToastContainer(){
+        var c = document.getElementById('app-toast-container');
+        if (!c){
+            c = document.createElement('div');
+            c.id = 'app-toast-container';
+            c.className = 'app-toast-container';
+            document.body.appendChild(c);
+        }
+        return c;
+    }
+    window.showToast = function(type, message, duration){
+        try{
+            duration = duration || 2500;
+            var c = ensureToastContainer();
+            var t = document.createElement('div');
+            var cls = 'app-toast';
+            if (type === 'success') cls += ' app-toast--success';
+            else if (type === 'warning') cls += ' app-toast--warning';
+            else cls += ' app-toast--danger';
+            t.className = cls;
+            t.setAttribute('role','alert');
+            t.textContent = message || '';
+            c.appendChild(t);
+            requestAnimationFrame(function(){ t.classList.add('show'); });
+            setTimeout(function(){
+                t.classList.remove('show');
+                setTimeout(function(){ if (t && t.parentNode) t.parentNode.removeChild(t); }, 300);
+            }, duration);
+        } catch(e) {
+            console && console.warn && console.warn('Toast error', e);
+        }
+    };
+    <?php if ($toast): ?>
+    document.addEventListener('DOMContentLoaded', function(){
+        showToast('<?= $toast['type'] ?>', '<?= htmlspecialchars($toast['msg'], ENT_QUOTES) ?>', 2500);
+    });
+    <?php endif; ?>
+})();
 </script>

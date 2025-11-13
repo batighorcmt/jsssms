@@ -182,7 +182,12 @@ include '../includes/sidebar.php';
             </div>
 
             <div class="card">
-                <div class="card-header"><strong>Seat Plans</strong></div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Seat Plans</strong>
+                    <div class="form-inline">
+                        <input id="plansFilter" type="text" class="form-control form-control-sm" placeholder="Filter by name or shift">
+                    </div>
+                </div>
                 <div class="card-body table-responsive p-0">
                     <table class="table table-bordered table-hover mb-0">
                         <thead class="thead-light">
@@ -204,7 +209,8 @@ include '../includes/sidebar.php';
                                 <td><?= htmlspecialchars($p['shift']) ?></td>
                                 <td><?= htmlspecialchars($p['created_at']) ?></td>
                                 <td>
-                                    <a class="btn btn-sm btn-primary" href="seat_plan_rooms.php?plan_id=<?= (int)$p['id'] ?>">Create Rooms</a>
+                                    <a class="btn btn-sm btn-primary" href="seat_plan_rooms.php?plan_id=<?= (int)$p['id'] ?>">View Rooms</a>
+                                    <a class="btn btn-sm btn-info" href="seat_plan_edit.php?plan_id=<?= (int)$p['id'] ?>">Edit</a>
                                     <form method="post" action="" style="display:inline" onsubmit="return confirm('Delete this plan and all its rooms/allocations?');">
                                         <input type="hidden" name="action" value="delete_plan">
                                         <input type="hidden" name="plan_id" value="<?= (int)$p['id'] ?>">
@@ -217,6 +223,25 @@ include '../includes/sidebar.php';
                     </table>
                 </div>
             </div>
+            <script>
+            (function(){
+                var input = document.getElementById('plansFilter');
+                if (!input) return;
+                var table = input.closest('.card').querySelector('table');
+                var tbody = table ? table.querySelector('tbody') : null;
+                function filter(){
+                    var term = (input.value || '').toLowerCase().trim();
+                    if (!tbody) return;
+                    Array.prototype.forEach.call(tbody.rows, function(tr){
+                        if (tr.querySelector('td[colspan]')) return; // skip empty row
+                        var name = (tr.cells[1]?.innerText || '').toLowerCase();
+                        var shift = (tr.cells[2]?.innerText || '').toLowerCase();
+                        tr.style.display = (!term || name.indexOf(term)>-1 || shift.indexOf(term)>-1) ? '' : 'none';
+                    });
+                }
+                input.addEventListener('input', filter);
+            })();
+            </script>
         </div>
     </section>
 </div>

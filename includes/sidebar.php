@@ -77,6 +77,12 @@ $current = basename($_SERVER['PHP_SELF']);
           </a>
         </li>
         <li class="nav-item">
+          <a href="<?= $BASE_URL ?>exam/seat_plan_find.php" class="nav-link <?= ($current=='seat_plan_find.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-search"></i>
+            <p>Find Student Seat</p>
+          </a>
+        </li>
+        <li class="nav-item">
           <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current=='mark_entry.php')?'active':'' ?>">
             <i class="nav-icon fas fa-pen"></i>
             <p>Mark Entry</p>
@@ -95,6 +101,12 @@ $current = basename($_SERVER['PHP_SELF']);
           <a href="<?= $BASE_URL ?>exam/mark_entry.php" class="nav-link <?= ($current=='mark_entry.php')?'active':'' ?>">
             <i class="nav-icon fas fa-pen"></i>
             <p>Mark Entry</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>exam/seat_plan_find.php" class="nav-link <?= ($current=='seat_plan_find.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-search"></i>
+            <p>Find Student Seat</p>
           </a>
         </li>
         <?php endif; ?>

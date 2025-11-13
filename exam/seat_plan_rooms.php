@@ -92,12 +92,66 @@ include '../includes/sidebar.php';
 
     <section class="content">
         <div class="container-fluid">
-            <div class="mb-2 d-flex justify-content-between align-items-center">
-                <div>
+            <div class="mb-2 d-flex justify-content-between align-items-center flex-wrap">
+                <div class="mb-2 mb-md-0">
                     <a class="btn btn-sm btn-outline-secondary" href="seat_plan.php"><i class="fas fa-arrow-left"></i> Back to Plans</a>
                 </div>
-                <div></div>
+                <div class="ml-md-auto">
+                    <form class="form-inline" method="get" action="seat_plan_rooms.php">
+                        <input type="hidden" name="plan_id" value="<?= (int)$plan_id ?>">
+                        <div class="input-group input-group-sm">
+                            <input type="text" name="find" value="<?= htmlspecialchars($_GET['find'] ?? '') ?>" class="form-control" placeholder="Find seat by Roll or Name">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> Find</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
+            <?php
+            // Quick find: search assigned seat by roll/name within this plan
+            $find = trim($_GET['find'] ?? '');
+            if ($find !== '') {
+                $q = $conn->real_escape_string($find);
+                $cond = [];
+                if (preg_match('/^\d+$/', $find)) {
+                    // numeric: match roll or ids prefix
+                    $cond[] = "(CAST(COALESCE(s1.roll_no, s2.roll_no) AS CHAR) LIKE '{$q}%' OR CAST(a.student_id AS CHAR) LIKE '{$q}%')";
+                } else {
+                    // text: name like
+                    $cond[] = "(COALESCE(s1.student_name, s2.student_name) LIKE '%{$q}%')";
+                }
+                $where = implode(' AND ', $cond);
+                $sql = "SELECT a.*, r.room_no, r.id AS room_id,
+                        COALESCE(s1.student_name, s2.student_name) AS student_name,
+                        COALESCE(s1.roll_no, s2.roll_no) AS roll_no,
+                        COALESCE(c1.class_name, c2.class_name) AS class_name
+                        FROM seat_plan_allocations a
+                        JOIN seat_plan_rooms r ON r.id=a.room_id AND r.plan_id={$plan_id}
+                        LEFT JOIN students s1 ON s1.student_id=a.student_id
+                        LEFT JOIN students s2 ON s2.id=a.student_id
+                        LEFT JOIN classes c1 ON c1.id = s1.class_id
+                        LEFT JOIN classes c2 ON c2.id = s2.class_id
+                        WHERE {$where}
+                        ORDER BY a.id DESC LIMIT 1";
+                $sr = @$conn->query($sql);
+                if ($sr && $sr->num_rows > 0) { $S = $sr->fetch_assoc(); ?>
+                    <div class="alert alert-info">
+                        <strong>Seat found:</strong>
+                        <span class="ml-2">Student: <strong><?= htmlspecialchars(($S['roll_no'] ? $S['roll_no'].' - ' : '').($S['student_name'] ?? '')) ?></strong> (<?= htmlspecialchars($S['class_name'] ?? '') ?>)</span>
+                        <span class="ml-2">Room: <strong><?= htmlspecialchars($S['room_no']) ?></strong></span>
+                        <span class="ml-2">Column: <strong><?= (int)$S['col_no'] ?></strong></span>
+                        <span class="ml-2">Bench: <strong><?= (int)$S['bench_no'] ?></strong></span>
+                        <span class="ml-2">Position: <strong><?= ($S['position']==='R'?'Right':'Left') ?></strong></span>
+                        <a class="btn btn-sm btn-outline-primary ml-3" href="seat_plan_assign.php?plan_id=<?= (int)$plan_id ?>&room_id=<?= (int)$S['room_id'] ?>&highlight_c=<?= (int)$S['col_no'] ?>&highlight_b=<?= (int)$S['bench_no'] ?>&highlight_p=<?= urlencode($S['position']) ?>">
+                            Open room & highlight
+                        </a>
+                    </div>
+                <?php } else { ?>
+                    <div class="alert alert-warning">No assigned seat found for "<?= htmlspecialchars($find) ?>" in this plan.</div>
+                <?php }
+            }
+            ?>
             <?php if ($toast): ?>
             <div class="alert alert-<?= $toast['type'] ?>"><?= htmlspecialchars($toast['msg']) ?></div>
             <?php endif; ?>
@@ -177,10 +231,10 @@ include '../includes/sidebar.php';
             </script>
 
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header d-flex align-items-center">
                     <strong>Rooms in this Plan</strong>
                     <?php if (!empty($rooms)): ?>
-                    <a class="btn btn-sm btn-outline-primary" target="_blank" href="seat_plan_print_all.php?plan_id=<?= (int)$plan_id ?>"><i class="fas fa-print"></i> Print All Rooms</a>
+                    <a class="btn btn-sm btn-outline-primary ml-auto" target="_blank" href="seat_plan_print_all.php?plan_id=<?= (int)$plan_id ?>"><i class="fas fa-print"></i> Print All Rooms</a>
                     <?php endif; ?>
                 </div>
                 <div class="card-body table-responsive p-0">
