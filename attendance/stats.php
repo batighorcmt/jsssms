@@ -19,6 +19,17 @@ $sqlPlans = $hasStatus ? "SELECT id, plan_name, shift FROM seat_plans WHERE stat
 if ($rp=$conn->query($sqlPlans)){ while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 if ($plan_id===0 && !empty($plans)) $plan_id=(int)$plans[0]['id'];
 
+// Build date options for dropdown (distinct exam dates)
+$dateOptions = [];
+if ($q=$conn->query("SELECT DISTINCT exam_date FROM exam_subjects WHERE exam_date IS NOT NULL AND exam_date<>'' AND exam_date<>'0000-00-00' ORDER BY exam_date ASC")){
+  while($r=$q->fetch_assoc()){
+    $d = $r['exam_date'];
+    if ($d) $dateOptions[] = $d;
+  }
+}
+// Ensure current selected date is present in options
+if ($date && !in_array($date, $dateOptions, true)) array_unshift($dateOptions, $date);
+
 $rows = [];
 if (preg_match('~^\d{4}-\d{2}-\d{2}$~',$date) && $plan_id>0){
   $sql = "SELECT r.room_no, COALESCE(c1.class_name, c2.class_name) AS class_name,
@@ -55,7 +66,11 @@ include '../includes/sidebar.php';
             <div class="form-row align-items-end w-100">
               <div class="form-group mr-2">
                 <label class="mr-2">Date</label>
-                <input id="statDate" type="date" name="date" value="<?= htmlspecialchars($date) ?>" class="form-control" required>
+                <select id="statDate" name="date" class="form-control" required>
+                  <?php foreach($dateOptions as $d): $label = (strtotime($d) ? date('d/m/Y', strtotime($d)) : htmlspecialchars($d)); ?>
+                    <option value="<?= htmlspecialchars($d) ?>" <?= $date===$d ? 'selected' : '' ?>><?= $label ?></option>
+                  <?php endforeach; ?>
+                </select>
               </div>
               <div class="form-group mr-2">
                 <label class="mr-2">Seat Plan</label>
