@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
     $duty_date = trim($_POST['duty_date'] ?? '');
     $plan_id = (int)($_POST['plan_id'] ?? 0);
     $map = $_POST['room_teacher'] ?? [];
-  if (!preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) || $plan_id<=0){ $toast=['type'=>'error','msg'=>'Invalid date or plan']; }
+  if (!preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) || $duty_date==='0000-00-00' || $plan_id<=0){ $toast=['type'=>'error','msg'=>'Invalid date or plan']; }
     else {
     // Enforce: a teacher can be assigned to only one room for the selected date+plan
     $teacherCounts = [];
@@ -148,9 +148,9 @@ include '../includes/sidebar.php';
 
 <div class="content-wrapper">
   <section class="content-header">
-    <div class="container-fluid">
-      <div class="row mb-2">
-        <div class="col-sm-6"><h4>Exam Duty Management</h4></div>
+                  // Normalize selected date: restrict to mapped dates only; fallback to 1970-01-01 to avoid strict-mode errors
+                  if (empty($examDates)) { $sel_date = '1970-01-01'; }
+                  else if ($sel_date==='0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
         <div class="col-sm-6"><ol class="breadcrumb float-sm-right"><li class="breadcrumb-item"><a href="<?= BASE_URL ?>dashboard.php">Home</a></li><li class="breadcrumb-item active">Exam Duty</li></ol></div>
       </div>
     </div>
@@ -207,9 +207,9 @@ include '../includes/sidebar.php';
                       while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
                     }
                   }
-                  // Normalize selected date: restrict to mapped dates only
-                  if (empty($examDates)) { $sel_date = ''; }
-                  else if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', $sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
+                  // Normalize selected date: restrict to mapped dates only; fallback to 1970-01-01 to avoid strict-mode errors
+                  if (empty($examDates)) { $sel_date = '1970-01-01'; }
+                  else if ($sel_date==='0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
                 ?>
                 <?php if (!empty($examDates)): ?>
                   <select id="filterDate" name="duty_date" class="form-control" required>

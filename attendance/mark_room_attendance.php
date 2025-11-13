@@ -18,6 +18,7 @@ function is_controller(mysqli $conn, $userId){ $userId=(int)$userId; if ($userId
 function can_access(mysqli $conn, $userId, $role, $date, $plan_id, $room_id){ if ($role==='super_admin' || is_controller($conn,$userId)) return true; $st=$conn->prepare('SELECT 1 FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? AND teacher_user_id=? LIMIT 1'); $st->bind_param('siii',$date,$plan_id,$room_id,$userId); $st->execute(); $st->store_result(); return ($st->num_rows>0); }
 
 $date = $_GET['date'] ?? date('Y-m-d');
+if ($date === '0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $date)) { $date = '1970-01-01'; }
 $plan_id = (int)($_GET['plan_id'] ?? 0);
 $room_id = (int)($_GET['room_id'] ?? 0);
 $uid = (int)($_SESSION['id'] ?? 0);

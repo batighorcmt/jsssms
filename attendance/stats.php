@@ -11,6 +11,7 @@ function require_ctrl_or_admin(mysqli $conn){ if (($_SESSION['role'] ?? '')==='s
 require_ctrl_or_admin($conn);
 
 $date = isset($_GET['date']) ? (string)$_GET['date'] : date('Y-m-d');
+if ($date === '0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $date)) { $date = '1970-01-01'; }
 $plan_id = (int)($_GET['plan_id'] ?? 0);
 
 // Load active plans
@@ -29,8 +30,8 @@ if ($plan_id > 0) {
 }
 // Normalize selected date against plan-scoped options
 if (empty($dateOptions)) {
-  $date = '';
-} else if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', $date) || !in_array($date, $dateOptions, true)) {
+  $date = '1970-01-01';
+} else if ($date==='0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $date) || !in_array($date, $dateOptions, true)) {
   $date = $dateOptions[0];
 }
 
