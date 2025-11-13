@@ -2,6 +2,8 @@
 @include_once __DIR__ . '/../includes/bootstrap.php';
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
+// Fallback for BASE_URL if config not present
+if (!defined('BASE_URL')) { define('BASE_URL', '../'); }
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
 
@@ -69,7 +71,10 @@ if ($rt = $conn->query($sqlT)) { while($r=$rt->fetch_assoc()){ $teachers[]=$r; }
 
 // Load active plans
 $plans = [];
-$hasStatus = ($conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")->num_rows>0);
+$hasStatus = false;
+if ($rc = $conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")) {
+  $hasStatus = ($rc->num_rows>0);
+}
 $sqlPlans = $hasStatus ? "SELECT id, plan_name, shift FROM seat_plans WHERE status='active' ORDER BY id DESC" : "SELECT id, plan_name, shift FROM seat_plans ORDER BY id DESC";
 if ($rp = $conn->query($sqlPlans)) { while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 
