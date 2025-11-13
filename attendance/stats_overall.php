@@ -18,10 +18,13 @@ $sqlPlans = $hasStatus ? "SELECT id, plan_name, shift FROM seat_plans WHERE stat
 if ($rp=$conn->query($sqlPlans)){ while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 if ($plan_id===0 && !empty($plans)) $plan_id=(int)$plans[0]['id'];
 
-// Gather distinct exam dates (from schedule) to list; totals from attendance table
+// Gather distinct exam dates strictly from exams mapped to the selected plan
 $dates = [];
-if ($q=$conn->query("SELECT DISTINCT exam_date FROM exam_subjects WHERE exam_date IS NOT NULL AND exam_date<>'' AND exam_date<>'0000-00-00' ORDER BY exam_date ASC")){
-  while($r=$q->fetch_assoc()){ if (!empty($r['exam_date'])) $dates[]=$r['exam_date']; }
+if ($plan_id>0){
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'' AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  if ($q=$conn->query($sqlDates)){
+    while($r=$q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $dates[]=$d; }
+  }
 }
 
 $summary = [];

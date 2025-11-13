@@ -5,6 +5,15 @@ session_start();
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
 
+// Ensure mapping table exists (in case user opens edit directly)
+$conn->query("CREATE TABLE IF NOT EXISTS seat_plan_exams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    plan_id INT NOT NULL,
+    exam_id INT NOT NULL,
+    UNIQUE KEY uniq_plan_exam (plan_id, exam_id),
+    INDEX idx_plan (plan_id)
+)");
+
 $plan_id = (int)($_GET['plan_id'] ?? 0);
 if ($plan_id <= 0) { header('Location: seat_plan.php'); exit(); }
 
@@ -24,6 +33,16 @@ $selected = [];
 $rs = $conn->query('SELECT class_id FROM seat_plan_classes WHERE plan_id='.$plan_id);
 if ($rs) { while($r=$rs->fetch_assoc()){ $selected[] = (int)$r['class_id']; } }
 
+// Load exams list and selected exam ids
+$exams = [];
+if ($re = $conn->query('SELECT e.id, e.exam_name, c.class_name FROM exams e LEFT JOIN classes c ON c.id=e.class_id ORDER BY e.id DESC')){
+    while($r=$re->fetch_assoc()){ $exams[]=$r; }
+}
+$selectedExams = [];
+if ($rse = $conn->query('SELECT exam_id FROM seat_plan_exams WHERE plan_id='.$plan_id)){
+    while($r=$rse->fetch_assoc()){ $selectedExams[] = (int)$r['exam_id']; }
+}
+
 $toast = null;
 if ($_SERVER['REQUEST_METHOD']==='POST'){
     $action = $_POST['action'] ?? '';
@@ -31,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
         $plan_name = trim($_POST['plan_name'] ?? '');
         $shift = trim($_POST['shift'] ?? 'Morning');
         $classesSel = $_POST['classes'] ?? [];
+        $examsSel = $_POST['exams'] ?? [];
         if ($plan_name===''){ $toast = ['type'=>'danger','msg'=>'Plan name is required']; }
         else {
             $upd = $conn->prepare('UPDATE seat_plans SET plan_name=?, shift=? WHERE id=?');
@@ -42,10 +62,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
                     $ci = $conn->prepare('INSERT INTO seat_plan_classes (plan_id, class_id) VALUES (?,?)');
                     foreach ($classesSel as $cid){ $c=(int)$cid; if ($c>0){ $ci->bind_param('ii', $plan_id, $c); @$ci->execute(); } }
                 }
+                // update exams mapping: replace
+                $conn->query('DELETE FROM seat_plan_exams WHERE plan_id='.$plan_id);
+                if (!empty($examsSel)){
+                    $ei = $conn->prepare('INSERT INTO seat_plan_exams (plan_id, exam_id) VALUES (?,?)');
+                    foreach ($examsSel as $eid){ $e=(int)$eid; if ($e>0){ $ei->bind_param('ii', $plan_id, $e); @$ei->execute(); } }
+                }
                 // reload selected
                 $selected = [];
                 $rs2 = $conn->query('SELECT class_id FROM seat_plan_classes WHERE plan_id='.$plan_id);
                 if ($rs2) { while($r=$rs2->fetch_assoc()){ $selected[] = (int)$r['class_id']; } }
+                $selectedExams = [];
+                if ($rse2 = $conn->query('SELECT exam_id FROM seat_plan_exams WHERE plan_id='.$plan_id)){
+                    while($r=$rse2->fetch_assoc()){ $selectedExams[] = (int)$r['exam_id']; }
+                }
                 // refresh plan
                 $rp2 = $conn->query('SELECT * FROM seat_plans WHERE id='.$plan_id.' LIMIT 1');
                 if ($rp2 && $rp2->num_rows>0) { $plan = $rp2->fetch_assoc(); }
@@ -108,6 +138,15 @@ include '../includes/sidebar.php';
                                     <?php endforeach; ?>
                                 </select>
                                 <small class="text-muted">Hold Ctrl to select multiple</small>
+                            </div>
+                            <div class="form-group col-md-12 mt-2">
+                                <label>Exams included in this plan (optional, multi-select)</label>
+                                <select name="exams[]" class="form-control" multiple size="6">
+                                    <?php foreach($exams as $e): $eid=(int)($e['id'] ?? 0); ?>
+                                        <option value="<?= $eid ?>" <?= in_array($eid, $selectedExams)?'selected':''; ?>><?= htmlspecialchars(($e['exam_name'] ?? 'Exam').' — '.($e['class_name'] ?? '')) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted">If selected, date filters and related views will only use these exams' dates.</small>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between">

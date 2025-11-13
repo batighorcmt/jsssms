@@ -72,6 +72,15 @@ $conn->query("CREATE TABLE IF NOT EXISTS seat_plan_allocations (
   INDEX idx_room (room_id)
 )");
 
+// seat_plan_exams: map a seat plan to one or more exams
+$conn->query("CREATE TABLE IF NOT EXISTS seat_plan_exams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    plan_id INT NOT NULL,
+    exam_id INT NOT NULL,
+    UNIQUE KEY uniq_plan_exam (plan_id, exam_id),
+    INDEX idx_plan (plan_id)
+)");
+
 // ---------- Helpers ----------
 function fetch_classes(mysqli $conn){
         $out = [];
@@ -84,6 +93,13 @@ function fetch_plans(mysqli $conn){
     $out = [];
     $res = $conn->query('SELECT id, plan_name, shift, status, created_at FROM seat_plans ORDER BY id DESC');
     if ($res) { while($r=$res->fetch_assoc()){ $out[]=$r; } }
+    return $out;
+}
+function fetch_exams(mysqli $conn){
+    $out = [];
+    if ($rs = $conn->query('SELECT e.id, e.exam_name, c.class_name FROM exams e LEFT JOIN classes c ON c.id=e.class_id ORDER BY e.id DESC')){
+        while($r=$rs->fetch_assoc()){ $out[]=$r; }
+    }
     return $out;
 }
 function room_capacity($r){
@@ -100,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $plan_name = trim($_POST['plan_name'] ?? '');
         $shift = trim($_POST['shift'] ?? 'Morning');
         $classesSel = $_POST['classes'] ?? [];
+        $examsSel = $_POST['exams'] ?? [];
         if ($plan_name === '' || empty($classesSel)) {
         $toast = ['type'=>'danger','msg'=>'Please provide Plan Name and select at least one Class.'];
         } else {
@@ -109,6 +126,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pid = $conn->insert_id;
             $ci = $conn->prepare('INSERT INTO seat_plan_classes (plan_id, class_id) VALUES (?,?)');
             foreach ($classesSel as $cid) { $c=(int)$cid; if ($c>0) { $ci->bind_param('ii', $pid, $c); @$ci->execute(); } }
+            if (!empty($examsSel)){
+                $ei = $conn->prepare('INSERT INTO seat_plan_exams (plan_id, exam_id) VALUES (?,?)');
+                foreach ($examsSel as $eid){ $e=(int)$eid; if ($e>0){ $ei->bind_param('ii', $pid, $e); @$ei->execute(); } }
+            }
             header('Location: seat_plan_rooms.php?plan_id='.$pid);
             exit();
         } else {
@@ -123,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->query('DELETE spa FROM seat_plan_allocations spa JOIN seat_plan_rooms spr ON spa.room_id=spr.id WHERE spr.plan_id='.$pid);
         $conn->query('DELETE FROM seat_plan_rooms WHERE plan_id='.$pid);
         $conn->query('DELETE FROM seat_plan_classes WHERE plan_id='.$pid);
+        $conn->query('DELETE FROM seat_plan_exams WHERE plan_id='.$pid);
         $conn->query('DELETE FROM seat_plans WHERE id='.$pid);
         $toast = ['type'=>'success','msg'=>'Plan deleted'];
         }
@@ -142,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ---------- Load data for view ----------
 $classes = fetch_classes($conn);
+$exams = fetch_exams($conn);
 $plans = fetch_plans($conn);
 
 include '../includes/header.php';
@@ -193,6 +216,15 @@ include '../includes/sidebar.php';
                                     <?php endforeach; ?>
                                 </select>
                                 <small class="text-muted">Hold Ctrl to select multiple</small>
+                            </div>
+                            <div class="form-group col-md-12 mt-2">
+                                <label>Exams included in this plan (optional, multi-select)</label>
+                                <select name="exams[]" class="form-control" multiple size="6">
+                                    <?php foreach($exams as $e): ?>
+                                        <option value="<?= (int)$e['id'] ?>"><?= htmlspecialchars(($e['exam_name'] ?? 'Exam').' — '.($e['class_name'] ?? '')) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted">If selected, date filters and related views will only use these exams' dates.</small>
                             </div>
                         </div>
                         <button class="btn btn-success">Create Plan</button>

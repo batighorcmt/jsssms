@@ -19,21 +19,18 @@ $sqlPlans = $hasStatus ? "SELECT id, plan_name, shift FROM seat_plans WHERE stat
 if ($rp=$conn->query($sqlPlans)){ while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 if ($plan_id===0 && !empty($plans)) $plan_id=(int)$plans[0]['id'];
 
-// Build date options for dropdown (distinct exam dates)
+// Build date options for dropdown, scoped strictly to mapped exams of the selected plan
 $dateOptions = [];
-if ($q=$conn->query("SELECT DISTINCT exam_date FROM exam_subjects WHERE exam_date IS NOT NULL AND exam_date<>'' AND exam_date<>'0000-00-00' ORDER BY exam_date ASC")){
-  while($r=$q->fetch_assoc()){
-    $d = $r['exam_date'];
-    if ($d) $dateOptions[] = $d;
-  }
+if ($plan_id > 0) {
+  // Only use dates from exams mapped to this plan; no fallback
+  $sqlDatesExam = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'' AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  if ($q0 = $conn->query($sqlDatesExam)) { while($r=$q0->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $dateOptions[]=$d; } }
 }
-// Normalize selected date: if empty/invalid, pick first available
-if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', $date) || $date === '0000-00-00') {
-  $date = !empty($dateOptions) ? $dateOptions[0] : '';
-}
-// Ensure current selected date is present in options (only if valid)
-if ($date && preg_match('~^\d{4}-\d{2}-\d{2}$~', $date) && !in_array($date, $dateOptions, true)) {
-  array_unshift($dateOptions, $date);
+// Normalize selected date against plan-scoped options
+if (empty($dateOptions)) {
+  $date = '';
+} else if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', $date) || !in_array($date, $dateOptions, true)) {
+  $date = $dateOptions[0];
 }
 
 $rows = [];
@@ -73,7 +70,7 @@ include '../includes/sidebar.php';
               <div class="form-group mr-2">
                 <label class="mr-2">Date</label>
                 <select id="statDate" name="date" class="form-control" required>
-                  <?php foreach($dateOptions as $d): $label = (strtotime($d) ? date('d/m/Y', strtotime($d)) : htmlspecialchars($d)); ?>
+                  <?php foreach($dateOptions as $d): $label = (preg_match('~^\\d{4}-\\d{2}-\\d{2}$~',$d) ? date('d/m/Y', strtotime($d)) : htmlspecialchars($d)); ?>
                     <option value="<?= htmlspecialchars($d) ?>" <?= $date===$d ? 'selected' : '' ?>><?= $label ?></option>
                   <?php endforeach; ?>
                 </select>
@@ -160,7 +157,11 @@ include '../includes/sidebar.php';
         </div>
       </div>
       <?php else: ?>
-        <div class="alert alert-info">Select date and plan to view stats.</div>
+        <?php if ($plan_id>0 && empty($dateOptions)): ?>
+          <div class="alert alert-info">এই সীট প্ল্যানের সাথে কোনো পরীক্ষা (Exams) ম্যাপ করা নেই, তাই তারিখ দেখানো হচ্ছে না। Seat Plan → Edit এ গিয়ে Exams নির্বাচন করুন।</div>
+        <?php else: ?>
+          <div class="alert alert-info">তারিখ ও সীট প্ল্যান নির্বাচন করুন।</div>
+        <?php endif; ?>
       <?php endif; ?>
 
     </div>
