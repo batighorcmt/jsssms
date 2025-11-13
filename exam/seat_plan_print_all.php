@@ -162,10 +162,14 @@ function badgeClassForAll($className){ $g = detectGradeFromClass($className); re
     <?php /* Precompute room names */ ?>
 </head>
 <body>
-    <div class="print-toolbar no-print" style="display:flex; gap:8px; align-items:center;">
-        <a href="#" onclick="window.print(); return false;" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">Print</a>
-        <a href="seat_plan_rooms.php?plan_id=<?= (int)$plan_id ?>" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">Back to Rooms</a>
-        <a href="seat_plan.php" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">All Seat Plans</a>
+    <div class="print-toolbar no-print" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <div class="left-actions" style="display:flex; gap:8px; align-items:center;">
+            <a href="seat_plan_rooms.php?plan_id=<?= (int)$plan_id ?>" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">Back to Rooms</a>
+            <a href="seat_plan.php" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">All Seat Plans</a>
+        </div>
+        <div class="right-actions">
+            <a href="#" onclick="window.print(); return false;" style="text-decoration:none; border:1px solid #ccc; padding:6px 10px; border-radius:4px; color:#333;">Print</a>
+        </div>
     </div>
 
 <?php foreach ($roomsToPrint as $room): ?>

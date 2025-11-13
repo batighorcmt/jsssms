@@ -179,6 +179,10 @@ include '../includes/sidebar.php';
     .select2-results__option { font-size: 14px; }
     .select2-search__field{ outline: none; }
     .select2-dropdown { z-index: 2050; }
+    /* Show up to 10 items in the Select2 dropdown; scroll for more */
+    #assignModal .select2-results__options { max-height: 360px; overflow-y: auto; }
+    /* Keep dropdown within modal viewport */
+    #assignModal .select2-container .select2-dropdown { max-height: 400px; }
     /* Seat cells hover */
     .seat-cell:hover{ background:#fff3cd !important; }
     .seat-cell.bg-warning{ background:#ffe8a1 !important; }
@@ -248,7 +252,7 @@ include '../includes/sidebar.php';
 
                     <div class="form-group">
                         <label>Student</label>
-                        <select id="student_select" name="student_id" class="form-control" style="width:100%" required disabled></select>
+                        <select id="student_select" name="student_id" class="form-control" style="width:100%" data-placeholder="-- Select Student --" required disabled></select>
                         <small class="form-text text-muted"></small>
                     </div>
                 </form>
@@ -264,7 +268,9 @@ function markSelection(el){
     el.classList.add('bg-warning');
 }
 document.querySelectorAll('.seat-cell').forEach(el=>{
-    el.addEventListener('click', function(){
+    el.addEventListener('click', function(e){
+                // If the Clear button inside this seat was clicked, don't open the modal
+                if (e && e.target && e.target.closest && e.target.closest('.js-clear-seat')) { return; }
                 selectedSeat = { c: this.dataset.c, b: this.dataset.b, p: this.dataset.p };
                 markSelection(this);
                 // Fill modal hidden inputs
@@ -277,15 +283,6 @@ document.querySelectorAll('.seat-cell').forEach(el=>{
                 $('#assignModal').modal('show');
     });
 });
-// Prevent modal opening when clicking the small Clear buttons inside a seat
-// Stop propagation on clear buttons inside a seat
-document.addEventListener('click', function(e){
-    var btn = e.target && (e.target.closest ? e.target.closest('.js-clear-seat') : null);
-    if (btn){
-        e.stopPropagation();
-        e.preventDefault();
-    }
-}, true);
 // Initialize Select2 with AJAX search, excluding already-assigned by plan (server-side)
 $(function(){
         var $student = $('#student_select');
@@ -293,7 +290,7 @@ $(function(){
         theme: 'bootstrap4',
         width: '100%',
         dropdownParent: $('#assignModal'),
-        placeholder: 'Select student',
+        placeholder: $('#student_select').attr('data-placeholder') || 'Select student',
         allowClear: true,
         minimumInputLength: 0,
         ajax: {
@@ -312,22 +309,10 @@ $(function(){
                     var id = s.student_id || s.id;
                     var roll = s.roll_no || '';
                     var name = s.student_name || '';
-                    return { id: id, text: (roll ? roll : '') + (roll && name ? ' - ' : (name? '' : '')) + (name? name : ''), roll: roll, name: name };
+                    return { id: id, text: (roll ? roll : '') + (roll && name ? ' - ' : (name? '' : '')) + (name? name : '') };
                 });
                 return { results: results };
             }
-        },
-        templateResult: function (data) {
-            if (!data.id) { return data.text; }
-            var $row = $('<div class="d-flex justify-content-between align-items-center">'
-                + '<div><strong class="mr-2">'+ (data.roll || '') +'</strong><span>'+ (data.name || '') +'</span></div>'
-                + '</div>');
-            return $row;
-        },
-        templateSelection: function (data) {
-            var text = data.text || '';
-            text = String(text).replace(/\s+/g,' ').trim();
-            return text;
         },
         language: {
           noResults: function(){ return 'No results'; },
@@ -415,6 +400,8 @@ $(function(){
         var btn = e.target.closest && e.target.closest('.js-clear-seat');
         if (!btn) return;
         e.preventDefault();
+        // Ensure this click does not bubble to seat-cell and open the modal
+        e.stopPropagation();
         var c = btn.getAttribute('data-c');
         var b = btn.getAttribute('data-b');
         var p = btn.getAttribute('data-p');
@@ -432,7 +419,7 @@ $(function(){
                 position: p
             })
         }).then(r=>r.json()).then(function(res){
-            if (!res || !res.success){ showToast('danger', 'Clear failed'); return; }
+            if (!res || !res.success){ showToast('danger', (res && res.message) ? res.message : 'Clear failed'); return; }
             // Update the seat cell to empty state
             var sel = '.seat-cell[data-c="'+c+'"][data-b="'+b+'"][data-p="'+p+'"]';
             var cell = document.querySelector(sel);
