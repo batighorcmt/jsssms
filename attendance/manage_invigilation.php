@@ -138,7 +138,7 @@ if ($rc=$conn->query('SELECT user_id FROM exam_controllers WHERE active=1 ORDER 
 }
 
 // Selected date/plan
-$sel_date = isset($_POST['duty_date']) && $_POST['duty_date'] !== NULL ? $_POST['duty_date'] : date('Y-m-d');
+$sel_date = isset($_POST['duty_date']) ? $_POST['duty_date'] : NULL;
 $sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? (int)$plans[0]['id'] : 0);
 
 // Precompute mapped exam dates for selected plan and normalize selected date
@@ -209,7 +209,7 @@ include '../includes/sidebar.php';
         <div class="card-header"><strong>Assign Room Duties</strong></div>
         <div class="card-body">
           <form id="dutiesForm" method="post">
-            <input type="hidden" name="action" value="save_duties">
+            <input type="hidden" name="action" value="filter">
             <div class="form-row">
               <div class="form-group col-md-4">
                 <label>Seat Plan</label>
@@ -242,8 +242,12 @@ include '../includes/sidebar.php';
                   <?php endif; ?>
                 <?php endif; ?>
               </div>
+              <div class="form-group col-md-2 d-flex align-items-end">
+                <button type="button" id="btnLoadFilter" class="btn btn-primary">Load</button>
+              </div>
             </div>
-            <?php if (!empty($rooms)): ?>
+            <?php $action = $_POST['action'] ?? ''; $showAssignment = in_array($action, ['filter','save_duties'], true) && $sel_plan>0 && $sel_date && in_array($sel_date, $examDates, true); ?>
+            <?php if ($showAssignment && !empty($rooms)): ?>
             <div class="table-responsive">
               <table class="table table-bordered table-hover">
                 <thead class="thead-light"><tr><th>Room</th><th>Assign Teacher</th></tr></thead>
@@ -265,8 +269,10 @@ include '../includes/sidebar.php';
               </table>
             </div>
             <button type="button" id="btnSaveDuties" class="btn btn-success">Save Duties</button>
+            <?php elseif ($showAssignment && empty($rooms)): ?>
+              <div class="text-muted">No rooms found for the selected plan.</div>
             <?php else: ?>
-              <div class="text-muted">Select a plan to load rooms.</div>
+              <div class="text-muted">Seat Plan এবং Date নির্বাচন করে Load করুন।</div>
             <?php endif; ?>
           </form>
         </div>
@@ -294,17 +300,16 @@ include '../includes/sidebar.php';
   // Initialize Select2 on teacher selects and enforce uniqueness across rooms
   document.addEventListener('DOMContentLoaded', function(){
     var $ = window.jQuery || window.$;
-    // Filter auto-submit without saving duties
+    // Explicit submit buttons for filter and save
     var form = document.getElementById('dutiesForm');
-    function submitFilter(){
+    var planSel = document.getElementById('filterPlan');
+    var dateSel = document.getElementById('filterDate');
+    var loadBtn = document.getElementById('btnLoadFilter');
+    if (loadBtn) loadBtn.addEventListener('click', function(){
       var actionInput = form && form.querySelector('input[name="action"]');
       if (actionInput) actionInput.value = 'filter';
       if (form) form.submit();
-    }
-    var planSel = document.getElementById('filterPlan');
-    var dateSel = document.getElementById('filterDate');
-    if (planSel) planSel.addEventListener('change', submitFilter);
-    if (dateSel) dateSel.addEventListener('change', submitFilter);
+    });
 
     var saveBtn = document.getElementById('btnSaveDuties');
     if (saveBtn) saveBtn.addEventListener('click', function(){
