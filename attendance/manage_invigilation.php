@@ -119,14 +119,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
       foreach ($map as $rid=>$tid){ $rid=(int)$rid; $tid=(int)$tid; if($rid>0){ $postedDutyMap[$rid]=$tid; } }
     } else {
         $assigned_by = (int)($_SESSION['id'] ?? 0);
+      // Prepare once; guard prepare failure to avoid fatal
+      $stmt = $conn->prepare('INSERT INTO exam_room_invigilation (duty_date, plan_id, room_id, teacher_user_id, assigned_by) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE teacher_user_id=VALUES(teacher_user_id), assigned_by=VALUES(assigned_by), assigned_at=CURRENT_TIMESTAMP');
+      if (!$stmt) {
+        if (function_exists('app_log')) { app_log('Prepare failed for exam_room_invigilation upsert: '.($conn->error ?? 'unknown error')); }
+        $toast=['type'=>'error','msg'=>'Failed to save duties (prepare error).'];
+      } else {
         foreach ($map as $room_id => $teacher_user_id){
-            $room_id=(int)$room_id; $teacher_user_id=(int)$teacher_user_id; if ($room_id<=0 || $teacher_user_id<=0) continue;
-            // upsert
-            $stmt = $conn->prepare('INSERT INTO exam_room_invigilation (duty_date, plan_id, room_id, teacher_user_id, assigned_by) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE teacher_user_id=VALUES(teacher_user_id), assigned_by=VALUES(assigned_by), assigned_at=CURRENT_TIMESTAMP');
-            $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
-            @$stmt->execute();
+          $room_id=(int)$room_id; $teacher_user_id=(int)$teacher_user_id; if ($room_id<=0 || $teacher_user_id<=0) continue;
+          $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
+          @$stmt->execute();
         }
-    $toast=['type'=>'success','msg'=>'Duties saved'];
+        $stmt->close();
+        $toast=['type'=>'success','msg'=>'Duties saved'];
+      }
     }
     }
 }
@@ -144,7 +150,7 @@ $sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? 
 // Precompute mapped exam dates for selected plan and normalize selected date
 $examDates = [];
 if ($sel_plan>0){
-  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL ORDER BY es.exam_date ASC";
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
   if ($q = $conn->query($sqlDates)){
     while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
   }
