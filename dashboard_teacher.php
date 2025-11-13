@@ -65,9 +65,9 @@ if ($uid > 0) {
         .link-tile .icon-wrap { position: absolute; right: 16px; bottom: 16px; width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,.16); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
         .link-tile .icon-wrap i { font-size: 22px; color: #fff; }
 
-        .tile-primary { background: linear-gradient(135deg, #6d28d9 0%, #db2777 50%, #f97316 100%); background-size: 220% 220%; animation: gradientShift 10s ease infinite; }
-        .tile-attendance { background: linear-gradient(135deg, #0b132b 0%, #1c2541 35%, #3a506b 70%, #5bc0be 100%); background-size: 220% 220%; animation: gradientShift 10s ease infinite; }
-        .tile-info { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 35%, #2563eb 65%, #38bdf8 100%); background-size: 220% 220%; animation: gradientShift 10s ease infinite; }
+        .tile-primary { background: linear-gradient(135deg, #2563eb 0%, #38bdf8 100%); background-size: 180% 180%; animation: gradientShift 18s ease infinite; }
+        .tile-attendance { background: linear-gradient(135deg, #0f766e 0%, #10b981 100%); background-size: 180% 180%; animation: gradientShift 18s ease infinite; }
+        .tile-info { background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%); background-size: 180% 180%; animation: gradientShift 18s ease infinite; }
 
         .tile-footer { position:absolute; left:0; right:0; bottom:0; padding:10px 16px; background: rgba(0,0,0,.32); color:#ffffff; text-align:right; font-weight:700; letter-spacing:.2px; text-shadow: 0 1px 2px rgba(0,0,0,.65); }
         .tile-footer i{ margin-left:6px; }
@@ -76,7 +76,7 @@ if ($uid > 0) {
         @media (prefers-reduced-motion: reduce) { .tile-primary, .tile-attendance, .tile-info { animation: none; background-size: auto; } }
 
         /* Background */
-        .content-wrapper { background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 35%, #fff7ed 100%); }
+        .content-wrapper { background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); }
 
         /* Duties card */
         .card-glass { background: rgba(255,255,255,.75); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.6); border-radius: 14px; }
