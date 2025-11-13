@@ -5,6 +5,15 @@ session_start();
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
 
+// Ensure plan-to-exam mapping exists for date scoping
+$conn->query("CREATE TABLE IF NOT EXISTS seat_plan_exams (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  plan_id INT NOT NULL,
+  exam_id INT NOT NULL,
+  UNIQUE KEY uniq_plan_exam (plan_id, exam_id),
+  INDEX idx_plan (plan_id)
+)");
+
 function is_controller(mysqli $conn, $userId){ $userId=(int)$userId; if ($userId<=0) return false; $q=$conn->query('SELECT 1 FROM exam_controllers WHERE active=1 AND user_id='.$userId.' LIMIT 1'); return ($q && $q->num_rows>0); }
 function can_access(mysqli $conn, $userId, $role, $date, $plan_id, $room_id){ if ($role==='super_admin' || is_controller($conn,$userId)) return true; $st=$conn->prepare('SELECT 1 FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? AND teacher_user_id=? LIMIT 1'); $st->bind_param('siii',$date,$plan_id,$room_id,$userId); $st->execute(); $st->store_result(); return ($st->num_rows>0); }
 
@@ -49,20 +58,25 @@ if ($room_id>0 && !empty($rooms)){
 // Load allocations + any existing attendance
 $students=[];
 if ($plan_id>0 && $room_id>0){
-  $sql = "SELECT a.student_id,
-                 COALESCE(s1.student_name, s2.student_name) AS student_name,
-                 COALESCE(s1.roll_no, s2.roll_no) AS roll_no,
-                 COALESCE(c1.class_name, c2.class_name) AS class_name,
-                 a.col_no, a.bench_no, a.position,
-                 att.status
-          FROM seat_plan_allocations a
-          LEFT JOIN students s1 ON s1.student_id=a.student_id
-          LEFT JOIN students s2 ON s2.id=a.student_id
-          LEFT JOIN classes c1 ON c1.id=s1.class_id
-          LEFT JOIN classes c2 ON c2.id=s2.class_id
-          LEFT JOIN exam_room_attendance att ON att.duty_date='".$conn->real_escape_string($date)."' AND att.plan_id=".(int)$plan_id." AND att.room_id=".(int)$room_id." AND att.student_id=a.student_id
-          WHERE a.plan_id=".(int)$plan_id." AND a.room_id=".(int)$room_id.
-          " ORDER BY a.col_no, a.bench_no, a.position";
+  $attOn = '0';
+  if (preg_match('~^\\d{4}-\\d{2}-\\d{2}$~',$date)){
+    $attOn = "att.duty_date='".$conn->real_escape_string($date)."' AND att.plan_id=".(int)$plan_id." AND att.room_id=".(int)$room_id." AND att.student_id=a.student_id";
+  }
+  $sql =
+    "SELECT a.student_id, " .
+    "       COALESCE(s1.student_name, s2.student_name) AS student_name, " .
+    "       COALESCE(s1.roll_no, s2.roll_no) AS roll_no, " .
+    "       COALESCE(c1.class_name, c2.class_name) AS class_name, " .
+    "       a.col_no, a.bench_no, a.position, " .
+    "       att.status " .
+    "FROM seat_plan_allocations a " .
+    "LEFT JOIN students s1 ON s1.student_id=a.student_id " .
+    "LEFT JOIN students s2 ON s2.id=a.student_id " .
+    "LEFT JOIN classes c1 ON c1.id=s1.class_id " .
+    "LEFT JOIN classes c2 ON c2.id=s2.class_id " .
+    "LEFT JOIN exam_room_attendance att ON " . $attOn . " " .
+    "WHERE a.plan_id=" . (int)$plan_id . " AND a.room_id=" . (int)$room_id . " " .
+    "ORDER BY a.col_no, a.bench_no, a.position";
   if ($rs=$conn->query($sql)){ while($r=$rs->fetch_assoc()){ $students[]=$r; } }
 }
 
@@ -99,14 +113,16 @@ include '../includes/sidebar.php';
               $stats['female'] = (int)($row['female'] ?? 0);
             }
           }
-          $sqlAtt = "SELECT SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) AS p,
-                            SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS a
-                     FROM exam_room_attendance
-                     WHERE duty_date='".$conn->real_escape_string($date)."' AND plan_id=".(int)$plan_id." AND room_id=".(int)$room_id;
-          if ($rt=$conn->query($sqlAtt)){
-            if ($row=$rt->fetch_assoc()){
-              $stats['present'] = (int)($row['p'] ?? 0);
-              $stats['absent'] = (int)($row['a'] ?? 0);
+          if (preg_match('~^\\d{4}-\\d{2}-\\d{2}$~',$date)){
+            $sqlAtt = "SELECT SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) AS p,
+                              SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS a
+                       FROM exam_room_attendance
+                       WHERE duty_date='".$conn->real_escape_string($date)."' AND plan_id=".(int)$plan_id." AND room_id=".(int)$room_id; 
+            if ($rt=$conn->query($sqlAtt)){
+              if ($row=$rt->fetch_assoc()){
+                $stats['present'] = (int)($row['p'] ?? 0);
+                $stats['absent'] = (int)($row['a'] ?? 0);
+              }
             }
           }
         }
@@ -167,29 +183,6 @@ include '../includes/sidebar.php';
               <?php if (!$isCtrlOrAdmin): ?>
                 <input type="hidden" name="date" value="<?= htmlspecialchars($date) ?>">
               <?php endif; ?>
-              <div class="form-group col-md-3 col-12">
-                <label>Date</label>
-                <?php if ($isCtrlOrAdmin): ?>
-                  <?php
-                    $examDates = [];
-                    if ($q = $conn->query("SELECT DISTINCT exam_date FROM exam_subjects WHERE exam_date IS NOT NULL ORDER BY exam_date ASC")){
-                      while($r = $q->fetch_assoc()){ if (!empty($r['exam_date'])) $examDates[] = $r['exam_date']; }
-                    }
-                    if ($date && !in_array($date, $examDates, true)) array_unshift($examDates, $date);
-                  ?>
-                  <?php if (!empty($examDates)): ?>
-                    <select id="dateSelect" name="date" class="form-control w-100" required>
-                      <?php foreach($examDates as $d): ?>
-                        <option value="<?= htmlspecialchars($d) ?>" <?= $date===$d?'selected':'' ?>><?= htmlspecialchars($d) ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  <?php else: ?>
-                    <input id="dateSelect" type="date" name="date" value="<?= htmlspecialchars($date) ?>" class="form-control w-100" required>
-                  <?php endif; ?>
-                <?php else: ?>
-                  <input type="text" value="<?= htmlspecialchars($date) ?>" class="form-control w-100" readonly>
-                <?php endif; ?>
-              </div>
               <div class="form-group col-md-4 col-12">
                 <label>Seat Plan</label>
                 <select id="planSelect" name="plan_id" class="form-control w-100" required>
@@ -197,6 +190,38 @@ include '../includes/sidebar.php';
                     <option value="<?= (int)$p['id'] ?>" <?= (int)$p['id']===(int)$plan_id?'selected':'' ?>><?= htmlspecialchars($p['plan_name'].' ('.$p['shift'].')') ?></option>
                   <?php endforeach; ?>
                 </select>
+              </div>
+              <div class="form-group col-md-3 col-12">
+                <label>Date</label>
+                <?php if ($isCtrlOrAdmin): ?>
+                  <?php
+                    // Dates strictly from exams mapped to the selected plan
+                    $examDates = [];
+                    if ($plan_id>0){
+                      $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'' AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+                      if ($q = $conn->query($sqlDates)){
+                        while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
+                      }
+                    }
+                    // Normalize selection within mapped dates only
+                    if (empty($examDates)) { $date = ''; }
+                    else if (!preg_match('~^\\d{4}-\\d{2}-\\d{2}$~',$date) || !in_array($date, $examDates, true)) { $date = $examDates[0]; }
+                  ?>
+                  <?php if (!empty($examDates)): ?>
+                    <select id="dateSelect" name="date" class="form-control w-100" required>
+                      <?php foreach($examDates as $d): $disp = (strtotime($d)? date('d/m/Y', strtotime($d)) : $d); ?>
+                        <option value="<?= htmlspecialchars($d) ?>" <?= $date===$d?'selected':'' ?>><?= htmlspecialchars($disp) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  <?php else: ?>
+                    <select id="dateSelect" class="form-control w-100" disabled>
+                      <option value="">-- No mapped exam dates --</option>
+                    </select>
+                    <small class="form-text text-muted">Seat Plan → Edit এ গিয়ে Exams নির্বাচন করুন; এখানে তারিখগুলো দেখাবে।</small>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <input type="text" value="<?= htmlspecialchars($date) ?>" class="form-control w-100" readonly>
+                <?php endif; ?>
               </div>
               <div class="form-group col-md-3 col-12">
                 <label>Room</label>

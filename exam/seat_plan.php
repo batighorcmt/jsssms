@@ -107,6 +107,35 @@ function room_capacity($r){
         return $b * 2; // 2 seats per bench
 }
 
+// Per-plan summaries
+function get_plan_classes(mysqli $conn, int $planId): string {
+    $names = [];
+    $sql = 'SELECT c.class_name FROM seat_plan_classes spc JOIN classes c ON c.id = spc.class_id WHERE spc.plan_id = ? ORDER BY c.id ASC';
+    if ($st = $conn->prepare($sql)) {
+        $st->bind_param('i', $planId);
+        if ($st->execute() && ($res = $st->get_result())) {
+            while ($r = $res->fetch_assoc()) { $names[] = (string)($r['class_name'] ?? ''); }
+        }
+    }
+    return trim(implode(', ', array_filter($names))) ?: '—';
+}
+
+function get_plan_exams(mysqli $conn, int $planId): string {
+    $labels = [];
+    $sql = 'SELECT e.exam_name, c.class_name FROM seat_plan_exams spe JOIN exams e ON e.id = spe.exam_id LEFT JOIN classes c ON c.id = e.class_id WHERE spe.plan_id = ? ORDER BY e.id DESC';
+    if ($st = $conn->prepare($sql)) {
+        $st->bind_param('i', $planId);
+        if ($st->execute() && ($res = $st->get_result())) {
+            while ($r = $res->fetch_assoc()) {
+                $en = trim((string)($r['exam_name'] ?? ''));
+                $cn = trim((string)($r['class_name'] ?? ''));
+                $labels[] = $cn !== '' ? ($en.' — '.$cn) : $en;
+            }
+        }
+    }
+    return trim(implode(', ', array_filter($labels))) ?: '—';
+}
+
 // ---------- Actions (Plan create/delete) ----------
 $toast = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -246,6 +275,8 @@ include '../includes/sidebar.php';
                                 <th>#</th>
                                 <th>Plan Name</th>
                                 <th>Shift</th>
+                                <th>Classes</th>
+                                <th>Exams</th>
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
@@ -253,12 +284,14 @@ include '../includes/sidebar.php';
                         </thead>
                         <tbody>
                         <?php if (empty($plans)): ?>
-                            <tr><td colspan="5" class="text-center text-muted">No plans yet.</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted">No plans yet.</td></tr>
                         <?php else: $i=1; foreach($plans as $p): ?>
                             <tr>
                                 <td><?= $i++ ?></td>
                                 <td><?= htmlspecialchars($p['plan_name']) ?></td>
                                 <td><?= htmlspecialchars($p['shift']) ?></td>
+                                <td><?= htmlspecialchars(get_plan_classes($conn, (int)$p['id'])) ?></td>
+                                <td><?= htmlspecialchars(get_plan_exams($conn, (int)$p['id'])) ?></td>
                                 <td>
                                     <form method="post" action="" class="d-inline">
                                         <input type="hidden" name="action" value="update_status">
@@ -300,7 +333,7 @@ include '../includes/sidebar.php';
                         if (tr.querySelector('td[colspan]')) return; // skip empty row
                                 var name = (tr.cells[1]?.innerText || '').toLowerCase();
                                 var shift = (tr.cells[2]?.innerText || '').toLowerCase();
-                                var statusText = (tr.cells[3]?.innerText || '').toLowerCase();
+                                var statusText = (tr.cells[5]?.innerText || '').toLowerCase();
                                 tr.style.display = (!term || name.indexOf(term)>-1 || shift.indexOf(term)>-1 || statusText.indexOf(term)>-1) ? '' : 'none';
                     });
                 }

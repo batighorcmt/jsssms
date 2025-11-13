@@ -47,6 +47,15 @@ $conn->query("CREATE TABLE IF NOT EXISTS exam_room_attendance (
   INDEX idx_room_date (duty_date, plan_id, room_id)
 )");
 
+// Ensure plan-to-exam mapping table exists (for date filtering)
+$conn->query("CREATE TABLE IF NOT EXISTS seat_plan_exams (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  plan_id INT NOT NULL,
+  exam_id INT NOT NULL,
+  UNIQUE KEY uniq_plan_exam (plan_id, exam_id),
+  INDEX idx_plan (plan_id)
+)");
+
 require_ctrl_or_admin($conn);
 
 // Load teachers (users.role='teacher') with display name from teachers table if possible
@@ -189,13 +198,17 @@ include '../includes/sidebar.php';
               <div class="form-group col-md-3">
                 <label>Date</label>
                 <?php
-                  // Load distinct exam schedule dates (yyyy-mm-dd)
+                  // Load distinct mapped exam dates for the selected plan (yyyy-mm-dd)
                   $examDates = [];
-                  if ($q = $conn->query("SELECT DISTINCT exam_date FROM exam_subjects WHERE exam_date IS NOT NULL ORDER BY exam_date ASC")){
-                    while($r = $q->fetch_assoc()){ if (!empty($r['exam_date'])) $examDates[] = $r['exam_date']; }
+                  if ($sel_plan>0){
+                    $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'' AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+                    if ($q = $conn->query($sqlDates)){
+                      while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
+                    }
                   }
-                  // Ensure currently selected date is available in options
-                  if ($sel_date && !in_array($sel_date, $examDates, true)) array_unshift($examDates, $sel_date);
+                  // Normalize selected date: restrict to mapped dates only
+                  if (empty($examDates)) { $sel_date = ''; }
+                  else if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', $sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
                 ?>
                 <?php if (!empty($examDates)): ?>
                   <select id="filterDate" name="duty_date" class="form-control" required>
@@ -205,7 +218,10 @@ include '../includes/sidebar.php';
                     <?php endforeach; ?>
                   </select>
                 <?php else: ?>
-                  <input id="filterDate" type="date" name="duty_date" class="form-control" value="<?= htmlspecialchars($sel_date) ?>" required>
+                  <select id="filterDate" class="form-control" disabled>
+                    <option value="">-- No mapped exam dates --</option>
+                  </select>
+                  <small class="form-text text-muted">Seat Plan → Edit এ গিয়ে Exams নির্বাচন করুন; তখন তারিখগুলো এখানে দেখাবে।</small>
                 <?php endif; ?>
               </div>
             </div>
