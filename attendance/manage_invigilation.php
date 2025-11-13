@@ -2,18 +2,16 @@
 @include_once __DIR__ . '/../includes/bootstrap.php';
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
-// Fallback for BASE_URL if config not present/doesn't define it
-if (!defined('BASE_URL')) { define('BASE_URL', '../'); }
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
 include '../config/db.php';
 
 // Helpers
-function is_controller($conn, $userId){
+function is_controller(mysqli $conn, $userId){
     $userId = (int)$userId; if ($userId<=0) return false;
     $q = $conn->query('SELECT 1 FROM exam_controllers WHERE active=1 AND user_id='.$userId.' LIMIT 1');
     return ($q && $q->num_rows>0);
 }
-function require_ctrl_or_admin($conn){
+function require_ctrl_or_admin(mysqli $conn){
     if (isset($_SESSION['role']) && $_SESSION['role']==='super_admin') return true;
     if (is_controller($conn, $_SESSION['id'] ?? 0)) return true;
     header('Location: ' . BASE_URL . 'auth/forbidden.php'); exit();
@@ -71,10 +69,7 @@ if ($rt = $conn->query($sqlT)) { while($r=$rt->fetch_assoc()){ $teachers[]=$r; }
 
 // Load active plans
 $plans = [];
-$hasStatus = false;
-if ($rc = $conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")) {
-  $hasStatus = ($rc->num_rows>0);
-}
+$hasStatus = ($conn->query("SHOW COLUMNS FROM seat_plans LIKE 'status'")->num_rows>0);
 $sqlPlans = $hasStatus ? "SELECT id, plan_name, shift FROM seat_plans WHERE status='active' ORDER BY id DESC" : "SELECT id, plan_name, shift FROM seat_plans ORDER BY id DESC";
 if ($rp = $conn->query($sqlPlans)) { while($r=$rp->fetch_assoc()){ $plans[]=$r; } }
 
@@ -93,18 +88,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='set_contr
 $postedDutyMap = null;
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duties'){
     $duty_date = trim($_POST['duty_date'] ?? '');
+    if ($duty_date === '' || $duty_date === NULL) $duty_date = NULL;
     $plan_id = (int)($_POST['plan_id'] ?? 0);
     $map = $_POST['room_teacher'] ?? [];
-    // Validate date and ensure it's one of the mapped exam dates for the plan
-    $isValidDate = (bool)preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) && $duty_date!=='0000-00-00' && $plan_id>0;
-    $isMappedDate = false;
-    if ($isValidDate) {
-      $allowed = [];
-      $sqlDatesPost = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00'";
-      if ($qd = $conn->query($sqlDatesPost)) { while($row=$qd->fetch_assoc()){ if (!empty($row['d'])) $allowed[]=$row['d']; } }
-      $isMappedDate = in_array($duty_date, $allowed, true);
-    }
-    if (!$isValidDate || !$isMappedDate){ $toast=['type'=>'error','msg'=>'Invalid or unmapped date/plan']; }
+  if (!preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) || $duty_date===NULL || $plan_id<=0){ $toast=['type'=>'error','msg'=>'Invalid date or plan']; }
     else {
     // Enforce: a teacher can be assigned to only one room for the selected date+plan
     $teacherCounts = [];
@@ -123,7 +110,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
             $room_id=(int)$room_id; $teacher_user_id=(int)$teacher_user_id; if ($room_id<=0 || $teacher_user_id<=0) continue;
             // upsert
             $stmt = $conn->prepare('INSERT INTO exam_room_invigilation (duty_date, plan_id, room_id, teacher_user_id, assigned_by) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE teacher_user_id=VALUES(teacher_user_id), assigned_by=VALUES(assigned_by), assigned_at=CURRENT_TIMESTAMP');
-            $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
+            if ($duty_date === NULL) {
+                $stmt->bind_param('iiiis', $plan_id, $room_id, $teacher_user_id, $assigned_by, $duty_date);
+            } else {
+                $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
+            }
             @$stmt->execute();
         }
     $toast=['type'=>'success','msg'=>'Duties saved'];
@@ -144,13 +135,13 @@ $sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? 
 // Precompute mapped exam dates for selected plan and normalize selected date
 $examDates = [];
 if ($sel_plan>0){
-  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>NULL ORDER BY es.exam_date ASC";
   if ($q = $conn->query($sqlDates)){
     while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
   }
 }
-if (empty($examDates)) { $sel_date = NULL; }
-else if (!preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)$sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
+if (empty($examDates)) { $sel_date = '1970-01-01'; }
+else if ($sel_date===NULL || !preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)$sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
 
 // Rooms for selected plan
 $rooms = [];
@@ -159,7 +150,7 @@ if ($sel_plan>0){
 }
 // Existing duties map
 $dutyMap = [];
-if ($sel_plan>0 && $sel_date && preg_match('~^\d{4}-\d{2}-\d{2}$~',$sel_date)){
+if ($sel_plan>0 && preg_match('~^\d{4}-\d{2}-\d{2}$~',$sel_date) && $sel_date!==NULL){
     $q = $conn->prepare('SELECT room_id, teacher_user_id FROM exam_room_invigilation WHERE duty_date=? AND plan_id=?');
     $q->bind_param('si', $sel_date, $sel_plan); $q->execute(); $res=$q->get_result();
     if ($res){ while($r=$res->fetch_assoc()){ $dutyMap[(int)$r['room_id']] = (int)$r['teacher_user_id']; } }
@@ -231,12 +222,12 @@ include '../includes/sidebar.php';
                   </select>
                 <?php else: ?>
                   <select id="filterDate" class="form-control" disabled>
-                    <option value="">কোন তারিখ পাওয়া যায় নি</option>
+                    <option value="">-- No mapped exam dates --</option>
                   </select>
                   <small class="form-text text-muted">Seat Plan → Edit এ গিয়ে Exams নির্বাচন করুন; তখন তারিখগুলো এখানে দেখাবে।</small>
                   <?php if ($sel_plan>0): ?>
                   <div class="alert alert-warning mt-2" role="alert">
-                    কোন তারিখ পাওয়া যায় নি। অনুগ্রহ করে এই Seat Plan এর সাথে Exams ম্যাপ করুন।
+                    No exam dates available for this plan. Please map exams to the plan.
                     <a class="alert-link" href="<?= BASE_URL ?>exam/seat_plan_edit.php?plan_id=<?= (int)$sel_plan ?>">Open Seat Plan → Edit</a>
                   </div>
                   <?php endif; ?>
