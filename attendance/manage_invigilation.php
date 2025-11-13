@@ -127,6 +127,17 @@ if ($rc=$conn->query('SELECT user_id FROM exam_controllers WHERE active=1 ORDER 
 $sel_date = isset($_POST['duty_date']) ? $_POST['duty_date'] : (date('Y-m-d'));
 $sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? (int)$plans[0]['id'] : 0);
 
+// Precompute mapped exam dates for selected plan and normalize selected date
+$examDates = [];
+if ($sel_plan>0){
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  if ($q = $conn->query($sqlDates)){
+    while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
+  }
+}
+if (empty($examDates)) { $sel_date = '1970-01-01'; }
+else if ($sel_date==='0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', (string)$sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
+
 // Rooms for selected plan
 $rooms = [];
 if ($sel_plan>0){
@@ -197,20 +208,6 @@ include '../includes/sidebar.php';
               </div>
               <div class="form-group col-md-3">
                 <label>Date</label>
-                <?php
-                  // Load distinct mapped exam dates for the selected plan (yyyy-mm-dd)
-                  $examDates = [];
-                  if ($sel_plan>0){
-                    // Avoid comparing DATE to '' (strict mode). Check only for NOT NULL and not '0000-00-00'.
-                    $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
-                    if ($q = $conn->query($sqlDates)){
-                      while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
-                    }
-                  }
-                  // Normalize selected date: restrict to mapped dates only; fallback to 1970-01-01 to avoid strict-mode errors
-                  if (empty($examDates)) { $sel_date = '1970-01-01'; }
-                  else if ($sel_date==='0000-00-00' || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $sel_date) || !in_array($sel_date, $examDates, true)) { $sel_date = $examDates[0]; }
-                ?>
                 <?php if (!empty($examDates)): ?>
                   <select id="filterDate" name="duty_date" class="form-control" required>
                     <?php foreach($examDates as $d): ?>
