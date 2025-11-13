@@ -96,11 +96,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
     $plan_id = (int)($_POST['plan_id'] ?? 0);
     $map = $_POST['room_teacher'] ?? [];
     // Validate date and ensure it's one of the mapped exam dates for the plan
-    $isValidDate = (bool)preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) && $duty_date!=='0000-00-00' && $plan_id>0;
+    $isValidDate = (bool)preg_match('~^\d{4}-\d{2}-\d{2}$~',$duty_date) && $duty_date!==NULL && $plan_id>0;
     $isMappedDate = false;
     if ($isValidDate) {
       $allowed = [];
-      $sqlDatesPost = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00'";
+      $sqlDatesPost = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$plan_id." AND es.exam_date IS NOT NULL AND es.exam_date<>NULL'";
       if ($qd = $conn->query($sqlDatesPost)) { while($row=$qd->fetch_assoc()){ if (!empty($row['d'])) $allowed[]=$row['d']; } }
       $isMappedDate = in_array($duty_date, $allowed, true);
     }
@@ -150,7 +150,7 @@ $sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? 
 // Precompute mapped exam dates for selected plan and normalize selected date
 $examDates = [];
 if ($sel_plan>0){
-  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>'0000-00-00' ORDER BY es.exam_date ASC";
+  $sqlDates = "SELECT DISTINCT es.exam_date AS d FROM seat_plan_exams spe JOIN exam_subjects es ON es.exam_id=spe.exam_id WHERE spe.plan_id=".(int)$sel_plan." AND es.exam_date IS NOT NULL AND es.exam_date<>NULL ORDER BY es.exam_date ASC";
   if ($q = $conn->query($sqlDates)){
     while($r = $q->fetch_assoc()){ $d=$r['d'] ?? ''; if ($d) $examDates[] = $d; }
   }
