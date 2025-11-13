@@ -243,9 +243,7 @@ include '../includes/sidebar.php';
                   <?php endif; ?>
                 <?php endif; ?>
               </div>
-              <div class="form-group col-md-2 d-flex align-items-end">
-                <button type="button" id="btnLoadFilter" class="btn btn-primary">Load</button>
-              </div>
+              
             </div>
             <?php $action = $_POST['action'] ?? ''; $showAssignment = in_array($action, ['filter','save_duties'], true) && $sel_plan>0 && $sel_date && in_array($sel_date, $examDates, true); ?>
             <?php if ($showAssignment && !empty($rooms)): ?>
@@ -273,7 +271,7 @@ include '../includes/sidebar.php';
             <?php elseif ($showAssignment && empty($rooms)): ?>
               <div class="text-muted">No rooms found for the selected plan.</div>
             <?php else: ?>
-              <div class="text-muted">Seat Plan এবং Date নির্বাচন করে Load করুন।</div>
+              <div class="text-muted">Seat Plan এবং Date নির্বাচন করুন।</div>
             <?php endif; ?>
           </form>
         </div>
@@ -301,16 +299,17 @@ include '../includes/sidebar.php';
   // Initialize Select2 on teacher selects and enforce uniqueness across rooms
   document.addEventListener('DOMContentLoaded', function(){
     var $ = window.jQuery || window.$;
-    // Explicit submit buttons for filter and save
+    // Auto-submit on Seat Plan/Date change
     var form = document.getElementById('dutiesForm');
     var planSel = document.getElementById('filterPlan');
     var dateSel = document.getElementById('filterDate');
-    var loadBtn = document.getElementById('btnLoadFilter');
-    if (loadBtn) loadBtn.addEventListener('click', function(){
+    function submitFilter(){
       var actionInput = form && form.querySelector('input[name="action"]');
       if (actionInput) actionInput.value = 'filter';
       if (form) form.submit();
-    });
+    }
+    if (planSel) planSel.addEventListener('change', submitFilter);
+    if (dateSel) dateSel.addEventListener('change', submitFilter);
 
     var saveBtn = document.getElementById('btnSaveDuties');
     if (saveBtn) saveBtn.addEventListener('click', function(){
