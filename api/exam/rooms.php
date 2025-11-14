@@ -3,9 +3,6 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../bootstrap.php';
 
-// Require API auth; return JSON on failure
-api_require_auth(['teacher','super_admin']);
-
 $plan_id = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
 $date    = isset($_GET['date']) ? trim($_GET['date']) : '';
 
