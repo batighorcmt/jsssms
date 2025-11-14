@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -114,7 +115,16 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('user_name', userName);
         await prefs.setString(
             'user_username', user['username']?.toString() ?? '');
-        await prefs.setString('user_role', user['role']?.toString() ?? '');
+        await prefs.setString('user_id', user['id']?.toString() ?? '');
+        final role = user['role']?.toString() ?? '';
+        // Enforce teacher-only login
+        if (role.toLowerCase() != 'teacher') {
+          setState(() {
+            _busy = false;
+            _error = 'শুধুমাত্র শিক্ষক লগইন করতে পারবেন';
+          });
+          return;
+        }
         if (!mounted) return;
         Navigator.of(context).pushReplacement(MaterialPageRoute(
             builder: (_) => DashboardScreen(
@@ -234,13 +244,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool loading = true;
   String? error;
   String? _userName;
+  String? _userId;
+  bool _isController = false;
 
   @override
   void initState() {
     super.initState();
     _userName = widget.userName;
     _load();
-    _loadUserName();
+    _loadUserInfo();
   }
 
   Future<void> _load() async {
@@ -253,12 +265,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => loading = false);
   }
 
-  Future<void> _loadUserName() async {
-    if (_userName != null && _userName!.isNotEmpty) return;
+  Future<void> _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
-    final name = prefs.getString('user_name');
-    if (!mounted) return;
-    setState(() => _userName = name);
+    if (_userName == null || _userName!.isEmpty) {
+      final name = prefs.getString('user_name');
+      if (mounted) setState(() => _userName = name);
+    }
+    final userId = prefs.getString('user_id');
+    if (userId != null && userId.isNotEmpty) {
+      if (mounted) {
+        setState(() => _userId = userId);
+        _checkControllerStatus();
+      }
+    }
+  }
+
+  Future<void> _checkControllerStatus() async {
+    if (_userId == null) return;
+    try {
+      final isController = await ApiService.isController(_userId!);
+      if (mounted) {
+        setState(() {
+          _isController = isController;
+        });
+      }
+    } catch (e) {
+      // Silently fail, as it's not a critical feature
+      print('Failed to check controller status: $e');
+    }
   }
 
   Future<void> _logout() async {
@@ -266,7 +300,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await prefs.remove('token');
     await prefs.remove('user_name');
     await prefs.remove('user_username');
-    await prefs.remove('user_role');
+    await prefs.remove('user_id');
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
@@ -318,6 +352,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Navigator.push(context,
                   MaterialPageRoute(builder: (context) => MarksEntryScreen()));
             }),
+            if (_isController)
+              _buildDashboardCard(context, 'Room Duty Allocation',
+                  Icons.supervisor_account, Colors.purple, () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => RoomDutyAllocationScreen()));
+              }),
           ],
         ),
       ),
@@ -368,13 +410,393 @@ class DutiesScreen extends StatefulWidget {
 }
 
 class _DutiesScreenState extends State<DutiesScreen> {
+  String _date = '';
+  List<dynamic> _plans = [];
+  List<dynamic> _rooms = [];
+  List<dynamic> _students = [];
+  String? _selectedPlanId;
+  String? _selectedRoomId;
+  bool _loadingPlans = true;
+  bool _loadingRooms = false;
+  bool _loadingStudents = false;
+  bool _bulkSaving = false;
+  String? _userName;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _userName = prefs.getString('user_name');
+    _date = _todayIso();
+    await _loadPlans();
+  }
+
+  String _todayIso() => DateTime.now().toIso8601String().substring(0, 10);
+
+  Future<void> _loadPlans() async {
+    setState(() {
+      _loadingPlans = true;
+    });
+    try {
+      _plans =
+          await ApiService.getSeatPlans(_date); // expects id, plan_name, shift
+      if (_plans.isNotEmpty) {
+        _selectedPlanId ??= _plans.first['id'].toString();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to load plans: $e')));
+    } finally {
+      setState(() {
+        _loadingPlans = false;
+      });
+      if (_selectedPlanId != null) _loadRooms();
+    }
+  }
+
+  Future<void> _loadRooms() async {
+    if (_selectedPlanId == null) return;
+    setState(() {
+      _loadingRooms = true;
+      _rooms = [];
+    });
+    try {
+      _rooms = await ApiService.getRooms(
+          _selectedPlanId!, _date); // expects id, room_no, title
+      if (_rooms.isNotEmpty) {
+        _selectedRoomId ??= _rooms.first['id'].toString();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to load rooms: $e')));
+    } finally {
+      setState(() {
+        _loadingRooms = false;
+      });
+      if (_selectedRoomId != null) _loadStudents();
+    }
+  }
+
+  Future<void> _loadStudents() async {
+    if (_selectedPlanId == null || _selectedRoomId == null) return;
+    setState(() {
+      _loadingStudents = true;
+      _students = [];
+    });
+    try {
+      // Reuse existing attendance endpoint
+      _students = await ApiService.getAttendance(
+          _date, int.parse(_selectedPlanId!), int.parse(_selectedRoomId!));
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to load students: $e')));
+    } finally {
+      setState(() {
+        _loadingStudents = false;
+      });
+    }
+  }
+
+  Map<String, int> _computeStats() {
+    int total = _students.length;
+    int male = 0, female = 0, present = 0, absent = 0;
+    for (final s in _students) {
+      final g = (s['gender'] ?? '').toString().toLowerCase();
+      if (g == 'male')
+        male++;
+      else if (g == 'female') female++;
+      final st = (s['status'] ?? '').toString();
+      if (st == 'present')
+        present++;
+      else if (st == 'absent') absent++;
+    }
+    return {
+      'total': total,
+      'male': male,
+      'female': female,
+      'present': present,
+      'absent': absent
+    };
+  }
+
+  Map<String, int> _classCounts() {
+    final Map<String, int> counts = {};
+    for (final s in _students) {
+      final cname = (s['class_name'] ?? '').toString();
+      if (cname.isEmpty) continue;
+      counts[cname] = (counts[cname] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  Future<void> _markSingle(dynamic student, String status) async {
+    final sid = student['student_id'];
+    if (sid == null) return;
+    setState(() {
+      student['status'] = status;
+    });
+    try {
+      await ApiService.submitAttendance(
+          _date, int.parse(_selectedPlanId!), int.parse(_selectedRoomId!), [
+        {'student_id': sid, 'status': status}
+      ]);
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('সংরক্ষণ ব্যর্থ: $e')));
+    } finally {
+      setState(() {});
+    }
+  }
+
+  Future<void> _bulkMark(String mode) async {
+    if (_students.isEmpty) return;
+    setState(() {
+      _bulkSaving = true;
+    });
+    for (final s in _students) {
+      s['status'] = mode;
+    }
+    try {
+      final entries = _students
+          .map((s) => {'student_id': s['student_id'], 'status': mode})
+          .toList();
+      await ApiService.submitAttendance(_date, int.parse(_selectedPlanId!),
+          int.parse(_selectedRoomId!), entries);
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Bulk save failed: $e')));
+    } finally {
+      setState(() {
+        _bulkSaving = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final stats = _computeStats();
+    final classes = _classCounts();
     return Scaffold(
-      appBar: AppBar(title: const Text('Today\'s Duties')),
-      body: Center(
-        child: Text('Duties Screen - Coming Soon!'),
+      appBar: AppBar(
+        title: const Text("Today's Duties"),
+        actions: [
+          if (_userName != null)
+            Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Center(child: Text(_userName!)))
+        ],
       ),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildFilters(),
+            const SizedBox(height: 8),
+            _buildStatsBar(stats, classes),
+            const SizedBox(height: 8),
+            Expanded(child: _buildStudentsTable()),
+          ],
+        ),
+      ),
+      floatingActionButton: (_students.isNotEmpty)
+          ? FloatingActionButton.extended(
+              onPressed: _bulkSaving ? null : () => _bulkMark('present'),
+              label: _bulkSaving
+                  ? const Text('Saving...')
+                  : const Text('Mark All Present'),
+              icon: const Icon(Icons.playlist_add_check),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildFilters() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(spacing: 12, runSpacing: 12, children: [
+              SizedBox(
+                width: 200,
+                child: _loadingPlans
+                    ? const _LoadingBox(label: 'Plans')
+                    : DropdownButtonFormField<String>(
+                        decoration:
+                            const InputDecoration(labelText: 'Seat Plan'),
+                        value: _selectedPlanId,
+                        items: _plans
+                            .map((p) => DropdownMenuItem(
+                                  value: p['id'].toString(),
+                                  child:
+                                      Text('${p['plan_name']} (${p['shift']})'),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          setState(() {
+                            _selectedPlanId = v;
+                            _selectedRoomId = null;
+                          });
+                          _loadRooms();
+                        },
+                      ),
+              ),
+              SizedBox(
+                width: 150,
+                child: TextFormField(
+                  decoration: const InputDecoration(labelText: 'Date'),
+                  initialValue: _date,
+                  readOnly: true,
+                ),
+              ),
+              SizedBox(
+                width: 160,
+                child: _loadingRooms
+                    ? const _LoadingBox(label: 'Rooms')
+                    : DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Room'),
+                        value: _selectedRoomId,
+                        items: _rooms
+                            .map((r) => DropdownMenuItem(
+                                  value: r['id'].toString(),
+                                  child: Text(r['title'] != null &&
+                                          r['title'].toString().isNotEmpty
+                                      ? '${r['room_no']} - ${r['title']}'
+                                      : '${r['room_no']}'),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          setState(() {
+                            _selectedRoomId = v;
+                          });
+                          _loadStudents();
+                        },
+                      ),
+              ),
+              if (_students.isNotEmpty)
+                ElevatedButton.icon(
+                  onPressed: _bulkSaving ? null : () => _bulkMark('absent'),
+                  icon: const Icon(Icons.block),
+                  label: const Text('Mark All Absent'),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent),
+                ),
+            ])
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsBar(Map<String, int> stats, Map<String, int> classCounts) {
+    if (_loadingStudents)
+      return const SizedBox(
+          height: 48, child: Center(child: CircularProgressIndicator()));
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
+        _statChip('Total', stats['total']!, Colors.indigo),
+        _statChip('Male', stats['male']!, Colors.blue),
+        _statChip('Female', stats['female']!, Colors.pink),
+        _statChip('Present', stats['present']!, Colors.green),
+        _statChip('Absent', stats['absent']!, Colors.red),
+        ...classCounts.entries.map((e) => _classChip(e.key, e.value)),
+      ]),
+    );
+  }
+
+  Widget _statChip(String label, int value, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration:
+          BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+      child: Row(children: [
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+        const SizedBox(width: 4),
+        Text(value.toString(),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
+      ]),
+    );
+  }
+
+  Widget _classChip(String label, int value) {
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade400)),
+      child: Row(children: [
+        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 4),
+        Text(value.toString(),
+            style: const TextStyle(fontWeight: FontWeight.bold))
+      ]),
+    );
+  }
+
+  Widget _buildStudentsTable() {
+    if (_loadingStudents) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_students.isEmpty) {
+      return const Center(child: Text('No students loaded'));
+    }
+    return ListView.separated(
+      itemCount: _students.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final s = _students[index];
+        final status = (s['status'] ?? '').toString();
+        final seatInfo = s['seat'] != null
+            ? 'Seat C${s['seat']['col_no']} B${s['seat']['bench_no']}${s['seat']['position']}'
+            : '';
+        return ListTile(
+          dense: true,
+          title: Text('${s['roll_no'] ?? ''}  ${s['student_name'] ?? ''}',
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+              '${s['class_name'] ?? ''}${seatInfo.isNotEmpty ? ' • $seatInfo' : ''}'),
+          trailing: ToggleButtons(
+            isSelected: [status == 'present', status == 'absent'],
+            constraints: const BoxConstraints(minHeight: 36, minWidth: 64),
+            onPressed: (i) {
+              _markSingle(s, i == 0 ? 'present' : 'absent');
+            },
+            borderRadius: BorderRadius.circular(8),
+            selectedColor: Colors.white,
+            fillColor: status == 'present'
+                ? Colors.green
+                : (status == 'absent' ? Colors.red : Colors.indigo),
+            children: const [Text('Present'), Text('Absent')],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LoadingBox extends StatelessWidget {
+  final String label;
+  const _LoadingBox({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration:
+          InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      child: const SizedBox(
+          height: 24,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
     );
   }
 }
@@ -496,7 +918,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         labelText: hint,
         border: OutlineInputBorder(),
       ),
-      value: value,
+      initialValue: value,
       items: items,
       onChanged: onChanged,
     );
@@ -569,6 +991,8 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
                             classId: widget.classId,
                             sectionId: widget.sectionId,
                             subjectId: subject['subject_id'].toString(),
+                            subjectName:
+                                subject['subject_name']?.toString() ?? '',
                             examLabel: widget.examLabel,
                           ),
                         ),
@@ -591,13 +1015,15 @@ class StudentListMarksScreen extends StatefulWidget {
   final String sectionId;
   final String subjectId;
   final String? examLabel;
+  final String? subjectName;
 
   StudentListMarksScreen(
       {required this.examId,
       required this.classId,
       required this.sectionId,
       required this.subjectId,
-      this.examLabel});
+      this.examLabel,
+      this.subjectName});
 
   @override
   _StudentListMarksScreenState createState() => _StudentListMarksScreenState();
@@ -608,8 +1034,10 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
   final Map<String, TextEditingController> _cqControllers = {};
   final Map<String, TextEditingController> _mcqControllers = {};
   final Map<String, TextEditingController> _prControllers = {};
-  bool _isSaving = false;
   Map<String, dynamic> _meta = {};
+  final Map<String, bool> _rowSaving = {};
+  final Map<String, bool> _rowSavedOk = {};
+  // Debouncers removed; saving now happens on focus loss only
 
   @override
   void initState() {
@@ -626,71 +1054,79 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
     super.dispose();
   }
 
-  Future<void> _submitMarks() async {
+  void _onMarkChanged(String studentId) {
+    // Only refresh totals immediately; save will happen on focus loss
+    setState(() {});
+  }
+
+  Future<void> _saveSingleStudent(String studentId) async {
+    final cq =
+        double.tryParse(_cqControllers[studentId]?.text.trim() ?? '') ?? 0;
+    final mcq =
+        double.tryParse(_mcqControllers[studentId]?.text.trim() ?? '') ?? 0;
+    final pr =
+        double.tryParse(_prControllers[studentId]?.text.trim() ?? '') ?? 0;
+
     setState(() {
-      _isSaving = true;
+      _rowSaving[studentId] = true;
+      _rowSavedOk[studentId] = false;
     });
-
-    final marks = <Map<String, dynamic>>[];
-    _cqControllers.forEach((sid, cqCtrl) {
-      final mcq = _mcqControllers[sid]?.text ?? '';
-      final pr = _prControllers[sid]?.text ?? '';
-      marks.add({
-        'student_id': int.tryParse(sid) ?? 0,
-        'creative': double.tryParse(cqCtrl.text) ?? 0,
-        'objective': double.tryParse(mcq) ?? 0,
-        'practical': double.tryParse(pr) ?? 0,
-      });
-    });
-
     try {
       await ApiService.submitMarks(
-          widget.examId, widget.classId, widget.subjectId, marks);
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Marks submitted successfully!')));
-      Navigator.pop(context);
+          widget.examId, widget.classId, widget.subjectId, [
+        {
+          'student_id': int.tryParse(studentId) ?? 0,
+          'creative': cq,
+          'objective': mcq,
+          'practical': pr,
+        }
+      ]);
+      setState(() {
+        _rowSavedOk[studentId] = true;
+      });
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to submit marks: $e')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('মার্কস সংরক্ষণে সমস্যা: $e')),
+      );
     } finally {
       setState(() {
-        _isSaving = false;
+        _rowSaving[studentId] = false;
       });
     }
   }
 
-  Widget _partField(
-      {required TextEditingController controller,
-      required String label,
-      required int max}) {
-    return TextField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      textAlign: TextAlign.center,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      ),
-      onChanged: (v) {
-        final d = double.tryParse(v) ?? 0;
-        if (d < 0) controller.text = '0';
-        if (d > max) controller.text = max.toString();
-      },
-    );
+  void _validateAndClamp(TextEditingController c, int max, String partLabel) {
+    String t = c.text.trim();
+    double v = double.tryParse(t) ?? 0;
+    if (v < 0) {
+      c.text = '0';
+      c.selection =
+          TextSelection.fromPosition(TextPosition(offset: c.text.length));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$partLabel এর মান 0 থেকে $max এর মধ্যে দিন')),
+        );
+      }
+    } else if (v > max) {
+      c.text = max.toString();
+      c.selection =
+          TextSelection.fromPosition(TextPosition(offset: c.text.length));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$partLabel এর মান 0 থেকে $max এর মধ্যে দিন')),
+        );
+      }
+    }
   }
+
+  // _partField removed; inline editors are used inside DataTable cells
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Enter Marks'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.save),
-            onPressed: _isSaving ? null : _submitMarks,
-          ),
-        ],
+        title: const Text('Enter Marks'),
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _dataFuture,
@@ -709,107 +1145,444 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
             _meta = Map<String, dynamic>.from(data['meta'] ?? {});
             final students =
                 (data['students'] as List).cast<Map<String, dynamic>>();
+            final cqMax = (_meta['creativeMax'] ?? 0) as int;
+            final mcqMax = (_meta['objectiveMax'] ?? 0) as int;
+            final prMax = (_meta['practicalMax'] ?? 0) as int;
+
+            List<DataColumn> cols = [
+              DataColumn(label: Center(child: Text('Roll'))),
+              DataColumn(label: Center(child: Text('Name'))),
+            ];
+            if (cqMax > 0)
+              cols.add(DataColumn(label: Center(child: Text('CQ/$cqMax'))));
+            if (mcqMax > 0)
+              cols.add(DataColumn(label: Center(child: Text('MCQ/$mcqMax'))));
+            if (prMax > 0)
+              cols.add(DataColumn(label: Center(child: Text('PR/$prMax'))));
+            cols.add(DataColumn(label: Center(child: Text('Total'))));
+
+            final rows = students.map((student) {
+              final studentId = student['student_id'].toString();
+              _cqControllers.putIfAbsent(
+                  studentId,
+                  () => TextEditingController(
+                      text: student['creative']?.toString() ?? ''));
+              _mcqControllers.putIfAbsent(
+                  studentId,
+                  () => TextEditingController(
+                      text: student['objective']?.toString() ?? ''));
+              _prControllers.putIfAbsent(
+                  studentId,
+                  () => TextEditingController(
+                      text: student['practical']?.toString() ?? ''));
+
+              double cq =
+                  double.tryParse(_cqControllers[studentId]?.text ?? '') ?? 0;
+              double mcq =
+                  double.tryParse(_mcqControllers[studentId]?.text ?? '') ?? 0;
+              double pr =
+                  double.tryParse(_prControllers[studentId]?.text ?? '') ?? 0;
+              double total = cq + mcq + pr;
+
+              List<DataCell> cells = [
+                DataCell(Container(
+                    padding: EdgeInsets.zero,
+                    child: Text('${student['roll_no'] ?? ''}'))),
+                DataCell(Container(
+                    padding: EdgeInsets.zero,
+                    child: Text(student['name'] ?? ''))),
+              ];
+              if (cqMax > 0) {
+                cells.add(DataCell(SizedBox(
+                  width: 60,
+                  child: Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) _saveSingleStudent(studentId);
+                    },
+                    child: TextField(
+                      controller: _cqControllers[studentId],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      decoration: const InputDecoration(
+                          isDense: true, border: OutlineInputBorder()),
+                      onChanged: (v) {
+                        _validateAndClamp(
+                            _cqControllers[studentId]!, cqMax, 'CQ');
+                        _onMarkChanged(studentId);
+                      },
+                    ),
+                  ),
+                )));
+              }
+              if (mcqMax > 0) {
+                cells.add(DataCell(SizedBox(
+                  width: 60,
+                  child: Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) _saveSingleStudent(studentId);
+                    },
+                    child: TextField(
+                      controller: _mcqControllers[studentId],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      decoration: const InputDecoration(
+                          isDense: true, border: OutlineInputBorder()),
+                      onChanged: (v) {
+                        _validateAndClamp(
+                            _mcqControllers[studentId]!, mcqMax, 'MCQ');
+                        _onMarkChanged(studentId);
+                      },
+                    ),
+                  ),
+                )));
+              }
+              if (prMax > 0) {
+                cells.add(DataCell(SizedBox(
+                  width: 60,
+                  child: Focus(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) _saveSingleStudent(studentId);
+                    },
+                    child: TextField(
+                      controller: _prControllers[studentId],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      decoration: const InputDecoration(
+                          isDense: true, border: OutlineInputBorder()),
+                      onChanged: (v) {
+                        _validateAndClamp(
+                            _prControllers[studentId]!, prMax, 'PR');
+                        _onMarkChanged(studentId);
+                      },
+                    ),
+                  ),
+                )));
+              }
+              cells.add(DataCell(Container(
+                  padding: EdgeInsets.zero,
+                  child: Center(child: Text(total.toInt().toString())))));
+
+              return DataRow(cells: cells);
+            }).toList();
+
+            final headerText =
+                (widget.examLabel != null && widget.examLabel!.isNotEmpty)
+                    ? widget.examLabel!
+                    : 'Exam: ${widget.examId}  Class: ${widget.classId}';
+
             return Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.examLabel != null &&
-                                  widget.examLabel!.isNotEmpty
-                              ? widget.examLabel!
-                              : 'Exam: ${widget.examId}  Class: ${widget.classId}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(headerText,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600)),
+                          if ((widget.subjectName ?? '').isNotEmpty)
+                            Text('Subject: ${widget.subjectName}',
+                                style: const TextStyle(color: Colors.black54)),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: students.length,
-                    itemBuilder: (context, index) {
-                      final student = students[index];
-                      final studentId = student['student_id'].toString();
-                      _cqControllers.putIfAbsent(
-                          studentId,
-                          () => TextEditingController(
-                              text: student['creative']?.toString() ?? ''));
-                      _mcqControllers.putIfAbsent(
-                          studentId,
-                          () => TextEditingController(
-                              text: student['objective']?.toString() ?? ''));
-                      _prControllers.putIfAbsent(
-                          studentId,
-                          () => TextEditingController(
-                              text: student['practical']?.toString() ?? ''));
-                      final cqMax = (_meta['creativeMax'] ?? 0) as int;
-                      final mcqMax = (_meta['objectiveMax'] ?? 0) as int;
-                      final prMax = (_meta['practicalMax'] ?? 0) as int;
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 20),
+                      child: SingleChildScrollView(
                         child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(student['name'],
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600)),
-                              Text('Roll: ${student['roll_no']}'),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  if (cqMax > 0)
-                                    Expanded(
-                                      child: _partField(
-                                        controller: _cqControllers[studentId]!,
-                                        label: 'CQ/$cqMax',
-                                        max: cqMax,
-                                      ),
-                                    ),
-                                  if (mcqMax > 0) const SizedBox(width: 8),
-                                  if (mcqMax > 0)
-                                    Expanded(
-                                      child: _partField(
-                                        controller: _mcqControllers[studentId]!,
-                                        label: 'MCQ/$mcqMax',
-                                        max: mcqMax,
-                                      ),
-                                    ),
-                                  if (prMax > 0) const SizedBox(width: 8),
-                                  if (prMax > 0)
-                                    Expanded(
-                                      child: _partField(
-                                        controller: _prControllers[studentId]!,
-                                        label: 'PR/$prMax',
-                                        max: prMax,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
+                          padding: const EdgeInsets.only(left: 12.0),
+                          child: DataTable(
+                            columns: cols,
+                            rows: rows,
+                            headingRowColor: WidgetStateProperty.resolveWith(
+                                (_) => Colors.grey.shade100),
+                            columnSpacing: 16,
+                            horizontalMargin: 8,
+                            headingRowHeight: 40,
+                            dataRowMinHeight: 36,
+                            dataRowMaxHeight: 44,
                           ),
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
-                if (_isSaving)
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Image.asset('assets/images/loading.gif',
-                        width: 100, height: 100),
-                  ),
               ],
             );
           }
         },
       ),
+    );
+  }
+}
+
+class RoomDutyAllocationScreen extends StatefulWidget {
+  @override
+  _RoomDutyAllocationScreenState createState() =>
+      _RoomDutyAllocationScreenState();
+}
+
+class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
+  List<dynamic> _plans = [];
+  String? _selectedPlanId;
+  List<String> _examDates = [];
+  String? _selectedDate;
+  List<dynamic> _rooms = [];
+  List<dynamic> _teachers = [];
+  Map<String, String> _dutyMap = {}; // room_id -> teacher_user_id
+
+  bool _loadingPlans = true;
+  bool _loadingDates = false;
+  bool _loadingRoomsAndDuties = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    setState(() => _loadingPlans = true);
+    try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final plans = await ApiService.getSeatPlans(today);
+      final teachers = await ApiService.getTeachers();
+      if (mounted) {
+        setState(() {
+          _plans = plans;
+          _teachers = teachers;
+          if (_plans.isNotEmpty) {
+            _selectedPlanId = _plans.first['id']?.toString();
+            _loadDatesForPlan();
+          }
+        });
+      }
+    } catch (e) {
+      _showError('Failed to load initial data: $e');
+    } finally {
+      if (mounted) setState(() => _loadingPlans = false);
+    }
+  }
+
+  Future<void> _loadDatesForPlan() async {
+    if (_selectedPlanId == null) return;
+    setState(() {
+      _loadingDates = true;
+      _examDates = [];
+      _selectedDate = null;
+      _rooms = [];
+      _dutyMap = {};
+    });
+    try {
+      final dates = await ApiService.getPlanDates(_selectedPlanId!);
+      if (mounted) {
+        setState(() {
+          _examDates = dates;
+          if (_examDates.isNotEmpty) {
+            _selectedDate = _examDates.first;
+            _loadRoomsAndDuties();
+          }
+        });
+      }
+    } catch (e) {
+      _showError('Failed to load dates: $e');
+    } finally {
+      if (mounted) setState(() => _loadingDates = false);
+    }
+  }
+
+  Future<void> _loadRoomsAndDuties() async {
+    if (_selectedPlanId == null || _selectedDate == null) return;
+    setState(() => _loadingRoomsAndDuties = true);
+    try {
+      final rooms = await ApiService.getRooms(_selectedPlanId!, _selectedDate!);
+      final duties =
+          await ApiService.getDutiesForPlan(_selectedPlanId!, _selectedDate!);
+      if (mounted) {
+        setState(() {
+          _rooms = rooms;
+          _dutyMap = duties;
+        });
+      }
+    } catch (e) {
+      _showError('Failed to load rooms/duties: $e');
+    } finally {
+      if (mounted) setState(() => _loadingRoomsAndDuties = false);
+    }
+  }
+
+  Future<void> _saveDuties() async {
+    if (_selectedPlanId == null || _selectedDate == null) return;
+    setState(() => _saving = true);
+    try {
+      // Filter out unassigned rooms
+      final Map<String, String> dutiesToSave = {};
+      _dutyMap.forEach((roomId, teacherId) {
+        if (teacherId.isNotEmpty) {
+          dutiesToSave[roomId] = teacherId;
+        }
+      });
+
+      await ApiService.saveDuties(
+          _selectedPlanId!, _selectedDate!, dutiesToSave);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Duties saved successfully')));
+      }
+    } catch (e) {
+      _showError('Failed to save duties: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Room Duty Allocation')),
+      body: Column(
+        children: [
+          _buildFilters(),
+          Expanded(
+            child: _loadingPlans
+                ? Center(child: CircularProgressIndicator())
+                : _buildDutyTable(),
+          ),
+        ],
+      ),
+      floatingActionButton: (_rooms.isNotEmpty && !_saving)
+          ? FloatingActionButton.extended(
+              onPressed: _saveDuties,
+              icon: Icon(Icons.save),
+              label: Text('Save Duties'),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildFilters() {
+    return Card(
+      margin: EdgeInsets.all(8),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Wrap(
+          spacing: 16,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: 250,
+              child: DropdownButtonFormField<String>(
+                decoration: InputDecoration(labelText: 'Seat Plan'),
+                value: _selectedPlanId,
+                items: _plans
+                    .map((p) => DropdownMenuItem(
+                          value: p['id'].toString(),
+                          child: Text('${p['plan_name']} (${p['shift']})'),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => _selectedPlanId = v);
+                    _loadDatesForPlan();
+                  }
+                },
+              ),
+            ),
+            SizedBox(
+              width: 200,
+              child: _loadingDates
+                  ? _LoadingBox(label: 'Date')
+                  : DropdownButtonFormField<String>(
+                      decoration: InputDecoration(labelText: 'Date'),
+                      value: _selectedDate,
+                      items: _examDates
+                          .map((d) => DropdownMenuItem(
+                                value: d,
+                                child: Text(d),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() => _selectedDate = v);
+                          _loadRoomsAndDuties();
+                        }
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDutyTable() {
+    if (_loadingRoomsAndDuties) {
+      return Center(child: CircularProgressIndicator());
+    }
+    if (_rooms.isEmpty) {
+      return Center(child: Text('No rooms found for the selected criteria.'));
+    }
+    return ListView.builder(
+      padding: EdgeInsets.all(8),
+      itemCount: _rooms.length,
+      itemBuilder: (context, index) {
+        final room = _rooms[index];
+        final roomId = room['id'].toString();
+        final assignedTeacherId = _dutyMap[roomId] ?? '';
+
+        return Card(
+          margin: EdgeInsets.symmetric(vertical: 4),
+          child: ListTile(
+            title: Text(
+                'Room: ${room['room_no']} ${room['title'] != null ? '- ' + room['title'] : ''}'),
+            subtitle: DropdownButton<String>(
+              isExpanded: true,
+              value: assignedTeacherId.isEmpty ? null : assignedTeacherId,
+              hint: Text('-- Select Teacher --'),
+              items: [
+                DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('-- Unassigned --'),
+                ),
+                ..._teachers.map((t) => DropdownMenuItem(
+                      value: t['user_id'].toString(),
+                      child: Text(t['display_name']),
+                    )),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  // Enforce one teacher per room
+                  final currentAssignments = Map<String, String>.from(_dutyMap);
+                  // Clear previous assignment of this teacher if any
+                  currentAssignments.forEach((rId, tId) {
+                    if (tId == value) {
+                      currentAssignments[rId] = '';
+                    }
+                  });
+                  _dutyMap = currentAssignments;
+                  _dutyMap[roomId] = value ?? '';
+                });
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -821,132 +1594,248 @@ class SeatPlanScreen extends StatefulWidget {
 }
 
 class _SeatPlanScreenState extends State<SeatPlanScreen> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Exam Seat Plan')),
-      body: Center(
-        child: Text('Seat Plan Screen - Coming Soon!'),
-      ),
-    );
-  }
-}
-
-class AttendanceScreen extends StatefulWidget {
-  final String token;
-  final int planId;
-  final int roomId;
-  final String date;
-  const AttendanceScreen(
-      {super.key,
-      required this.token,
-      required this.planId,
-      required this.roomId,
-      required this.date});
-  @override
-  State<AttendanceScreen> createState() => _AttendanceScreenState();
-}
-
-class _AttendanceScreenState extends State<AttendanceScreen> {
-  bool loading = true;
-  String? error;
-  List<dynamic> students = [];
-  bool saving = false;
+  List<dynamic> _plans = [];
+  String? _selectedPlanId;
+  String _search = '';
+  List<dynamic> _results = [];
+  bool _loadingPlans = true;
+  bool _searching = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadPlans();
   }
 
-  Future<void> _load() async {
-    setState(() => loading = true);
-    try {
-      students = await ApiService.getAttendance(
-          widget.date, widget.planId, widget.roomId);
-    } catch (e) {
-      error = e.toString();
-    }
-    setState(() => loading = false);
-  }
-
-  Future<void> _submit() async {
-    setState(() => saving = true);
-    try {
-      final entries = students
-          .map((s) => {'student_id': s['student_id'], 'status': s['status']})
-          .toList();
-      await ApiService.submitAttendance(
-          widget.date, widget.planId, widget.roomId, entries);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Attendance saved')));
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
-    } finally {
-      setState(() => saving = false);
-    }
-  }
-
-  void _toggleStatus(int idx) {
+  Future<void> _loadPlans() async {
     setState(() {
-      final cur = students[idx]['status'];
-      students[idx]['status'] = cur == 'present' ? 'absent' : 'present';
+      _loadingPlans = true;
+      _error = null;
     });
+    try {
+      // Use a fixed date for now, or pass from somewhere else if needed.
+      final date = DateTime.now().toIso8601String().substring(0, 10);
+      _plans = await ApiService.getSeatPlans(date);
+      if (_plans.isNotEmpty) {
+        _selectedPlanId ??= _plans.first['id']?.toString();
+      }
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingPlans = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _doSearch() async {
+    if (_selectedPlanId == null || _search.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('একটি প্ল্যান নির্বাচন করে সার্চ দিন')));
+      return;
+    }
+    setState(() {
+      _searching = true;
+      _results = [];
+      _error = null;
+    });
+    try {
+      _results =
+          await ApiService.searchSeatPlan(int.parse(_selectedPlanId!), _search);
+      if (_results.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$_search" এর জন্য কোন সিট পাওয়া যায়নি')));
+      }
+    } catch (e) {
+      _error = e.toString();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('সার্চ ব্যর্থ: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _searching = false;
+        });
+      }
+    }
+  }
+
+  String _sideLabel(String? code) {
+    if (code == null) return '';
+    return code == 'R' ? 'Right' : (code == 'L' ? 'Left' : code);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Attendance ${widget.date}')),
-      body: loading
-          ? Center(
-              child: SizedBox(
-                  height: 100,
-                  width: 100,
-                  child: Image.asset('assets/images/loading.gif')))
-          : error != null
-              ? Center(child: Text(error!))
-              : Column(children: [
-                  Expanded(
-                      child: ListView.builder(
-                    itemCount: students.length,
-                    itemBuilder: (c, i) {
-                      final s = students[i];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
-                        child: ListTile(
-                          title: Text(s['student_name'] ??
-                              'Student ${s['student_id']}'),
-                          subtitle: Text(
-                              'Roll ${s['roll_no'] ?? ''} • Seat C${s['seat']['col_no']} B${s['seat']['bench_no']}${s['seat']['position']}'),
-                          trailing: Switch(
-                            value: s['status'] == 'present',
-                            onChanged: (_) => _toggleStatus(i),
-                          ),
-                          onTap: () => _toggleStatus(i),
+      appBar: AppBar(title: const Text('Seat Plan Finder')),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            children: [
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Search Student Seat',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 16, runSpacing: 12, children: [
+                        SizedBox(
+                          width: 220,
+                          child: _loadingPlans
+                              ? const _LoadingBox(label: 'Seat Plans')
+                              : DropdownButtonFormField<String>(
+                                  decoration: const InputDecoration(
+                                      labelText: 'Seat Plan'),
+                                  value: _selectedPlanId,
+                                  items: _plans
+                                      .map((p) => DropdownMenuItem<String>(
+                                            value: p['id']?.toString(),
+                                            child: Text(
+                                                '${p['plan_name']} (${p['shift']})'),
+                                          ))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    setState(() {
+                                      _selectedPlanId = v;
+                                    });
+                                  },
+                                ),
                         ),
-                      );
-                    },
-                  )),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.save),
-                        label: saving
-                            ? SizedBox(
-                                height: 36,
-                                width: 36,
-                                child: Image.asset('assets/images/loading.gif'))
-                            : const Text('Save Attendance'),
-                        onPressed: saving ? null : _submit,
-                      ),
-                    ),
-                  )
-                ]),
+                        SizedBox(
+                          width: 240,
+                          child: TextFormField(
+                            decoration: const InputDecoration(
+                                labelText: 'Roll বা Name লিখুন'),
+                            onChanged: (v) => _search = v,
+                            onFieldSubmitted: (_) => _doSearch(),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 56,
+                          child: ElevatedButton.icon(
+                            onPressed: _searching ? null : _doSearch,
+                            icon: const Icon(Icons.search),
+                            label: _searching
+                                ? const Text('Searching...')
+                                : const Text('Search'),
+                          ),
+                        )
+                      ])
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildResults(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResults() {
+    if (_searching) {
+      return const Center(heightFactor: 5, child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Text('ত্রুটি: $_error'));
+    }
+    if (_results.isEmpty) {
+      return const Center(
+          heightFactor: 5, child: Text('প্ল্যান সিলেক্ট করে সার্চ করুন'));
+    }
+    return Card(
+      elevation: 1,
+      child: Column(
+        children: [
+          Container(
+            color: Colors.grey.shade100,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            child: Row(
+              children: const [
+                Expanded(
+                    flex: 2,
+                    child: Text('Roll',
+                        style: TextStyle(fontWeight: FontWeight.w600))),
+                Expanded(
+                    flex: 3,
+                    child: Text('Name',
+                        style: TextStyle(fontWeight: FontWeight.w600))),
+                Expanded(
+                    flex: 2,
+                    child: Text('Class',
+                        style: TextStyle(fontWeight: FontWeight.w600))),
+                Expanded(
+                    flex: 2,
+                    child: Text('Room',
+                        style: TextStyle(fontWeight: FontWeight.w600))),
+                Expanded(
+                    flex: 1,
+                    child: Text('Col',
+                        style: TextStyle(fontWeight: FontWeight.w600))),
+                Expanded(
+                    flex: 1,
+                    child: Text('Bench',
+                        style: TextStyle(fontWeight: FontWeight.w600))),
+                Expanded(
+                    flex: 2,
+                    child: Text('Side',
+                        style: TextStyle(fontWeight: FontWeight.w600))),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _results.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final r = _results[i];
+              return InkWell(
+                onTap: () {},
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                          flex: 2, child: Text(r['roll_no']?.toString() ?? '')),
+                      Expanded(
+                          flex: 3,
+                          child: Text(r['student_name']?.toString() ?? '')),
+                      Expanded(
+                          flex: 2,
+                          child: Text(r['class_name']?.toString() ?? '')),
+                      Expanded(
+                          flex: 2, child: Text(r['room_no']?.toString() ?? '')),
+                      Expanded(
+                          flex: 1, child: Text((r['col_no'] ?? '').toString())),
+                      Expanded(
+                          flex: 1,
+                          child: Text((r['bench_no'] ?? '').toString())),
+                      Expanded(
+                          flex: 2,
+                          child: Text(_sideLabel(r['position']?.toString()))),
+                    ],
+                  ),
+                ),
+              );
+            },
+          )
+        ],
+      ),
     );
   }
 }
@@ -1005,9 +1894,69 @@ class ApiService {
     }
   }
 
+  static Future<bool> isController(String userId) async {
+    final data = await _get('is_controller.php?user_id=$userId');
+    return data['is_controller'] as bool;
+  }
+
   static Future<List<dynamic>> getDuties() async {
     final data = await _get('teacher/duties.php?days=7');
     return data['duties'] as List<dynamic>;
+  }
+
+  // New: seat plans for a given date (expects array of {id, plan_name, shift})
+  static Future<List<dynamic>> getSeatPlans(String date) async {
+    final data = await _get('exam/seat_plans.php?date=$date');
+    return (data['plans'] ?? []) as List<dynamic>;
+  }
+
+  // New: rooms for a seat plan; if teacher, API should scope to assignments
+  static Future<List<dynamic>> getRooms(String planId, String date) async {
+    final data = await _get('exam/rooms.php?plan_id=$planId&date=$date');
+    return (data['rooms'] ?? []) as List<dynamic>;
+  }
+
+  // Seat plan search (finder) - expects endpoint returning {results:[...]}
+  // Each result item should contain: roll_no, student_name, class_name, room_no, col_no, bench_no, position
+  static Future<List<dynamic>> searchSeatPlan(int planId, String query) async {
+    if (query.trim().isEmpty) return [];
+    final data = await _get(
+        'exam/seat_plan_search.php?plan_id=$planId&find=${Uri.encodeComponent(query.trim())}');
+    return (data['results'] ?? []) as List<dynamic>;
+  }
+
+  // API methods for Room Duty Allocation
+  static Future<List<dynamic>> getTeachers() async {
+    final data = await _get('teachers.php');
+    return data['teachers'] as List<dynamic>;
+  }
+
+  static Future<List<String>> getPlanDates(String planId) async {
+    final data = await _get('exam/plan_dates.php?plan_id=$planId');
+    return (data['dates'] as List).map((d) => d.toString()).toList();
+  }
+
+  static Future<Map<String, String>> getDutiesForPlan(
+      String planId, String date) async {
+    final data = await _get('exam/duties.php?plan_id=$planId&date=$date');
+    return Map<String, String>.from((data['duties'] as Map)
+        .map((k, v) => MapEntry(k.toString(), v.toString())));
+  }
+
+  static Future<void> saveDuties(
+      String planId, String date, Map<String, String> duties) async {
+    await _post('exam/duties.php?plan_id=$planId&date=$date', {
+      'duties': duties,
+    });
+  }
+
+  // Optional bulk helper (not used directly; we reuse submitAttendance)
+  static Future<void> bulkMarkAttendance(String date, int planId, int roomId,
+      String mode, List<dynamic> students) async {
+    final entries = students
+        .map((s) => {'student_id': s['student_id'], 'status': mode})
+        .toList();
+    await submitAttendance(date, planId, roomId, entries);
   }
 
   static Future<List<dynamic>> getAttendance(
