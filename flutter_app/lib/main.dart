@@ -89,6 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _busy = false;
   String? _error;
+  bool _passObscure = true;
   static const baseUrl =
       'https://jss.batighorbd.com/api'; // TODO: replace for production
 
@@ -193,10 +194,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _passCtrl,
-                      decoration: const InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outline)),
-                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          tooltip:
+                              _passObscure ? 'Show password' : 'Hide password',
+                          icon: Icon(_passObscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined),
+                          onPressed: () => setState(() {
+                            _passObscure = !_passObscure;
+                          }),
+                        ),
+                      ),
+                      obscureText: _passObscure,
                       validator: (v) =>
                           v == null || v.isEmpty ? 'Required' : null,
                     ),
@@ -1844,6 +1856,12 @@ class ApiService {
   static const String _baseUrl =
       'https://jss.batighorbd.com/api'; // Use 10.0.2.2 for Android emulator
 
+  // Simple in-memory caches to speed up app usage within a session
+  static final Map<String, List<dynamic>> _seatPlansCache = {}; // key: date
+  static final Map<String, List<dynamic>> _roomsCache = {}; // key: planId|date
+  static List<dynamic>? _teachersCache; // global list
+  static final Map<String, List<String>> _planDatesCache = {}; // key: planId
+
   static Future<String> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token') ?? '';
@@ -1854,7 +1872,7 @@ class ApiService {
     final response = await http.get(
       Uri.parse('$_baseUrl/$endpoint'),
       headers: {'Authorization': 'Bearer $token'},
-    );
+    ).timeout(const Duration(seconds: 12));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -1872,14 +1890,16 @@ class ApiService {
   static Future<dynamic> _post(
       String endpoint, Map<String, dynamic> body) async {
     final token = await _getToken();
-    final response = await http.post(
-      Uri.parse('$_baseUrl/$endpoint'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(body),
-    );
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/$endpoint'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -1906,14 +1926,21 @@ class ApiService {
 
   // New: seat plans for a given date (expects array of {id, plan_name, shift})
   static Future<List<dynamic>> getSeatPlans(String date) async {
+    if (_seatPlansCache.containsKey(date)) return _seatPlansCache[date]!;
     final data = await _get('exam/seat_plans.php?date=$date');
-    return (data['plans'] ?? []) as List<dynamic>;
+    final plans = (data['plans'] ?? []) as List<dynamic>;
+    _seatPlansCache[date] = plans;
+    return plans;
   }
 
   // New: rooms for a seat plan; if teacher, API should scope to assignments
   static Future<List<dynamic>> getRooms(String planId, String date) async {
+    final key = '$planId|$date';
+    if (_roomsCache.containsKey(key)) return _roomsCache[key]!;
     final data = await _get('exam/rooms.php?plan_id=$planId&date=$date');
-    return (data['rooms'] ?? []) as List<dynamic>;
+    final rooms = (data['rooms'] ?? []) as List<dynamic>;
+    _roomsCache[key] = rooms;
+    return rooms;
   }
 
   // Seat plan search (finder) - expects endpoint returning {results:[...]}
@@ -1927,13 +1954,18 @@ class ApiService {
 
   // API methods for Room Duty Allocation
   static Future<List<dynamic>> getTeachers() async {
+    if (_teachersCache != null) return _teachersCache!;
     final data = await _get('teachers.php');
-    return data['teachers'] as List<dynamic>;
+    _teachersCache = data['teachers'] as List<dynamic>;
+    return _teachersCache!;
   }
 
   static Future<List<String>> getPlanDates(String planId) async {
+    if (_planDatesCache.containsKey(planId)) return _planDatesCache[planId]!;
     final data = await _get('exam/plan_dates.php?plan_id=$planId');
-    return (data['dates'] as List).map((d) => d.toString()).toList();
+    final dates = (data['dates'] as List).map((d) => d.toString()).toList();
+    _planDatesCache[planId] = dates;
+    return dates;
   }
 
   static Future<Map<String, String>> getDutiesForPlan(

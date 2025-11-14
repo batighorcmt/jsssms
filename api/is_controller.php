@@ -5,7 +5,7 @@ include '../config/db.php';
 $userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
 
 if ($userId <= 0) {
-    echo json_encode(['is_controller' => false]);
+    echo json_encode(['success' => true, 'data' => ['is_controller' => false]]);
     exit;
 }
 
@@ -19,6 +19,6 @@ if ($result && $result->num_rows > 0) {
     $isController = true;
 }
 
-echo json_encode(['is_controller' => $isController]);
+echo json_encode(['success' => true, 'data' => ['is_controller' => $isController]]);
 
 $conn->close();
