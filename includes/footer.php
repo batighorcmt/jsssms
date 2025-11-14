@@ -81,6 +81,28 @@
   })();
   </script>
 
+  <script>
+  // Auto-wrap wide tables in a responsive container on small screens
+  (function(){
+    function wrapTables(scope){
+      var root = scope || document;
+      var tables = root.querySelectorAll('table');
+      var isSmall = window.matchMedia('(max-width: 768px)').matches;
+      if (!isSmall) return;
+      tables.forEach(function(tbl){
+        // Skip if already wrapped
+        if (tbl.parentElement && tbl.parentElement.classList.contains('table-responsive')) return;
+        var wrapper = document.createElement('div');
+        wrapper.className = 'table-responsive';
+        tbl.parentElement.insertBefore(wrapper, tbl);
+        wrapper.appendChild(tbl);
+      });
+    }
+    function init(){ wrapTables(document); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  })();
+  </script>
+
   <!-- Global Toast Container -->
   <div aria-live="polite" aria-atomic="true" style="position: fixed; top:1rem; right:1rem; z-index:1080;">
     <div id="globalToast" class="toast" role="alert" data-delay="5000" data-autohide="true">

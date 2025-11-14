@@ -428,6 +428,22 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
     .truncate{max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .sticky-alert{position:sticky;top:8px;z-index:1050}
     @media (max-width:576px){ .card .card-header h3{font-size:1.05rem} }
+    /* Hide subject codes column on small screens */
+    @media (max-width: 767.98px){
+        .subject-codes-col{display:none !important;}
+    }
+    /* Modern mobile card-like rows */
+    @media (max-width: 575.98px){
+        .table.table-striped.table-hover.table-sm.mb-0 tbody tr{display:block; margin:0 0 14px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 4px 14px -2px rgba(0,0,0,.08); padding:10px 10px 6px;}
+        .table.table-striped.table-hover.table-sm.mb-0 thead{display:none;}
+        .table.table-striped.table-hover.table-sm.mb-0 tbody tr td{display:flex; justify-content:space-between; align-items:flex-start; border:none !important; padding:4px 6px; font-size:14px;}
+        .table.table-striped.table-hover.table-sm.mb-0 tbody tr td.actions-cell{justify-content:flex-start; margin-top:6px;}
+        .table.table-striped.table-hover.table-sm.mb-0 tbody tr td[data-label]{font-weight:600; color:#334155; margin-right:6px;}
+        .table.table-striped.table-hover.table-sm.mb-0 tbody tr:hover{box-shadow:0 6px 16px -2px rgba(0,0,0,.12);}
+    }
+    /* Improve badge appearance slightly */
+    .badge-success{background:linear-gradient(135deg,#16a34a,#22c55e);} 
+    .badge-primary{background:linear-gradient(135deg,#2563eb,#3b82f6);} 
 </style>
 
 <div class="row">
@@ -565,7 +581,7 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                                 <th class="d-none d-sm-table-cell">Section</th>
                                 <th>Roll</th>
                                 <th class="d-none d-md-table-cell">Group</th>
-                                <th>Subject Codes</th>
+                                <th class="subject-codes-col">Subject Codes</th>
                                 <th class="d-none d-md-table-cell">Photo</th>
                                 <th>Actions</th>
                             </tr>
@@ -650,7 +666,7 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                 <td class="d-none d-sm-table-cell"><?= htmlspecialchars($row['section_name']); ?></td>
                 <td><?= htmlspecialchars($row['roll_no']); ?></td>
                 <td class="d-none d-md-table-cell"><?= htmlspecialchars($row['student_group'] ?? '') ?></td>
-                <td>
+                <td class="subject-codes-col">
                   <?php
                     if (!empty($subs)) {
                         // Compulsory first (green)

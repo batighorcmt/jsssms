@@ -37,6 +37,8 @@ if (session_status() == PHP_SESSION_NONE) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
   <!-- Bootstrap Datepicker CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-datepicker@1.9.0/dist/css/bootstrap-datepicker3.min.css">
+  <!-- Global mobile CSS -->
+  <link rel="stylesheet" href="<?php echo htmlspecialchars(BASE_URL.'assets/css/mobile.css'); ?>">
 </head>
 <body class="hold-transition sidebar-mini">
 <div class="wrapper">
