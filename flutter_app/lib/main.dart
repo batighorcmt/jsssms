@@ -117,7 +117,22 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('user_name', userName);
         await prefs.setString(
             'user_username', user['username']?.toString() ?? '');
-        await prefs.setString('user_id', user['id']?.toString() ?? '');
+        final uid = (user['user_id']?.toString().isNotEmpty == true)
+            ? user['user_id'].toString()
+            : user['id']?.toString() ?? '';
+        await prefs.setString('user_id', uid);
+        // Cache controller flag if provided in login response
+        final ic = (user['is_controller'] ?? data['data']['is_controller']);
+        if (ic != null) {
+          final s = ic.toString().toLowerCase();
+          final isCtrl =
+              ic == true || ic == 1 || s == '1' || s == 'true' || s == 'yes';
+          await prefs.setBool('is_controller', isCtrl);
+          await prefs.setString('is_controller_user_id', uid);
+        } else {
+          // Clear any stale value for other users
+          await prefs.remove('is_controller');
+        }
         final role = user['role']?.toString() ?? '';
         // Enforce teacher-only login
         if (role.toLowerCase() != 'teacher') {
@@ -288,7 +303,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (userId != null && userId.isNotEmpty) {
       if (mounted) {
         setState(() => _userId = userId);
-        _checkControllerStatus();
+        final cachedCtrl = prefs.getBool('is_controller');
+        final cacheFor = prefs.getString('is_controller_user_id');
+        if (cachedCtrl == true && cacheFor == userId) {
+          _isController = true;
+        } else {
+          _checkControllerStatus();
+        }
       }
     }
   }
@@ -301,10 +322,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() {
           _isController = isController;
         });
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_controller', isController);
       }
     } catch (e) {
       // Silently fail, as it's not a critical feature
-      print('Failed to check controller status: $e');
+      // Intentionally not printing to avoid noisy logs in web due to CORS
     }
   }
 
@@ -314,6 +337,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await prefs.remove('user_name');
     await prefs.remove('user_username');
     await prefs.remove('user_id');
+    await prefs.remove('is_controller');
+    await prefs.remove('is_controller_user_id');
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
@@ -1418,10 +1443,8 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
         setState(() {
           _plans = plans;
           _teachers = teachers;
-          if (_plans.isNotEmpty) {
-            _selectedPlanId = _plans.first['id']?.toString();
-            _loadDatesForPlan();
-          }
+          // Keep seat plan field blank initially; don't auto-load dates
+          _selectedPlanId = null;
         });
       }
     } catch (e) {
@@ -1445,10 +1468,8 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
       if (mounted) {
         setState(() {
           _examDates = dates;
-          if (_examDates.isNotEmpty) {
-            _selectedDate = _examDates.first;
-            _loadRoomsAndDuties();
-          }
+          // Do not auto-select date; wait for user selection
+          _selectedDate = null;
         });
       }
     } catch (e) {
@@ -1967,12 +1988,54 @@ class ApiService {
   }
 
   static Future<bool> isController(String userId) async {
-    final data = await _get('is_controller.php?user_id=$userId');
-    final v = data['is_controller'];
-    if (v is bool) return v;
-    if (v is num) return v != 0;
-    final s = v?.toString().toLowerCase();
-    return s == '1' || s == 'true' || s == 'yes';
+    final uri = Uri.parse('$_baseUrl/is_controller.php?user_id=$userId');
+    // Try public GET first to avoid CORS issues with Authorization header (Flutter web)
+    try {
+      final r1 = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (r1.statusCode == 200) {
+        final json = jsonDecode(r1.body);
+        final obj =
+            (json is Map && json.containsKey('data') && json['data'] is Map)
+                ? json['data']
+                : json;
+        final v = (obj is Map) ? obj['is_controller'] : null;
+        if (v != null) {
+          if (v is bool) return v;
+          if (v is num) return v != 0;
+          final s = v.toString().toLowerCase();
+          return s == '1' || s == 'true' || s == 'yes';
+        }
+      }
+    } catch (_) {
+      // ignore and try with auth
+    }
+
+    // Fallback: try with Authorization header
+    try {
+      final token = await _getToken();
+      final r2 = await http.get(uri, headers: {
+        'Authorization': 'Bearer $token',
+      }).timeout(const Duration(seconds: 10));
+      if (r2.statusCode == 200) {
+        final json = jsonDecode(r2.body);
+        final obj =
+            (json is Map && json.containsKey('data') && json['data'] is Map)
+                ? json['data']
+                : json;
+        final v = (obj is Map) ? obj['is_controller'] : null;
+        if (v != null) {
+          if (v is bool) return v;
+          if (v is num) return v != 0;
+          final s = v.toString().toLowerCase();
+          return s == '1' || s == 'true' || s == 'yes';
+        }
+      }
+    } catch (_) {
+      // swallow
+    }
+
+    // Default to false if undetermined
+    return false;
   }
 
   static Future<List<dynamic>> getDuties() async {
@@ -1980,36 +2043,57 @@ class ApiService {
     return data['duties'] as List<dynamic>;
   }
 
-  // New: seat plans for a given date (expects array of {id, plan_name, shift})
+  // Seat plans: always return ACTIVE plans only. Tries multiple endpoints for compatibility.
+  // Expects array items with keys like {id, plan_name, shift, status|is_active}.
   static Future<List<dynamic>> getSeatPlans(String date) async {
-    // If already cached for this date, return directly
-    if (_seatPlansCache.containsKey(date)) return _seatPlansCache[date]!;
+    const cacheKey = '__all_active__';
+    if (_seatPlansCache.containsKey(cacheKey))
+      return _seatPlansCache[cacheKey]!;
 
-    // Build endpoint: some backends may not support date filtering properly
-    String endpoint = 'exam/seat_plans.php';
-    if (date.isNotEmpty) {
-      endpoint += '?date=$date';
-    }
-
-    List<dynamic> plans = [];
-    try {
-      final data = await _get(endpoint);
-      plans = (data['plans'] ?? []) as List<dynamic>;
-    } catch (e) {
-      // Silent; will attempt fallback below
-    }
-
-    // Fallback: if date-specific query returned empty, try without date (in case server ignores/blocks date filter)
-    if (plans.isEmpty && date.isNotEmpty) {
+    Future<List<dynamic>> tryFetch(String endpoint) async {
       try {
-        final fbData = await _get('exam/seat_plans.php');
-        plans = (fbData['plans'] ?? []) as List<dynamic>;
-      } catch (e) {
-        // If fallback also fails, propagate original empty list
+        final data = await _get(endpoint);
+        return (data['plans'] ?? []) as List<dynamic>;
+      } catch (_) {
+        return [];
       }
     }
 
-    _seatPlansCache[date] = plans;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final endpoints = <String>[
+      // New lightweight endpoint for active plans list
+      'exam/plans_list.php',
+      // Legacy/date-scoped endpoints as fallbacks
+      'exam/seat_plans.php?status=active',
+      'exam/seat_plans.php',
+      if (date.isNotEmpty) 'exam/seat_plans.php?date=$date',
+      'exam/seat_plans.php?date=$today',
+    ];
+
+    List<dynamic> plans = [];
+    for (final ep in endpoints) {
+      plans = await tryFetch(ep);
+      if (plans.isNotEmpty) break;
+    }
+
+    bool isActive(dynamic p) {
+      final m = (p is Map) ? p : {};
+      final v = m['status'];
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      final s = v?.toString().toLowerCase();
+      if (s == 'active') return true;
+      if (s == '1' || s == 'true' || s == 'yes') return true;
+      // Fallback to alternative key often used
+      final alt = m['is_active'];
+      if (alt is bool) return alt;
+      if (alt is num) return alt != 0;
+      final a = alt?.toString().toLowerCase();
+      return a == '1' || a == 'true' || a == 'yes';
+    }
+
+    plans = plans.where(isActive).toList();
+    _seatPlansCache[cacheKey] = plans;
     return plans;
   }
 
