@@ -1,6 +1,9 @@
 <?php
-require_once __DIR__ . '/../bootstrap.php';
-api_require_auth(['teacher','super_admin']);
+// Open read-only endpoint: no auth required. If a valid auth token/session exists
+// we will still compute teacher_assigned flags; otherwise those default to false.
+header('Content-Type: application/json');
+require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../bootstrap.php'; // gives helpers (validate_date, api_response, etc.) but we intentionally skip api_require_auth
 
 $date = $_GET['date'] ?? '';
 if (!validate_date($date)) api_response(false, 'Invalid or missing date', 400);
@@ -34,10 +37,11 @@ foreach ($plans as $p) {
       $cnt = 0; $qCnt = $conn->query('SELECT COUNT(*) AS c FROM seat_plan_allocations WHERE plan_id='.$pid.' AND room_id='.$roomId); if ($qCnt && ($cr=$qCnt->fetch_assoc())) $cnt=(int)$cr['c'];
       // teacher assigned?
       $assigned = false;
-      if ($authUser['role']==='teacher') {
-        $chk = $conn->prepare('SELECT 1 FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? AND teacher_user_id=? LIMIT 1');
-        $chk->bind_param('siii', $date, $pid, $roomId, $authUser['id']);
-        $chk->execute(); $chk->store_result(); $assigned = $chk->num_rows>0; $chk->close();
+      if (isset($authUser['role']) && $authUser['role']==='teacher' && isset($authUser['id'])) {
+        if ($chk = $conn->prepare('SELECT 1 FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? AND teacher_user_id=? LIMIT 1')) {
+          $chk->bind_param('siii', $date, $pid, $roomId, $authUser['id']);
+          $chk->execute(); $chk->store_result(); $assigned = $chk->num_rows>0; $chk->close();
+        }
       }
       $rooms[] = [
         'room_id'=>$roomId,
