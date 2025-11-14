@@ -5,10 +5,20 @@ require_once __DIR__ . '/../bootstrap.php';
 api_require_auth();
 
 $exams = [];
-$sql = "SELECT id, exam_name AS name FROM exams ORDER BY exam_name";
+$sql = "SELECT e.id, e.exam_name, e.class_id, c.class_name
+        FROM exams e
+        JOIN classes c ON c.id = e.class_id
+        ORDER BY e.exam_name";
 if ($res = $conn->query($sql)) {
     while ($row = $res->fetch_assoc()) {
-        $exams[] = ['id' => (int)$row['id'], 'name' => $row['name']];
+        $label = $row['exam_name'] . ' - ' . $row['class_name'];
+        $exams[] = [
+            'id' => (int)$row['id'],
+            'name' => $row['exam_name'],
+            'class_id' => (int)$row['class_id'],
+            'class_name' => $row['class_name'],
+            'label' => $label,
+        ];
     }
 }
 

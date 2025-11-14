@@ -11,7 +11,7 @@ class JssApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Batighor JSS Management',
+      title: 'Batighor School Management',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
@@ -63,7 +63,7 @@ class _SplashGateState extends State<SplashGate> {
                   child: Image.asset('assets/images/Splash.gif',
                       fit: BoxFit.contain)),
               const SizedBox(height: 20),
-              const Text('Batighor JSS Management',
+              const Text('Batighor School Management',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             ],
           ),
@@ -165,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Image.asset('assets/images/icon.png',
                             fit: BoxFit.contain)),
                     const SizedBox(height: 14),
-                    Text('Batighor JSS Management',
+                    Text('Batighor School Management',
                         textAlign: TextAlign.center,
                         style: Theme.of(context)
                             .textTheme
@@ -204,8 +204,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   borderRadius: BorderRadius.circular(14))),
                           child: _busy
                               ? SizedBox(
-                                  height: 26,
-                                  width: 26,
+                                  height: 36,
+                                  width: 36,
                                   child:
                                       Image.asset('assets/images/loading.gif'))
                               : const Text('Login'),
@@ -386,11 +386,8 @@ class MarksEntryScreen extends StatefulWidget {
 
 class _MarksEntryScreenState extends State<MarksEntryScreen> {
   List<dynamic> _exams = [];
-  List<dynamic> _classes = [];
-  List<dynamic> _sections = [];
-  String? _selectedExam;
-  String? _selectedClass;
-  String? _selectedSection;
+  String? _selectedExam; // exam id
+  String? _selectedExamClassId; // class id derived from exam
   bool _isLoading = true;
 
   @override
@@ -405,12 +402,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     });
     try {
       final exams = await ApiService.getExams();
-      final classes = await ApiService.getClasses();
-      final sections = await ApiService.getSections();
       setState(() {
         _exams = exams;
-        _classes = classes;
-        _sections = sections;
         _isLoading = false;
       });
     } catch (e) {
@@ -431,7 +424,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       body: _isLoading
           ? Center(
               child: Image.asset('assets/images/loading.gif',
-                  width: 50, height: 50))
+                  width: 100, height: 100))
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -441,67 +434,46 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                     hint: 'Select Exam',
                     value: _selectedExam,
                     items: _exams.map((exam) {
+                      final label = (exam['label'] ??
+                              "${exam['name']} - ${exam['class_name']}")
+                          .toString();
                       return DropdownMenuItem(
                         value: exam['id'].toString(),
-                        child: Text(exam['name']),
+                        child: Text(label),
                       );
                     }).toList(),
                     onChanged: (value) {
                       setState(() {
                         _selectedExam = value;
-                      });
-                    },
-                  ),
-                  SizedBox(height: 16),
-                  _buildDropdown(
-                    hint: 'Select Class',
-                    value: _selectedClass,
-                    items: _classes.map((c) {
-                      return DropdownMenuItem(
-                        value: c['class_id'].toString(),
-                        child: Text(c['class_name']),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedClass = value;
-                      });
-                    },
-                  ),
-                  SizedBox(height: 16),
-                  _buildDropdown(
-                    hint: 'Select Section',
-                    value: _selectedSection,
-                    items: _sections.map((s) {
-                      return DropdownMenuItem(
-                        value: s['section_id'].toString(),
-                        child: Text(s['section_name']),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedSection = value;
+                        final selected = _exams.firstWhere(
+                            (e) => e['id'].toString() == value,
+                            orElse: () => {});
+                        _selectedExamClassId = selected['class_id']?.toString();
                       });
                     },
                   ),
                   SizedBox(height: 32),
                   ElevatedButton(
-                    onPressed: (_selectedExam != null &&
-                            _selectedClass != null &&
-                            _selectedSection != null)
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => SubjectsScreen(
-                                  examId: _selectedExam!,
-                                  classId: _selectedClass!,
-                                  sectionId: _selectedSection!,
-                                ),
-                              ),
-                            );
-                          }
-                        : null,
+                    onPressed:
+                        (_selectedExam != null && _selectedExamClassId != null)
+                            ? () {
+                                final selected = _exams.firstWhere(
+                                    (e) => e['id'].toString() == _selectedExam,
+                                    orElse: () => {});
+                                final label = selected['label']?.toString();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SubjectsScreen(
+                                      examId: _selectedExam!,
+                                      classId: _selectedExamClassId!,
+                                      sectionId: '',
+                                      examLabel: label,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
                     child: Text('Fetch Subjects'),
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.symmetric(vertical: 16),
@@ -535,9 +507,13 @@ class SubjectsScreen extends StatefulWidget {
   final String examId;
   final String classId;
   final String sectionId;
+  final String? examLabel;
 
   SubjectsScreen(
-      {required this.examId, required this.classId, required this.sectionId});
+      {required this.examId,
+      required this.classId,
+      required this.sectionId,
+      this.examLabel});
 
   @override
   _SubjectsScreenState createState() => _SubjectsScreenState();
@@ -565,7 +541,7 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
                 child: Image.asset('assets/images/loading.gif',
-                    width: 50, height: 50));
+                    width: 100, height: 100));
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -593,6 +569,7 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
                             classId: widget.classId,
                             sectionId: widget.sectionId,
                             subjectId: subject['subject_id'].toString(),
+                            examLabel: widget.examLabel,
                           ),
                         ),
                       );
@@ -613,32 +590,39 @@ class StudentListMarksScreen extends StatefulWidget {
   final String classId;
   final String sectionId;
   final String subjectId;
+  final String? examLabel;
 
   StudentListMarksScreen(
       {required this.examId,
       required this.classId,
       required this.sectionId,
-      required this.subjectId});
+      required this.subjectId,
+      this.examLabel});
 
   @override
   _StudentListMarksScreenState createState() => _StudentListMarksScreenState();
 }
 
 class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
-  late Future<List<dynamic>> _studentsFuture;
-  final Map<String, TextEditingController> _marksControllers = {};
+  late Future<Map<String, dynamic>> _dataFuture;
+  final Map<String, TextEditingController> _cqControllers = {};
+  final Map<String, TextEditingController> _mcqControllers = {};
+  final Map<String, TextEditingController> _prControllers = {};
   bool _isSaving = false;
+  Map<String, dynamic> _meta = {};
 
   @override
   void initState() {
     super.initState();
-    _studentsFuture = ApiService.getStudentsForMarking(
-        widget.examId, widget.classId, widget.sectionId, widget.subjectId);
+    _dataFuture = ApiService.getStudentsForMarking(
+        widget.examId, widget.classId, widget.subjectId);
   }
 
   @override
   void dispose() {
-    _marksControllers.values.forEach((controller) => controller.dispose());
+    _cqControllers.values.forEach((c) => c.dispose());
+    _mcqControllers.values.forEach((c) => c.dispose());
+    _prControllers.values.forEach((c) => c.dispose());
     super.dispose();
   }
 
@@ -647,9 +631,17 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
       _isSaving = true;
     });
 
-    final marks = _marksControllers.entries.map((entry) {
-      return {'student_id': entry.key, 'marks': entry.value.text};
-    }).toList();
+    final marks = <Map<String, dynamic>>[];
+    _cqControllers.forEach((sid, cqCtrl) {
+      final mcq = _mcqControllers[sid]?.text ?? '';
+      final pr = _prControllers[sid]?.text ?? '';
+      marks.add({
+        'student_id': int.tryParse(sid) ?? 0,
+        'creative': double.tryParse(cqCtrl.text) ?? 0,
+        'objective': double.tryParse(mcq) ?? 0,
+        'practical': double.tryParse(pr) ?? 0,
+      });
+    });
 
     try {
       await ApiService.submitMarks(
@@ -667,6 +659,27 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
     }
   }
 
+  Widget _partField(
+      {required TextEditingController controller,
+      required String label,
+      required int max}) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textAlign: TextAlign.center,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      ),
+      onChanged: (v) {
+        final d = double.tryParse(v) ?? 0;
+        if (d < 0) controller.text = '0';
+        if (d > max) controller.text = max.toString();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -679,49 +692,107 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<dynamic>>(
-        future: _studentsFuture,
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _dataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
                 child: Image.asset('assets/images/loading.gif',
-                    width: 50, height: 50));
+                    width: 100, height: 100));
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          } else if (!snapshot.hasData ||
+              (snapshot.data!['students'] as List).isEmpty) {
             return Center(child: Text('No students found.'));
           } else {
-            final students = snapshot.data!;
+            final data = snapshot.data!;
+            _meta = Map<String, dynamic>.from(data['meta'] ?? {});
+            final students =
+                (data['students'] as List).cast<Map<String, dynamic>>();
             return Column(
               children: [
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.examLabel != null &&
+                                  widget.examLabel!.isNotEmpty
+                              ? widget.examLabel!
+                              : 'Exam: ${widget.examId}  Class: ${widget.classId}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 Expanded(
                   child: ListView.builder(
                     itemCount: students.length,
                     itemBuilder: (context, index) {
                       final student = students[index];
                       final studentId = student['student_id'].toString();
-                      if (!_marksControllers.containsKey(studentId)) {
-                        _marksControllers[studentId] = TextEditingController(
-                            text: student['marks_obtained']?.toString() ?? '');
-                      }
+                      _cqControllers.putIfAbsent(
+                          studentId,
+                          () => TextEditingController(
+                              text: student['creative']?.toString() ?? ''));
+                      _mcqControllers.putIfAbsent(
+                          studentId,
+                          () => TextEditingController(
+                              text: student['objective']?.toString() ?? ''));
+                      _prControllers.putIfAbsent(
+                          studentId,
+                          () => TextEditingController(
+                              text: student['practical']?.toString() ?? ''));
+                      final cqMax = (_meta['creativeMax'] ?? 0) as int;
+                      final mcqMax = (_meta['objectiveMax'] ?? 0) as int;
+                      final prMax = (_meta['practicalMax'] ?? 0) as int;
                       return Card(
                         margin: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 4),
-                        child: ListTile(
-                          title: Text(student['name']),
-                          subtitle: Text('Roll: ${student['roll_no']}'),
-                          trailing: SizedBox(
-                            width: 80,
-                            child: TextField(
-                              controller: _marksControllers[studentId],
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding:
-                                    EdgeInsets.symmetric(horizontal: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(student['name'],
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
+                              Text('Roll: ${student['roll_no']}'),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  if (cqMax > 0)
+                                    Expanded(
+                                      child: _partField(
+                                        controller: _cqControllers[studentId]!,
+                                        label: 'CQ/$cqMax',
+                                        max: cqMax,
+                                      ),
+                                    ),
+                                  if (mcqMax > 0) const SizedBox(width: 8),
+                                  if (mcqMax > 0)
+                                    Expanded(
+                                      child: _partField(
+                                        controller: _mcqControllers[studentId]!,
+                                        label: 'MCQ/$mcqMax',
+                                        max: mcqMax,
+                                      ),
+                                    ),
+                                  if (prMax > 0) const SizedBox(width: 8),
+                                  if (prMax > 0)
+                                    Expanded(
+                                      child: _partField(
+                                        controller: _prControllers[studentId]!,
+                                        label: 'PR/$prMax',
+                                        max: prMax,
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       );
@@ -732,7 +803,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Image.asset('assets/images/loading.gif',
-                        width: 50, height: 50),
+                        width: 100, height: 100),
                   ),
               ],
             );
@@ -831,8 +902,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       body: loading
           ? Center(
               child: SizedBox(
-                  height: 60,
-                  width: 60,
+                  height: 100,
+                  width: 100,
                   child: Image.asset('assets/images/loading.gif')))
           : error != null
               ? Center(child: Text(error!))
@@ -867,8 +938,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         icon: const Icon(Icons.save),
                         label: saving
                             ? SizedBox(
-                                height: 26,
-                                width: 26,
+                                height: 36,
+                                width: 36,
                                 child: Image.asset('assets/images/loading.gif'))
                             : const Text('Save Attendance'),
                         onPressed: saving ? null : _submit,
@@ -978,11 +1049,11 @@ class ApiService {
     return data['subjects'];
   }
 
-  static Future<List<dynamic>> getStudentsForMarking(
-      String examId, String classId, String sectionId, String subjectId) async {
+  static Future<Map<String, dynamic>> getStudentsForMarking(
+      String examId, String classId, String subjectId) async {
     final data = await _get(
-        'marks/get_students_for_marking.php?exam_id=$examId&class_id=$classId&section_id=$sectionId&subject_id=$subjectId');
-    return data['students'];
+        'marks/get_students_for_marking.php?exam_id=$examId&class_id=$classId&subject_id=$subjectId');
+    return {'meta': data['meta'] ?? {}, 'students': data['students'] ?? []};
   }
 
   static Future<void> submitMarks(String examId, String classId,

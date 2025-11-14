@@ -24,28 +24,26 @@ if ($authUser['role']==='teacher') {
 
 $saved=0;$failed=0;
 
-// Prepare update and insert statements (since ON DUPLICATE KEY needs a unique index not present)
-$upd = $conn->prepare('UPDATE marks SET creative_marks=?, objective_marks=? WHERE exam_id=? AND student_id=? AND subject_id=?');
-$ins = $conn->prepare('INSERT INTO marks (exam_id, student_id, subject_id, creative_marks, objective_marks) VALUES (?,?,?,?,?)');
+// Prepare update and insert statements with practical support
+$upd = $conn->prepare('UPDATE marks SET creative_marks=?, objective_marks=?, practical_marks=? WHERE exam_id=? AND student_id=? AND subject_id=?');
+$ins = $conn->prepare('INSERT INTO marks (exam_id, student_id, subject_id, creative_marks, objective_marks, practical_marks) VALUES (?,?,?,?,?,?)');
 if (!$upd || !$ins) api_response(false,'Prepare failed',500);
 
 foreach ($marks as $m){
   $sid=(int)($m['student_id'] ?? 0);
-  // Accept single total value via 'marks' or 'marks_obtained'
   $single = null;
   if (isset($m['marks']) && is_numeric($m['marks'])) $single = (float)$m['marks'];
   elseif (isset($m['marks_obtained']) && is_numeric($m['marks_obtained'])) $single = (float)$m['marks_obtained'];
-
   $creative = isset($m['creative']) && is_numeric($m['creative']) ? (float)$m['creative'] : null;
   $objective = isset($m['objective']) && is_numeric($m['objective']) ? (float)$m['objective'] : null;
-  if ($single !== null) { $creative = $single; $objective = 0.0; }
+  $practical = isset($m['practical']) && is_numeric($m['practical']) ? (float)$m['practical'] : null;
+  if ($single !== null && $creative===null && $objective===null && $practical===null) { $creative = $single; $objective = 0.0; $practical = 0.0; }
   if ($sid<=0) { $failed++; continue; }
-  if ($creative===null) $creative=0.0; if ($objective===null) $objective=0.0;
+  if ($creative===null) $creative=0.0; if ($objective===null) $objective=0.0; if ($practical===null) $practical=0.0;
 
-  $upd->bind_param('ddiii',$creative,$objective,$exam_id,$sid,$subject_id);
+  $upd->bind_param('dddiii',$creative,$objective,$practical,$exam_id,$sid,$subject_id);
   if ($upd->execute() && $upd->affected_rows>0) { $saved++; continue; }
-
-  $ins->bind_param('iiidd',$exam_id,$sid,$subject_id,$creative,$objective);
+  $ins->bind_param('iiiddd',$exam_id,$sid,$subject_id,$creative,$objective,$practical);
   if ($ins->execute()) $saved++; else $failed++;
 }
 api_response(true,['saved'=>$saved,'failed'=>$failed]);
