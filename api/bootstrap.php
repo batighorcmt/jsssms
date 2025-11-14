@@ -79,6 +79,16 @@ function read_json_body() {
 function validate_date($d) { return preg_match('~^\d{4}-\d{2}-\d{2}$~', $d); }
 
 // Simple helper to generate token
-function generate_token() { return bin2hex(random_bytes(32)); }
+function generate_token() {
+    try {
+        return bin2hex(random_bytes(32));
+    } catch (Throwable $e) {
+        if (function_exists('openssl_random_pseudo_bytes')) {
+            $bytes = openssl_random_pseudo_bytes(32);
+            if ($bytes !== false) return bin2hex($bytes);
+        }
+        return bin2hex(substr(hash('sha256', uniqid((string)mt_rand(), true), true), 0, 32));
+    }
+}
 
 ?>

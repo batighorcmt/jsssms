@@ -80,7 +80,11 @@ try {
         echo json_encode(['success' => false, 'error' => 'Database statement prepare failed.']);
     }
 } catch (Throwable $e) {
-    // Catch any other errors (like failed includes) and return a JSON response
+    // Log details on server for diagnostics, but return a generic error to client
+    $logDir = __DIR__ . '/../../logs';
+    if (!is_dir($logDir)) @mkdir($logDir, 0775, true);
+    $line = '[' . date('Y-m-d H:i:s') . "] auth/login.php error: " . $e->getMessage() . "\n";
+    @file_put_contents($logDir . '/api_errors.log', $line, FILE_APPEND);
     echo json_encode(['success' => false, 'error' => 'A server error occurred. Please check server logs.']);
 }
 ?>
