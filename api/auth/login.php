@@ -19,25 +19,33 @@ try {
 
     require_once __DIR__ . '/../bootstrap.php';
 
-    // Ensure api_tokens table exists (auto-heal if missing)
+        // Ensure api_tokens table exists (auto-heal if missing) and has signed INTs matching users.id
     if (!function_exists('ensure_api_tokens_table')) {
         function ensure_api_tokens_table(mysqli $conn): bool {
-            $sql = "CREATE TABLE IF NOT EXISTS `api_tokens` (
-              `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-              `user_id` INT UNSIGNED NOT NULL,
-              `role` VARCHAR(32) NOT NULL,
-              `token` VARCHAR(128) NOT NULL,
-              `expires` DATETIME NOT NULL,
-              `last_ip` VARCHAR(45) DEFAULT NULL,
-              `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              UNIQUE KEY `uniq_token` (`token`),
-              KEY `idx_user` (`user_id`),
-              CONSTRAINT `fk_api_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-            // Attempt create; swallow errors if no permissions
-            @$conn->query($sql);
-            return $conn->errno === 0; // best effort
+                        $sql = "CREATE TABLE IF NOT EXISTS `api_tokens` (
+                            `id` INT NOT NULL AUTO_INCREMENT,
+                            `user_id` INT NOT NULL,
+                            `role` VARCHAR(32) NOT NULL,
+                            `token` VARCHAR(128) NOT NULL,
+                            `expires` DATETIME NOT NULL,
+                            `last_ip` VARCHAR(45) DEFAULT NULL,
+                            `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            PRIMARY KEY (`id`),
+                            UNIQUE KEY `uniq_token` (`token`),
+                            KEY `idx_user` (`user_id`),
+                            CONSTRAINT `fk_api_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+                        // Attempt create; swallow errors if no permissions
+                        @$conn->query($sql);
+
+                        // Try to normalize existing schema to signed INT and correct FK
+                        @$conn->query("ALTER TABLE `api_tokens` MODIFY `id` INT NOT NULL AUTO_INCREMENT");
+                        @$conn->query("ALTER TABLE `api_tokens` MODIFY `user_id` INT NOT NULL");
+                        // Drop and recreate FK with known name to ensure correctness
+                        @$conn->query("ALTER TABLE `api_tokens` DROP FOREIGN KEY `fk_api_tokens_user`");
+                        @$conn->query("ALTER TABLE `api_tokens` ADD CONSTRAINT `fk_api_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE");
+
+                        return true; // best effort
         }
     }
 
@@ -66,6 +74,12 @@ try {
         $u = $res->fetch_assoc();
         if (!password_verify($password, $u['password'])) {
             echo json_encode(['success' => false, 'error' => 'Invalid credentials']);
+            exit;
+        }
+
+        // Enforce teacher-only access
+        if (($u['role'] ?? '') !== 'teacher') {
+            echo json_encode(['success' => false, 'error' => 'Only teacher users can log in']);
             exit;
         }
 

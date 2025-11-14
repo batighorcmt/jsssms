@@ -1,7 +1,7 @@
 -- Creates api_tokens table used by the mobile/web API for auth tokens
 CREATE TABLE IF NOT EXISTS `api_tokens` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` INT UNSIGNED NOT NULL,
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL,
   `role` VARCHAR(32) NOT NULL,
   `token` VARCHAR(128) NOT NULL,
   `expires` DATETIME NOT NULL,
