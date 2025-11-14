@@ -1,7 +1,10 @@
 <?php
 header('Content-Type: application/json');
-require_once '../../config/db.php';
-require_once '../../auth/session.php'; // Provides access to $_SESSION
+require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../bootstrap.php';
+
+// API auth: require token/session but never redirect
+api_require_auth(['teacher','super_admin']);
 
 $plan_id = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
 $duty_date = isset($_GET['date']) ? trim($_GET['date']) : '';
@@ -15,7 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Save duties
     $data = json_decode(file_get_contents('php://input'), true);
     $map = $data['duties'] ?? []; // Expects a map of {room_id: teacher_user_id}
-    $assigned_by = $_SESSION['id'] ?? 0;
+    // Use authenticated API user id
+    global $authUser;
+    $assigned_by = isset($authUser['id']) ? (int)$authUser['id'] : 0;
 
     if (empty($map)) {
         echo json_encode(['success' => false, 'error' => 'No duties data provided']);
