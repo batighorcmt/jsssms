@@ -37,29 +37,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $stmt = $conn->prepare('INSERT INTO exam_room_invigilation (duty_date, plan_id, room_id, teacher_user_id, assigned_by) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE teacher_user_id=VALUES(teacher_user_id), assigned_by=VALUES(assigned_by), assigned_at=CURRENT_TIMESTAMP');
-    
-    if (!$stmt) {
-        echo json_encode(['success' => false, 'error' => 'DB prepare failed: ' . $conn->error]);
-        exit;
-    }
-
+    // Begin atomic operation
+    $conn->begin_transaction();
     $success = true;
-    foreach ($map as $room_id => $teacher_user_id) {
-        $room_id = (int)$room_id;
-        $teacher_user_id = (int)$teacher_user_id;
-        if ($room_id <= 0 || $teacher_user_id <= 0) continue;
 
-        $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
-        if (!$stmt->execute()) {
+    // Ensure a teacher is assigned to only one room for this plan/date:
+    // Delete any existing assignments for the submitted teachers on this (date, plan).
+    $teacherIds = array_values(array_unique(array_map(fn($t)=> (int)$t, array_filter($map, fn($t)=> (int)$t > 0))));
+    if (!empty($teacherIds)) {
+        // Build placeholders for IN clause
+        $placeholders = implode(',', array_fill(0, count($teacherIds), '?'));
+        $types = str_repeat('i', count($teacherIds));
+        $sqlDel = "DELETE FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND teacher_user_id IN ($placeholders)";
+        if ($stDel = $conn->prepare($sqlDel)) {
+            $bindParams = array_merge([$duty_date, $plan_id], $teacherIds);
+            // bind_param requires references
+            $bindTypes = 'si' . $types;
+            $refs = [];
+            $refs[] = $bindTypes;
+            // Use call_user_func_array trick for dynamic bind
+            $stmtParams = [];
+            $stmtParams[] = &$bindTypes;
+            $tmp1 = $duty_date; $tmp2 = $plan_id; // preserve variables for reference
+            $stmtParams[] = &$tmp1; $stmtParams[] = &$tmp2;
+            foreach ($teacherIds as $k => $v) { $refs[$k] = $v; }
+            // Build references for remaining
+            for ($i=0;$i<count($teacherIds);$i++) { $stmtParams[] = &$teacherIds[$i]; }
+            call_user_func_array([$stDel, 'bind_param'], $stmtParams);
+            if (!$stDel->execute()) { $success = false; }
+            $stDel->close();
+        } else {
             $success = false;
-            // Log error if possible, but don't stop for one failure
         }
     }
-    $stmt->close();
+
+    // Upsert new assignments
+    if ($success) {
+        $stmt = $conn->prepare('INSERT INTO exam_room_invigilation (duty_date, plan_id, room_id, teacher_user_id, assigned_by) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE teacher_user_id=VALUES(teacher_user_id), assigned_by=VALUES(assigned_by), assigned_at=CURRENT_TIMESTAMP');
+        if (!$stmt) {
+            $success = false;
+        } else {
+            foreach ($map as $room_id => $teacher_user_id) {
+                $room_id = (int)$room_id;
+                $teacher_user_id = (int)$teacher_user_id;
+                if ($room_id <= 0 || $teacher_user_id <= 0) continue;
+                $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
+                if (!$stmt->execute()) { $success = false; break; }
+            }
+            $stmt->close();
+        }
+    }
+
+    if ($success) { $conn->commit(); } else { $conn->rollback(); }
 
     if ($success) {
-        echo json_encode(['success' => true, 'message' => 'Duties saved successfully']);
+        // Return updated duties map so UI can refresh immediately
+        $dutyMap = [];
+        $stmt = $conn->prepare('SELECT room_id, teacher_user_id FROM exam_room_invigilation WHERE duty_date=? AND plan_id=?');
+        if ($stmt) {
+            $stmt->bind_param('si', $duty_date, $plan_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while($row = $result->fetch_assoc()){
+                $rid = isset($row['room_id']) ? (int)$row['room_id'] : 0;
+                $tid = isset($row['teacher_user_id']) ? (int)$row['teacher_user_id'] : 0;
+                $dutyMap[(string)$rid] = (string)$tid;
+            }
+            $stmt->close();
+        }
+        echo json_encode(['success' => true, 'data' => ['duties' => $dutyMap]]);
     } else {
         echo json_encode(['success' => false, 'error' => 'One or more duty assignments failed to save.']);
     }
