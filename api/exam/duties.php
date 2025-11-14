@@ -3,8 +3,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../bootstrap.php';
 
-// API auth: require token/session but never redirect
-api_require_auth(['teacher','super_admin']);
+// Note: GET (read) is open; POST (write) requires auth. No redirects, JSON only.
 
 $plan_id = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
 $duty_date = isset($_GET['date']) ? trim($_GET['date']) : '';
@@ -15,6 +14,8 @@ if ($plan_id <= 0 || !preg_match('~^\d{4}-\d{2}-\d{2}$~', $duty_date)) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Require API auth on write
+    api_require_auth(['teacher','super_admin']);
     // Save duties
     $data = json_decode(file_get_contents('php://input'), true);
     $map = $data['duties'] ?? []; // Expects a map of {room_id: teacher_user_id}
@@ -72,7 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $result = $stmt->get_result();
         while($row = $result->fetch_assoc()){
-            $dutyMap[$row['room_id']] = $row['teacher_user_id'];
+            // Use string keys so JSON encodes as an object, not a list
+            $rid = isset($row['room_id']) ? (int)$row['room_id'] : 0;
+            $tid = isset($row['teacher_user_id']) ? (int)$row['teacher_user_id'] : 0;
+            $dutyMap[(string)$rid] = (string)$tid;
         }
         $stmt->close();
     }
