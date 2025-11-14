@@ -1741,7 +1741,7 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
                                 ? const Text('Searching...')
                                 : const Text('Search'),
                           ),
-                        )
+                        ),
                       ])
                     ],
                   ),
