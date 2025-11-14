@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->close();
         }
-        echo json_encode(['success' => true, 'data' => ['duties' => $dutyMap]]);
+        echo json_encode(['success' => true, 'data' => ['duties' => (object)$dutyMap]]);
     } else {
         echo json_encode(['success' => false, 'error' => 'One or more duty assignments failed to save.']);
     }
@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->close();
     }
-    echo json_encode(['success' => true, 'data' => ['duties' => $dutyMap]]);
+    echo json_encode(['success' => true, 'data' => ['duties' => (object)$dutyMap]]);
 }
 
 $conn->close();
