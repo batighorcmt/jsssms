@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 void main() => runApp(const JssApp());
 
@@ -447,6 +448,35 @@ class _DutiesScreenState extends State<DutiesScreen> {
     await _loadPlans();
   }
 
+  String _displayDate(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      return DateFormat('dd-MM-yyyy').format(dt);
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final initial = DateTime.tryParse(_date) ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 1),
+    );
+    if (picked != null) {
+      setState(() {
+        _date = picked.toIso8601String().substring(0, 10);
+        _selectedPlanId = null;
+        _selectedRoomId = null;
+        _students.clear();
+      });
+      await _loadPlans();
+    }
+  }
+
   String _todayIso() => DateTime.now().toIso8601String().substring(0, 10);
 
   Future<void> _loadPlans() async {
@@ -454,8 +484,8 @@ class _DutiesScreenState extends State<DutiesScreen> {
       _loadingPlans = true;
     });
     try {
-      _plans =
-          await ApiService.getSeatPlans(_date); // expects id, plan_name, shift
+      // Show plans irrespective of date; rooms/students remain date-scoped
+      _plans = await ApiService.getSeatPlans('');
       if (_plans.isNotEmpty) {
         _selectedPlanId ??= _plans.first['id'].toString();
       }
@@ -663,9 +693,12 @@ class _DutiesScreenState extends State<DutiesScreen> {
               SizedBox(
                 width: 150,
                 child: TextFormField(
-                  decoration: const InputDecoration(labelText: 'Date'),
-                  initialValue: _date,
+                  decoration: InputDecoration(
+                      labelText: 'Date',
+                      suffixIcon: const Icon(Icons.calendar_month)),
+                  initialValue: _displayDate(_date),
                   readOnly: true,
+                  onTap: _pickDate,
                 ),
               ),
               SizedBox(
@@ -1047,9 +1080,11 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
   final Map<String, TextEditingController> _mcqControllers = {};
   final Map<String, TextEditingController> _prControllers = {};
   Map<String, dynamic> _meta = {};
-  final Map<String, bool> _rowSaving = {};
   final Map<String, bool> _rowSavedOk = {};
   // Debouncers removed; saving now happens on focus loss only
+  final Map<String, int> _totals = {}; // cache of totals per student
+  bool _showTotals =
+      false; // user toggle for total column visibility (default OFF for speed)
 
   @override
   void initState() {
@@ -1066,12 +1101,18 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
     super.dispose();
   }
 
-  void _onMarkChanged(String studentId) {
-    // Only refresh totals immediately; save will happen on focus loss
-    setState(() {});
+  void _recomputeTotal(String studentId) {
+    if (!_showTotals) return; // skip computation when totals are hidden
+    final cq =
+        double.tryParse(_cqControllers[studentId]?.text.trim() ?? '') ?? 0;
+    final mcq =
+        double.tryParse(_mcqControllers[studentId]?.text.trim() ?? '') ?? 0;
+    final pr =
+        double.tryParse(_prControllers[studentId]?.text.trim() ?? '') ?? 0;
+    _totals[studentId] = (cq + mcq + pr).toInt();
   }
 
-  Future<void> _saveSingleStudent(String studentId) async {
+  void _saveSingleStudentFireAndForget(String studentId) {
     final cq =
         double.tryParse(_cqControllers[studentId]?.text.trim() ?? '') ?? 0;
     final mcq =
@@ -1079,33 +1120,27 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
     final pr =
         double.tryParse(_prControllers[studentId]?.text.trim() ?? '') ?? 0;
 
-    setState(() {
-      _rowSaving[studentId] = true;
-      _rowSavedOk[studentId] = false;
-    });
-    try {
-      await ApiService.submitMarks(
-          widget.examId, widget.classId, widget.subjectId, [
-        {
-          'student_id': int.tryParse(studentId) ?? 0,
-          'creative': cq,
-          'objective': mcq,
-          'practical': pr,
-        }
-      ]);
+    // Fire-and-forget save to keep UI snappy
+    ApiService.submitMarks(widget.examId, widget.classId, widget.subjectId, [
+      {
+        'student_id': int.tryParse(studentId) ?? 0,
+        'creative': cq,
+        'objective': mcq,
+        'practical': pr,
+      }
+    ]).then((_) {
+      if (!mounted) return;
       setState(() {
         _rowSavedOk[studentId] = true;
+        _recomputeTotal(
+            studentId); // update cached total after save (if visible)
       });
-    } catch (e) {
+    }).catchError((e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('মার্কস সংরক্ষণে সমস্যা: $e')),
       );
-    } finally {
-      setState(() {
-        _rowSaving[studentId] = false;
-      });
-    }
+    });
   }
 
   void _validateAndClamp(TextEditingController c, int max, String partLabel) {
@@ -1171,7 +1206,9 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
               cols.add(DataColumn(label: Center(child: Text('MCQ/$mcqMax'))));
             if (prMax > 0)
               cols.add(DataColumn(label: Center(child: Text('PR/$prMax'))));
-            cols.add(DataColumn(label: Center(child: Text('Total'))));
+            if (_showTotals) {
+              cols.add(DataColumn(label: Center(child: Text('Total'))));
+            }
 
             final rows = students.map((student) {
               final studentId = student['student_id'].toString();
@@ -1188,13 +1225,10 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   () => TextEditingController(
                       text: student['practical']?.toString() ?? ''));
 
-              double cq =
-                  double.tryParse(_cqControllers[studentId]?.text ?? '') ?? 0;
-              double mcq =
-                  double.tryParse(_mcqControllers[studentId]?.text ?? '') ?? 0;
-              double pr =
-                  double.tryParse(_prControllers[studentId]?.text ?? '') ?? 0;
-              double total = cq + mcq + pr;
+              if (!_totals.containsKey(studentId)) {
+                _recomputeTotal(studentId); // initial computation
+              }
+              final total = _totals[studentId] ?? 0;
 
               List<DataCell> cells = [
                 DataCell(Container(
@@ -1209,7 +1243,11 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   width: 60,
                   child: Focus(
                     onFocusChange: (hasFocus) {
-                      if (!hasFocus) _saveSingleStudent(studentId);
+                      if (!hasFocus) {
+                        _validateAndClamp(
+                            _cqControllers[studentId]!, cqMax, 'CQ');
+                        _saveSingleStudentFireAndForget(studentId);
+                      }
                     },
                     child: TextField(
                       controller: _cqControllers[studentId],
@@ -1217,11 +1255,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                       textAlign: TextAlign.center,
                       decoration: const InputDecoration(
                           isDense: true, border: OutlineInputBorder()),
-                      onChanged: (v) {
-                        _validateAndClamp(
-                            _cqControllers[studentId]!, cqMax, 'CQ');
-                        _onMarkChanged(studentId);
-                      },
+                      // Removed per-keystroke total recompute for performance
                     ),
                   ),
                 )));
@@ -1231,7 +1265,11 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   width: 60,
                   child: Focus(
                     onFocusChange: (hasFocus) {
-                      if (!hasFocus) _saveSingleStudent(studentId);
+                      if (!hasFocus) {
+                        _validateAndClamp(
+                            _mcqControllers[studentId]!, mcqMax, 'MCQ');
+                        _saveSingleStudentFireAndForget(studentId);
+                      }
                     },
                     child: TextField(
                       controller: _mcqControllers[studentId],
@@ -1239,11 +1277,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                       textAlign: TextAlign.center,
                       decoration: const InputDecoration(
                           isDense: true, border: OutlineInputBorder()),
-                      onChanged: (v) {
-                        _validateAndClamp(
-                            _mcqControllers[studentId]!, mcqMax, 'MCQ');
-                        _onMarkChanged(studentId);
-                      },
+                      // Removed per-keystroke total recompute
                     ),
                   ),
                 )));
@@ -1253,7 +1287,11 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   width: 60,
                   child: Focus(
                     onFocusChange: (hasFocus) {
-                      if (!hasFocus) _saveSingleStudent(studentId);
+                      if (!hasFocus) {
+                        _validateAndClamp(
+                            _prControllers[studentId]!, prMax, 'PR');
+                        _saveSingleStudentFireAndForget(studentId);
+                      }
                     },
                     child: TextField(
                       controller: _prControllers[studentId],
@@ -1261,18 +1299,16 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                       textAlign: TextAlign.center,
                       decoration: const InputDecoration(
                           isDense: true, border: OutlineInputBorder()),
-                      onChanged: (v) {
-                        _validateAndClamp(
-                            _prControllers[studentId]!, prMax, 'PR');
-                        _onMarkChanged(studentId);
-                      },
+                      // Removed per-keystroke total recompute
                     ),
                   ),
                 )));
               }
-              cells.add(DataCell(Container(
-                  padding: EdgeInsets.zero,
-                  child: Center(child: Text(total.toInt().toString())))));
+              if (_showTotals) {
+                cells.add(DataCell(Container(
+                    padding: EdgeInsets.zero,
+                    child: Center(child: Text(total.toString())))));
+              }
 
               return DataRow(cells: cells);
             }).toList();
@@ -1298,6 +1334,17 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                           if ((widget.subjectName ?? '').isNotEmpty)
                             Text('Subject: ${widget.subjectName}',
                                 style: const TextStyle(color: Colors.black54)),
+                          Row(
+                            children: [
+                              const Text('Show Total'),
+                              Switch(
+                                value: _showTotals,
+                                onChanged: (v) => setState(() {
+                                  _showTotals = v;
+                                }),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -1365,8 +1412,7 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
   Future<void> _loadInitialData() async {
     setState(() => _loadingPlans = true);
     try {
-      final today = DateTime.now().toIso8601String().substring(0, 10);
-      final plans = await ApiService.getSeatPlans(today);
+      final plans = await ApiService.getSeatPlans('');
       final teachers = await ApiService.getTeachers();
       if (mounted) {
         setState(() {
@@ -1526,7 +1572,14 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
                       items: _examDates
                           .map((d) => DropdownMenuItem(
                                 value: d,
-                                child: Text(d),
+                                child: Text(() {
+                                  try {
+                                    return DateFormat('dd-MM-yyyy')
+                                        .format(DateTime.parse(d));
+                                  } catch (_) {
+                                    return d;
+                                  }
+                                }()),
                               ))
                           .toList(),
                       onChanged: (v) {
@@ -1626,9 +1679,8 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
       _error = null;
     });
     try {
-      // Use a fixed date for now, or pass from somewhere else if needed.
-      final date = DateTime.now().toIso8601String().substring(0, 10);
-      _plans = await ApiService.getSeatPlans(date);
+      // Always show all active plans; seat allocations are plan-scoped
+      _plans = await ApiService.getSeatPlans('');
       if (_plans.isNotEmpty) {
         _selectedPlanId ??= _plans.first['id']?.toString();
       }
@@ -1916,7 +1968,11 @@ class ApiService {
 
   static Future<bool> isController(String userId) async {
     final data = await _get('is_controller.php?user_id=$userId');
-    return data['is_controller'] as bool;
+    final v = data['is_controller'];
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = v?.toString().toLowerCase();
+    return s == '1' || s == 'true' || s == 'yes';
   }
 
   static Future<List<dynamic>> getDuties() async {
@@ -1926,9 +1982,33 @@ class ApiService {
 
   // New: seat plans for a given date (expects array of {id, plan_name, shift})
   static Future<List<dynamic>> getSeatPlans(String date) async {
+    // If already cached for this date, return directly
     if (_seatPlansCache.containsKey(date)) return _seatPlansCache[date]!;
-    final data = await _get('exam/seat_plans.php?date=$date');
-    final plans = (data['plans'] ?? []) as List<dynamic>;
+
+    // Build endpoint: some backends may not support date filtering properly
+    String endpoint = 'exam/seat_plans.php';
+    if (date.isNotEmpty) {
+      endpoint += '?date=$date';
+    }
+
+    List<dynamic> plans = [];
+    try {
+      final data = await _get(endpoint);
+      plans = (data['plans'] ?? []) as List<dynamic>;
+    } catch (e) {
+      // Silent; will attempt fallback below
+    }
+
+    // Fallback: if date-specific query returned empty, try without date (in case server ignores/blocks date filter)
+    if (plans.isEmpty && date.isNotEmpty) {
+      try {
+        final fbData = await _get('exam/seat_plans.php');
+        plans = (fbData['plans'] ?? []) as List<dynamic>;
+      } catch (e) {
+        // If fallback also fails, propagate original empty list
+      }
+    }
+
     _seatPlansCache[date] = plans;
     return plans;
   }
