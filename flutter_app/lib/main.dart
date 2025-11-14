@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
   String? _error;
   static const baseUrl =
-      'http://10.0.2.2/jsssms/api'; // TODO: replace for production
+      'https://jss.batighorbd.com/api'; // TODO: replace for production
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -826,7 +826,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
 class ApiService {
   static const String _baseUrl =
-      'http://10.0.2.2/jsssms/api'; // Use 10.0.2.2 for Android emulator
+      'https://jss.batighorbd.com/api'; // Use 10.0.2.2 for Android emulator
 
   static Future<String> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
