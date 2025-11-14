@@ -1,59 +1,45 @@
 <?php
-require_once '../../config/db.php';
-require_once '../bootstrap.php';
+require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../bootstrap.php';
 
 api_require_auth();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    api_response(false, "Invalid request method");
+    api_response(false, 'Invalid request method', 405);
 }
 
-$params = [
-    'exam_id' => $_GET['exam_id'] ?? null,
-    'class_id' => $_GET['class_id'] ?? null,
-    'section_id' => $_GET['section_id'] ?? null,
-    'subject_id' => $_GET['subject_id'] ?? null,
-];
+$exam_id = (int)($_GET['exam_id'] ?? 0);
+$class_id = (int)($_GET['class_id'] ?? 0);
+$section_id = (int)($_GET['section_id'] ?? 0);
+$subject_id = (int)($_GET['subject_id'] ?? 0);
+if (!$exam_id || !$class_id || !$section_id || !$subject_id) {
+    api_response(false, 'Missing required parameters', 400);
+}
 
-foreach ($params as $key => $value) {
-    if (empty($value)) {
-        api_response(false, "Missing parameter: $key");
+// Fetch students with any existing marks (total) in one query via LEFT JOIN
+$sql = "SELECT s.student_id, s.student_name AS name, s.roll_no,
+               COALESCE(m.total_marks, NULL) AS marks_obtained
+        FROM students s
+        LEFT JOIN marks m
+          ON m.student_id = s.student_id AND m.exam_id = ? AND m.subject_id = ?
+        WHERE s.class_id = ? AND s.section_id = ?
+        ORDER BY s.roll_no ASC";
+
+$students = [];
+if ($stmt = $conn->prepare($sql)) {
+    $stmt->bind_param('iiii', $exam_id, $subject_id, $class_id, $section_id);
+    if ($stmt->execute()) {
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $students[] = [
+                'student_id' => (int)$row['student_id'],
+                'name' => $row['name'],
+                'roll_no' => (int)$row['roll_no'],
+                'marks_obtained' => $row['marks_obtained'] !== null ? (float)$row['marks_obtained'] : ''
+            ];
+        }
     }
+    $stmt->close();
 }
 
-try {
-    // Fetch students of the given class and section
-    $sql = "SELECT s.student_id, s.name, s.roll_no
-            FROM students s
-            WHERE s.class_id = :class_id AND s.section_id = :section_id
-            ORDER BY s.roll_no ASC";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        'class_id' => $params['class_id'],
-        'section_id' => $params['section_id']
-    ]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // For each student, fetch their existing marks for the given subject and exam
-    $sql_marks = "SELECT marks_obtained FROM marks 
-                  WHERE student_id = :student_id 
-                  AND exam_id = :exam_id 
-                  AND subject_id = :subject_id";
-    $stmt_marks = $pdo->prepare($sql_marks);
-
-    foreach ($students as &$student) {
-        $stmt_marks->execute([
-            'student_id' => $student['student_id'],
-            'exam_id' => $params['exam_id'],
-            'subject_id' => $params['subject_id']
-        ]);
-        $mark = $stmt_marks->fetch(PDO::FETCH_ASSOC);
-        $student['marks_obtained'] = $mark ? $mark['marks_obtained'] : '';
-    }
-
-    api_response(true, ['students' => $students]);
-
-} catch (PDOException $e) {
-    api_response(false, "Database error: " . $e->getMessage());
-}
+api_response(true, ['students' => $students]);

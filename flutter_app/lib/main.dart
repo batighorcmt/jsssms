@@ -32,6 +32,7 @@ class SplashGate extends StatefulWidget {
 class _SplashGateState extends State<SplashGate> {
   bool _ready = false;
   String? _token;
+  String? _userName;
   @override
   void initState() {
     super.initState();
@@ -41,6 +42,7 @@ class _SplashGateState extends State<SplashGate> {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('token');
+    _userName = prefs.getString('user_name');
     await Future.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
     setState(() => _ready = true);
@@ -70,7 +72,7 @@ class _SplashGateState extends State<SplashGate> {
     }
     return _token == null
         ? const LoginScreen()
-        : DashboardScreen(token: _token!);
+        : DashboardScreen(token: _token!, userName: _userName);
   }
 }
 
@@ -105,9 +107,20 @@ class _LoginScreenState extends State<LoginScreen> {
       if (resp.statusCode == 200 && data['success'] == true) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', data['data']['token']);
+        final user = data['data']['user'] ?? {};
+        final userName = (user['name']?.toString().isNotEmpty == true)
+            ? user['name'].toString()
+            : user['username']?.toString() ?? '';
+        await prefs.setString('user_name', userName);
+        await prefs.setString(
+            'user_username', user['username']?.toString() ?? '');
+        await prefs.setString('user_role', user['role']?.toString() ?? '');
         if (!mounted) return;
         Navigator.of(context).pushReplacement(MaterialPageRoute(
-            builder: (_) => DashboardScreen(token: data['data']['token'])));
+            builder: (_) => DashboardScreen(
+                  token: data['data']['token'],
+                  userName: userName,
+                )));
       } else {
         setState(() {
           _error = data['error']?.toString() ?? 'Login failed';
@@ -210,7 +223,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
 class DashboardScreen extends StatefulWidget {
   final String token;
-  const DashboardScreen({super.key, required this.token});
+  final String? userName;
+  const DashboardScreen({super.key, required this.token, this.userName});
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
@@ -219,11 +233,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<dynamic> duties = [];
   bool loading = true;
   String? error;
+  String? _userName;
 
   @override
   void initState() {
     super.initState();
+    _userName = widget.userName;
     _load();
+    _loadUserName();
   }
 
   Future<void> _load() async {
@@ -236,10 +253,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => loading = false);
   }
 
+  Future<void> _loadUserName() async {
+    if (_userName != null && _userName!.isNotEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('user_name');
+    if (!mounted) return;
+    setState(() => _userName = name);
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    await prefs.remove('user_name');
+    await prefs.remove('user_username');
+    await prefs.remove('user_role');
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Dashboard')),
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          if (_userName != null && _userName!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Center(
+                  child: Row(children: [
+                const Icon(Icons.account_circle_outlined, size: 22),
+                const SizedBox(width: 6),
+                Text(_userName!,
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(width: 12),
+              ])),
+            ),
+          IconButton(
+              tooltip: 'Logout',
+              onPressed: _logout,
+              icon: const Icon(Icons.logout)),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
         child: GridView.count(
