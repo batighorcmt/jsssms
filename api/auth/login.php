@@ -10,6 +10,13 @@ header('Content-Type: application/json');
 try {
     // Correctly include the database and helper functions using absolute paths
     require_once __DIR__ . '/../../config/db.php';
+
+    // *** CRUCIAL FIX: Check database connection immediately after inclusion ***
+    if ($conn->connect_error) {
+        echo json_encode(['success' => false, 'error' => 'Database connection failed: ' . $conn->connect_error]);
+        exit;
+    }
+
     require_once __DIR__ . '/../bootstrap.php';
 
     require_method('POST');
