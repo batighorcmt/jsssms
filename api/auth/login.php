@@ -19,6 +19,28 @@ try {
 
     require_once __DIR__ . '/../bootstrap.php';
 
+    // Ensure api_tokens table exists (auto-heal if missing)
+    if (!function_exists('ensure_api_tokens_table')) {
+        function ensure_api_tokens_table(mysqli $conn): bool {
+            $sql = "CREATE TABLE IF NOT EXISTS `api_tokens` (
+              `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+              `user_id` INT UNSIGNED NOT NULL,
+              `role` VARCHAR(32) NOT NULL,
+              `token` VARCHAR(128) NOT NULL,
+              `expires` DATETIME NOT NULL,
+              `last_ip` VARCHAR(45) DEFAULT NULL,
+              `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              UNIQUE KEY `uniq_token` (`token`),
+              KEY `idx_user` (`user_id`),
+              CONSTRAINT `fk_api_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+            // Attempt create; swallow errors if no permissions
+            @$conn->query($sql);
+            return $conn->errno === 0; // best effort
+        }
+    }
+
     require_method('POST');
 
     $body = read_json_body();
@@ -51,15 +73,36 @@ try {
         $token = generate_token();
         $expires = date('Y-m-d H:i:s', time() + 86400);
         $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        if ($ins = $conn->prepare("INSERT INTO api_tokens (user_id, role, token, expires, last_ip) VALUES (?,?,?,?,?)")) {
-            $ins->bind_param('issss', $u['id'], $u['role'], $token, $expires, $ip);
-            if (!$ins->execute()) {
+        $insertSql = "INSERT INTO api_tokens (user_id, role, token, expires, last_ip) VALUES (?,?,?,?,?)";
+        $ins = $conn->prepare($insertSql);
+        if (!$ins) {
+            // Table may be missing; try to create and retry
+            ensure_api_tokens_table($conn);
+            $ins = $conn->prepare($insertSql);
+        }
+        if (!$ins) {
+            echo json_encode(['success' => false, 'error' => 'Token prepare failed']);
+            exit;
+        }
+        $ins->bind_param('issss', $u['id'], $u['role'], $token, $expires, $ip);
+        if (!$ins->execute()) {
+            if ($ins->errno === 1146 /* table doesn't exist */) {
+                ensure_api_tokens_table($conn);
+                $ins = $conn->prepare($insertSql);
+                if ($ins) {
+                    $ins->bind_param('issss', $u['id'], $u['role'], $token, $expires, $ip);
+                    if (!$ins->execute()) {
+                        echo json_encode(['success' => false, 'error' => 'Token issue failed']);
+                        exit;
+                    }
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Token prepare failed']);
+                    exit;
+                }
+            } else {
                 echo json_encode(['success' => false, 'error' => 'Token issue failed']);
                 exit;
             }
-        } else {
-            echo json_encode(['success' => false, 'error' => 'Token prepare failed']);
-            exit;
         }
 
         echo json_encode([
