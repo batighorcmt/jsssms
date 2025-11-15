@@ -96,6 +96,12 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 		/* Floating labels with icons */
 		.form-floating { position: relative; }
 		.form-floating .form-control { padding-left: 42px; }
+		.form-floating .form-control {
+			padding-left: 2.5rem;
+		}
+		.form-floating .icon {
+			left: 1rem;
+		}
 		.form-floating .icon {
 			position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
 			color: #64748b; font-size: 1rem; pointer-events: none;
@@ -161,7 +167,12 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 
 	<main class="auth-card">
 		<div class="brand">
-			<div class="logo"><i class="fa-solid fa-school"></i></div>
+			<div class="logo" style="background: none; box-shadow: none; padding: 0;">
+				<img src="../logo.png" alt="Institute Logo" style="width: 54px; height: 54px; object-fit: contain; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(34,211,238,0.10); display: block; margin: 0 auto 6px auto;">
+			</div>
+		</div>
+		<div class="brand" style="margin-top: -18px;">
+			<div class="logo" style="display:none;"></div>
 			<h1>Jorepukuria Secondary School</h1>
 		</div>
 		<div class="sub">Login — Securely access your account</div>
