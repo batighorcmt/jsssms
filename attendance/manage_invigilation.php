@@ -271,7 +271,12 @@ include '../includes/sidebar.php';
               </div>
               
             </div>
-            <?php $action = $_POST['action'] ?? ''; $showAssignment = in_array($action, ['filter','save_duties'], true) && $sel_plan>0 && $sel_date && in_array($sel_date, $examDates, true); ?>
+            <?php
+            // Determine whether to show assignment table.
+            // After implementing PRG, POST action is no longer available on reload,
+            // so rely solely on presence of valid selected plan & date.
+            $showAssignment = ($sel_plan>0 && $sel_date && in_array($sel_date, $examDates, true));
+            ?>
             <?php if ($showAssignment && !empty($rooms)): ?>
             <div class="table-responsive">
               <table class="table table-bordered table-hover">
@@ -284,7 +289,6 @@ include '../includes/sidebar.php';
                         <select name="room_teacher[<?= $rid ?>]" class="form-control js-teacher-select" required>
                           <option value="">-- Select --</option>
                           <?php foreach($teachers as $t): ?>
-                            <option value="">Select Teacher</option>
                             <option value="<?= (int)$t['user_id'] ?>" <?= $assigned===(int)$t['user_id']?'selected':'' ?>><?= htmlspecialchars($t['display_name']) ?></option>
                           <?php endforeach; ?>
                         </select>
@@ -298,7 +302,7 @@ include '../includes/sidebar.php';
             <?php elseif ($showAssignment && empty($rooms)): ?>
               <div class="text-muted">No rooms found for the selected plan.</div>
             <?php else: ?>
-              <div class="text-muted">Seat Plan এবং Date নির্বাচন করুন।</div>
+              <div class="text-muted">Select Seat Plan and Date.</div>
             <?php endif; ?>
           </form>
         </div>
