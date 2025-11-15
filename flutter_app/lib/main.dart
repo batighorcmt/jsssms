@@ -24,13 +24,14 @@ class JssApp extends StatelessWidget {
   }
 }
 
-/// Splash gate: shows Splash.gif then routes to Login or Dashboard
+// Missing widget definition added: SplashGate wraps the splash state logic
 class SplashGate extends StatefulWidget {
   const SplashGate({super.key});
   @override
   State<SplashGate> createState() => _SplashGateState();
 }
 
+/// Splash gate: shows Splash.gif then routes to Login or Dashboard
 class _SplashGateState extends State<SplashGate> {
   bool _ready = false;
   String? _token;
@@ -46,9 +47,7 @@ class _SplashGateState extends State<SplashGate> {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('token');
     _userName = prefs.getString('user_name');
-    if (mounted) {
-      setState(() => _ready = true);
-    }
+    if (mounted) setState(() => _ready = true);
   }
 
   @override
@@ -92,8 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
   String? _error;
   bool _passObscure = true;
-  static const baseUrl =
-      'https://jss.batighorbd.com/api'; // TODO: replace for production
+  static const baseUrl = 'https://jss.batighorbd.com/api';
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -122,7 +120,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ? user['user_id'].toString()
             : user['id']?.toString() ?? '';
         await prefs.setString('user_id', uid);
-        // Cache controller flag if provided in login response
         final ic = (user['is_controller'] ?? data['data']['is_controller']);
         if (ic != null) {
           final s = ic.toString().toLowerCase();
@@ -131,11 +128,9 @@ class _LoginScreenState extends State<LoginScreen> {
           await prefs.setBool('is_controller', isCtrl);
           await prefs.setString('is_controller_user_id', uid);
         } else {
-          // Clear any stale value for other users
           await prefs.remove('is_controller');
         }
         final role = user['role']?.toString() ?? '';
-        // Enforce teacher-only login
         if (role.toLowerCase() != 'teacher') {
           setState(() {
             _busy = false;
@@ -163,6 +158,13 @@ class _LoginScreenState extends State<LoginScreen> {
         _busy = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -382,7 +384,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   MaterialPageRoute(builder: (context) => DutiesScreen()));
             }),
             _buildDashboardCard(
-                context, 'Exam Seat Plan', Icons.event_seat, Colors.green, () {
+                context, 'Find Exam Seat', Icons.event_seat, Colors.green, () {
               Navigator.push(context,
                   MaterialPageRoute(builder: (context) => SeatPlanScreen()));
             }),
@@ -1481,7 +1483,8 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                           child: DataTable(
                             columns: cols,
                             rows: rows,
-                            headingRowColor: WidgetStateProperty.resolveWith(
+                            // Fix: use MaterialStateProperty instead of non-existent WidgetStateProperty
+                            headingRowColor: MaterialStateProperty.resolveWith(
                                 (_) => Colors.grey.shade100),
                             columnSpacing: 16,
                             horizontalMargin: 8,
@@ -1515,6 +1518,12 @@ class AttendanceReportScreen extends StatefulWidget {
 }
 
 class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
+  // Scroll controllers to sync header/body and left/right panes
+  final ScrollController _hHeader = ScrollController();
+  final ScrollController _hBody = ScrollController();
+  final ScrollController _vLeft = ScrollController();
+  final ScrollController _vBody = ScrollController();
+  bool _syncing = false;
   List<dynamic> _plans = [];
   String? _selectedPlanId;
   List<String> _dates = [];
@@ -1535,6 +1544,40 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   void initState() {
     super.initState();
     _loadPlans();
+    // Link scroll controllers for synced scrolling
+    _hHeader.addListener(() {
+      if (_syncing) return;
+      _syncing = true;
+      _hBody.jumpTo(_hHeader.position.pixels);
+      _syncing = false;
+    });
+    _hBody.addListener(() {
+      if (_syncing) return;
+      _syncing = true;
+      _hHeader.jumpTo(_hBody.position.pixels);
+      _syncing = false;
+    });
+    _vLeft.addListener(() {
+      if (_syncing) return;
+      _syncing = true;
+      if (_vBody.hasClients) _vBody.jumpTo(_vLeft.position.pixels);
+      _syncing = false;
+    });
+    _vBody.addListener(() {
+      if (_syncing) return;
+      _syncing = true;
+      if (_vLeft.hasClients) _vLeft.jumpTo(_vBody.position.pixels);
+      _syncing = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _hHeader.dispose();
+    _hBody.dispose();
+    _vLeft.dispose();
+    _vBody.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPlans() async {
@@ -1712,49 +1755,318 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     if (_rooms.isEmpty || _classList.isEmpty) {
       return const Center(child: Text('Select Seat Plan and Date.'));
     }
-    final columns = <DataColumn>[
-      const DataColumn(label: Text('Room')),
-      ..._classList
-          .expand((c) => [
-                DataColumn(label: Center(child: Text('$c P'))),
-                DataColumn(label: Center(child: Text('$c A'))),
-              ])
-          .toList(),
-      const DataColumn(label: Center(child: Text('Total Present'))),
-      const DataColumn(label: Center(child: Text('Total Absent'))),
-    ];
-    final rows = _rooms.map<DataRow>((room) {
-      final roomNo = (room['room_no'] ?? '').toString();
-      final pMap = _byRoomClassP[roomNo] ?? const {};
-      final aMap = _byRoomClassA[roomNo] ?? const {};
-      final cells = <DataCell>[
-        DataCell(Text(roomNo)),
-        ..._classList.expand((c) {
-          final p = pMap[c] ?? 0;
-          final a = aMap[c] ?? 0;
-          return [
-            DataCell(Center(child: Text(p.toString()))),
-            DataCell(Center(
-                child: Text(a.toString(),
-                    style: const TextStyle(color: Colors.red)))),
-          ];
-        }),
-        DataCell(Center(
-            child: Text((_roomTotalP[roomNo] ?? 0).toString(),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.green)))),
-        DataCell(Center(
-            child: Text((_roomTotalA[roomNo] ?? 0).toString(),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.red)))),
-      ];
-      return DataRow(cells: cells);
-    }).toList();
+    const double leftColWidth = 100;
+    const double cellWidth = 64;
+    const double headerRowHeight = 32;
+    const double header2RowHeight = 28;
+
+    // Compute grand totals by class
+    final Map<String, int> totalPByClass = {
+      for (final c in _classList)
+        c: _rooms.fold<int>(0, (sum, r) {
+          final roomNo = (r['room_no'] ?? '').toString();
+          return sum + ((_byRoomClassP[roomNo] ?? const {})[c] ?? 0);
+        })
+    };
+    final Map<String, int> totalAByClass = {
+      for (final c in _classList)
+        c: _rooms.fold<int>(0, (sum, r) {
+          final roomNo = (r['room_no'] ?? '').toString();
+          return sum + ((_byRoomClassA[roomNo] ?? const {})[c] ?? 0);
+        })
+    };
+    final int grandP = _rooms.fold<int>(0,
+        (sum, r) => sum + (_roomTotalP[(r['room_no'] ?? '').toString()] ?? 0));
+    final int grandA = _rooms.fold<int>(0,
+        (sum, r) => sum + (_roomTotalA[(r['room_no'] ?? '').toString()] ?? 0));
+
+    final double totalHeaderHeight = headerRowHeight + header2RowHeight;
+
+    Widget buildHeaderRight() {
+      return SingleChildScrollView(
+        controller: _hHeader,
+        scrollDirection: Axis.horizontal,
+        child: Column(
+          children: [
+            // Row 1: Class names spanning 2 sub-columns each; Totals spanning 2
+            SizedBox(
+              height: headerRowHeight,
+              child: Row(
+                children: [
+                  ..._classList.map((c) => Container(
+                        alignment: Alignment.center,
+                        width: cellWidth * 2,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          border: Border(
+                            right: BorderSide(color: Colors.grey.shade300),
+                            bottom: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
+                        child: Text(c,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
+                      )),
+                  // Totals header (spanning 2 columns visually)
+                  Container(
+                    alignment: Alignment.center,
+                    width: cellWidth * 2,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey.shade300),
+                      ),
+                    ),
+                    child: const Text('Totals',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+            // Row 2: P/A under each class + P/A under totals
+            SizedBox(
+              height: header2RowHeight,
+              child: Row(
+                children: [
+                  ..._classList.expand((_) => [
+                        Container(
+                          alignment: Alignment.center,
+                          width: cellWidth,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            border: Border(
+                              right: BorderSide(color: Colors.grey.shade200),
+                              bottom: BorderSide(color: Colors.grey.shade300),
+                            ),
+                          ),
+                          child: const Text('P'),
+                        ),
+                        Container(
+                          alignment: Alignment.center,
+                          width: cellWidth,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            border: Border(
+                              right: BorderSide(color: Colors.grey.shade200),
+                              bottom: BorderSide(color: Colors.grey.shade300),
+                            ),
+                          ),
+                          child: const Text('A'),
+                        ),
+                      ]),
+                  Container(
+                    alignment: Alignment.center,
+                    width: cellWidth,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border(
+                        right: BorderSide(color: Colors.grey.shade200),
+                        bottom: BorderSide(color: Colors.grey.shade300),
+                      ),
+                    ),
+                    child: const Text('P'),
+                  ),
+                  Container(
+                    alignment: Alignment.center,
+                    width: cellWidth,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey.shade300),
+                      ),
+                    ),
+                    child: const Text('A'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget buildBodyRight() {
+      return SingleChildScrollView(
+        controller: _hBody,
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: (_classList.length * 2 + 2) * cellWidth,
+          child: ListView.builder(
+            controller: _vBody,
+            itemCount: _rooms.length + 1, // +1 for totals row
+            itemBuilder: (context, index) {
+              if (index == _rooms.length) {
+                // Totals row
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    border:
+                        Border(top: BorderSide(color: Colors.grey.shade300)),
+                  ),
+                  child: Row(
+                    children: [
+                      ..._classList.expand((c) => [
+                            SizedBox(
+                              width: cellWidth,
+                              height: 36,
+                              child: Center(
+                                  child: Text(
+                                      (totalPByClass[c] ?? 0).toString(),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.green))),
+                            ),
+                            SizedBox(
+                              width: cellWidth,
+                              height: 36,
+                              child: Center(
+                                  child: Text(
+                                      (totalAByClass[c] ?? 0).toString(),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.red))),
+                            ),
+                          ]),
+                      SizedBox(
+                        width: cellWidth,
+                        height: 36,
+                        child: Center(
+                            child: Text(grandP.toString(),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.green))),
+                      ),
+                      SizedBox(
+                        width: cellWidth,
+                        height: 36,
+                        child: Center(
+                            child: Text(grandA.toString(),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.red))),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final room = _rooms[index];
+              final roomNo = (room['room_no'] ?? '').toString();
+              final pMap = _byRoomClassP[roomNo] ?? const {};
+              final aMap = _byRoomClassA[roomNo] ?? const {};
+              return Row(
+                children: [
+                  ..._classList.expand((c) => [
+                        SizedBox(
+                          width: cellWidth,
+                          height: 36,
+                          child: Center(
+                              child: Text((pMap[c] ?? 0).toString(),
+                                  style: const TextStyle(color: Colors.green))),
+                        ),
+                        SizedBox(
+                          width: cellWidth,
+                          height: 36,
+                          child: Center(
+                              child: Text((aMap[c] ?? 0).toString(),
+                                  style: const TextStyle(color: Colors.red))),
+                        ),
+                      ]),
+                  SizedBox(
+                    width: cellWidth,
+                    height: 36,
+                    child: Center(
+                        child: Text((_roomTotalP[roomNo] ?? 0).toString(),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green))),
+                  ),
+                  SizedBox(
+                    width: cellWidth,
+                    height: 36,
+                    child: Center(
+                        child: Text((_roomTotalA[roomNo] ?? 0).toString(),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red))),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    Widget buildLeftPane() {
+      return SizedBox(
+        width: leftColWidth,
+        child: Column(
+          children: [
+            // Top-left fixed header cell spanning two header rows
+            Container(
+              height: totalHeaderHeight,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                border: Border(
+                  right: BorderSide(color: Colors.grey.shade300),
+                  bottom: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+              child: const Text('Room',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: _vLeft,
+                itemCount: _rooms.length + 1, // +1 for totals row
+                itemBuilder: (context, index) {
+                  if (index == _rooms.length) {
+                    return Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      height: 36,
+                      color: Colors.grey.shade100,
+                      child: const Text('Total',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                    );
+                  }
+                  final room = _rooms[index];
+                  final roomTitle = () {
+                    final no = (room['room_no'] ?? '').toString();
+                    final title = (room['title'] ?? '').toString();
+                    return title.isNotEmpty ? '$no - $title' : no;
+                  }();
+                  return Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    height: 36,
+                    child: Text(roomTitle),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(columns: columns, rows: rows),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildLeftPane(),
+          Expanded(
+            child: Column(
+              children: [
+                SizedBox(height: totalHeaderHeight, child: buildHeaderRight()),
+                Expanded(child: buildBodyRight()),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1906,57 +2218,53 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
       margin: EdgeInsets.all(8),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Wrap(
-          spacing: 16,
-          runSpacing: 12,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              width: 250,
-              child: DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: 'Seat Plan'),
-                value: _selectedPlanId,
-                items: _plans
-                    .map((p) => DropdownMenuItem(
-                          value: p['id'].toString(),
-                          child: Text('${p['plan_name']} (${p['shift']})'),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) {
-                    setState(() => _selectedPlanId = v);
-                    _loadDatesForPlan();
-                  }
-                },
-              ),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              decoration: InputDecoration(labelText: 'Seat Plan'),
+              value: _selectedPlanId,
+              items: _plans
+                  .map((p) => DropdownMenuItem(
+                        value: p['id'].toString(),
+                        child: Text('${p['plan_name']} (${p['shift']})'),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _selectedPlanId = v);
+                  _loadDatesForPlan();
+                }
+              },
             ),
-            SizedBox(
-              width: 200,
-              child: _loadingDates
-                  ? _LoadingBox(label: 'Date')
-                  : DropdownButtonFormField<String>(
-                      decoration: InputDecoration(labelText: 'Date'),
-                      value: _selectedDate,
-                      items: _examDates
-                          .map((d) => DropdownMenuItem(
-                                value: d,
-                                child: Text(() {
-                                  try {
-                                    return DateFormat('dd-MM-yyyy')
-                                        .format(DateTime.parse(d));
-                                  } catch (_) {
-                                    return d;
-                                  }
-                                }()),
-                              ))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) {
-                          setState(() => _selectedDate = v);
-                          _loadRoomsAndDuties();
-                        }
-                      },
-                    ),
-            ),
+            const SizedBox(height: 12),
+            _loadingDates
+                ? _LoadingBox(label: 'Date')
+                : DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: 'Date'),
+                    value: _selectedDate,
+                    items: _examDates
+                        .map((d) => DropdownMenuItem(
+                              value: d,
+                              child: Text(() {
+                                try {
+                                  return DateFormat('dd-MM-yyyy')
+                                      .format(DateTime.parse(d));
+                                } catch (_) {
+                                  return d;
+                                }
+                              }()),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedDate = v);
+                        _loadRoomsAndDuties();
+                      }
+                    },
+                  ),
           ],
         ),
       ),
@@ -2097,8 +2405,22 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
       _error = null;
     });
     try {
-      _results =
-          await ApiService.searchSeatPlan(int.parse(_selectedPlanId!), _search);
+      _results = await ApiService.searchSeatPlan(
+          int.parse(_selectedPlanId!), _search.trim());
+      // If query is purely digits, keep only exact roll matches (ignoring leading zeros)
+      final q = _search.trim();
+      if (RegExp(r'^\d+$').hasMatch(q)) {
+        String normalize(String s) {
+          if (s == '0') return '0';
+          return s.replaceFirst(RegExp(r'^0+'), '');
+        }
+
+        final nq = normalize(q);
+        _results = _results.where((r) {
+          final roll = (r['roll_no'] ?? '').toString();
+          return normalize(roll) == nq;
+        }).toList();
+      }
       if (_results.isEmpty && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('"$_search" এর জন্য কোন সিট পাওয়া যায়নি')));
@@ -2126,7 +2448,7 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Seat Plan Finder')),
+      appBar: AppBar(title: const Text('Find Exam Seat')),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(12.0),
@@ -2142,12 +2464,13 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
                       const Text('Search Student Seat',
                           style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
-                      Wrap(spacing: 16, runSpacing: 12, children: [
-                        SizedBox(
-                          width: 220,
-                          child: _loadingPlans
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _loadingPlans
                               ? const _LoadingBox(label: 'Seat Plans')
                               : DropdownButtonFormField<String>(
+                                  isExpanded: true,
                                   decoration: const InputDecoration(
                                       labelText: 'Seat Plan'),
                                   value: _selectedPlanId,
@@ -2172,31 +2495,31 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
                                     });
                                   },
                                 ),
-                        ),
-                        SizedBox(
-                          width: 240,
-                          child: TextFormField(
+                          const SizedBox(height: 12),
+                          TextFormField(
                             decoration: const InputDecoration(
                                 labelText: 'Roll or Name'),
                             onChanged: (v) => setState(() => _search = v),
                             onFieldSubmitted: (_) => _doSearch(),
                           ),
-                        ),
-                        SizedBox(
-                          height: 56,
-                          child: ElevatedButton.icon(
-                            onPressed: (_searching ||
-                                    _selectedPlanId == null ||
-                                    _search.trim().isEmpty)
-                                ? null
-                                : _doSearch,
-                            icon: const Icon(Icons.search),
-                            label: _searching
-                                ? const Text('Searching...')
-                                : const Text('Search'),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 48,
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: (_searching ||
+                                      _selectedPlanId == null ||
+                                      _search.trim().isEmpty)
+                                  ? null
+                                  : _doSearch,
+                              icon: const Icon(Icons.search),
+                              label: _searching
+                                  ? const Text('Searching...')
+                                  : const Text('Search'),
+                            ),
                           ),
-                        ),
-                      ])
+                        ],
+                      )
                     ],
                   ),
                 ),
