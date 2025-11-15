@@ -31,14 +31,15 @@ if ($ars) while($r=$ars->fetch_assoc()) { $attMap[(int)$r['student_id']]=$r['sta
 $studentsOut = [];
 foreach ($alloc as $a) {
   $sid = (int)$a['student_id'];
-  $info = ['student_id'=>$sid,'student_name'=>'','roll_no'=>'','class_name'=>''];
-  $q = $conn->prepare('SELECT s.student_name, s.roll_no, c.class_name FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.student_id=? LIMIT 1');
+  $info = ['student_id'=>$sid,'student_name'=>'','roll_no'=>'','class_name'=>'','gender'=>''];
+  $q = $conn->prepare('SELECT s.student_name, s.roll_no, s.gender, c.class_name FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.student_id=? LIMIT 1');
   if ($q){ $q->bind_param('i',$sid); $q->execute(); $res=$q->get_result(); if($res && $res->num_rows){ $info=array_merge($info,$res->fetch_assoc()); } $q->close(); }
   $studentsOut[] = [
     'student_id'=>$sid,
     'student_name'=>$info['student_name'],
     'roll_no'=>$info['roll_no'],
     'class_name'=>$info['class_name'],
+    'gender'=>$info['gender'] ?? '',
     'status'=>$attMap[$sid] ?? 'unknown',
     'seat'=>[
       'col_no'=>(int)$a['col_no'],

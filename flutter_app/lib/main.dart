@@ -448,13 +448,15 @@ class DutiesScreen extends StatefulWidget {
 }
 
 class _DutiesScreenState extends State<DutiesScreen> {
-  String _date = '';
   List<dynamic> _plans = [];
   List<dynamic> _rooms = [];
   List<dynamic> _students = [];
   String? _selectedPlanId;
+  List<String> _examDates = [];
+  String? _selectedDate;
   String? _selectedRoomId;
   bool _loadingPlans = true;
+  bool _loadingDates = false;
   bool _loadingRooms = false;
   bool _loadingStudents = false;
   bool _bulkSaving = false;
@@ -469,40 +471,8 @@ class _DutiesScreenState extends State<DutiesScreen> {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _userName = prefs.getString('user_name');
-    _date = _todayIso();
     await _loadPlans();
   }
-
-  String _displayDate(String iso) {
-    try {
-      final dt = DateTime.parse(iso);
-      return DateFormat('dd-MM-yyyy').format(dt);
-    } catch (_) {
-      return iso;
-    }
-  }
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final initial = DateTime.tryParse(_date) ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 1),
-    );
-    if (picked != null) {
-      setState(() {
-        _date = picked.toIso8601String().substring(0, 10);
-        _selectedPlanId = null;
-        _selectedRoomId = null;
-        _students.clear();
-      });
-      await _loadPlans();
-    }
-  }
-
-  String _todayIso() => DateTime.now().toIso8601String().substring(0, 10);
 
   Future<void> _loadPlans() async {
     setState(() {
@@ -511,9 +481,13 @@ class _DutiesScreenState extends State<DutiesScreen> {
     try {
       // Show plans irrespective of date; rooms/students remain date-scoped
       _plans = await ApiService.getSeatPlans('');
-      if (_plans.isNotEmpty) {
-        _selectedPlanId ??= _plans.first['id'].toString();
-      }
+      // Keep selection blank by default; user will choose step-by-step
+      _selectedPlanId = null;
+      _examDates = [];
+      _selectedDate = null;
+      _rooms = [];
+      _selectedRoomId = null;
+      _students.clear();
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to load plans: $e')));
@@ -521,43 +495,69 @@ class _DutiesScreenState extends State<DutiesScreen> {
       setState(() {
         _loadingPlans = false;
       });
-      if (_selectedPlanId != null) _loadRooms();
     }
   }
 
-  Future<void> _loadRooms() async {
+  Future<void> _loadDatesForPlan() async {
     if (_selectedPlanId == null) return;
+    setState(() {
+      _loadingDates = true;
+      _examDates = [];
+      _selectedDate = null;
+      _rooms = [];
+      _selectedRoomId = null;
+      _students.clear();
+    });
+    try {
+      final dates = await ApiService.getPlanDates(_selectedPlanId!);
+      _examDates = dates;
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to load dates: $e')));
+    } finally {
+      setState(() => _loadingDates = false);
+    }
+  }
+
+  Future<void> _loadRoomsForTeacher() async {
+    if (_selectedPlanId == null || _selectedDate == null) return;
     setState(() {
       _loadingRooms = true;
       _rooms = [];
+      _selectedRoomId = null;
+      _students.clear();
     });
     try {
-      _rooms = await ApiService.getRooms(
-          _selectedPlanId!, _date); // expects id, room_no, title
-      if (_rooms.isNotEmpty) {
-        _selectedRoomId ??= _rooms.first['id'].toString();
-      }
+      final allRooms =
+          await ApiService.getRooms(_selectedPlanId!, _selectedDate!);
+      final dutyMap =
+          await ApiService.getDutiesForPlan(_selectedPlanId!, _selectedDate!);
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+      // Filter rooms assigned to this teacher only
+      _rooms = allRooms
+          .where((r) => dutyMap[(r['id']).toString()] == userId)
+          .toList();
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to load rooms: $e')));
     } finally {
-      setState(() {
-        _loadingRooms = false;
-      });
-      if (_selectedRoomId != null) _loadStudents();
+      setState(() => _loadingRooms = false);
     }
   }
 
   Future<void> _loadStudents() async {
-    if (_selectedPlanId == null || _selectedRoomId == null) return;
+    if (_selectedPlanId == null ||
+        _selectedDate == null ||
+        _selectedRoomId == null) return;
     setState(() {
       _loadingStudents = true;
       _students = [];
     });
     try {
       // Reuse existing attendance endpoint
-      _students = await ApiService.getAttendance(
-          _date, int.parse(_selectedPlanId!), int.parse(_selectedRoomId!));
+      _students = await ApiService.getAttendance(_selectedDate!,
+          int.parse(_selectedPlanId!), int.parse(_selectedRoomId!));
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to load students: $e')));
@@ -607,8 +607,8 @@ class _DutiesScreenState extends State<DutiesScreen> {
       student['status'] = status;
     });
     try {
-      await ApiService.submitAttendance(
-          _date, int.parse(_selectedPlanId!), int.parse(_selectedRoomId!), [
+      await ApiService.submitAttendance(_selectedDate!,
+          int.parse(_selectedPlanId!), int.parse(_selectedRoomId!), [
         {'student_id': sid, 'status': status}
       ]);
     } catch (e) {
@@ -631,8 +631,8 @@ class _DutiesScreenState extends State<DutiesScreen> {
       final entries = _students
           .map((s) => {'student_id': s['student_id'], 'status': mode})
           .toList();
-      await ApiService.submitAttendance(_date, int.parse(_selectedPlanId!),
-          int.parse(_selectedRoomId!), entries);
+      await ApiService.submitAttendance(_selectedDate!,
+          int.parse(_selectedPlanId!), int.parse(_selectedRoomId!), entries);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Bulk save failed: $e')));
@@ -671,12 +671,26 @@ class _DutiesScreenState extends State<DutiesScreen> {
         ),
       ),
       floatingActionButton: (_students.isNotEmpty)
-          ? FloatingActionButton.extended(
-              onPressed: _bulkSaving ? null : () => _bulkMark('present'),
-              label: _bulkSaving
-                  ? const Text('Saving...')
-                  : const Text('Mark All Present'),
-              icon: const Icon(Icons.playlist_add_check),
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.extended(
+                  onPressed: _bulkSaving ? null : () => _bulkMark('present'),
+                  backgroundColor: Colors.green,
+                  icon:
+                      const Icon(Icons.playlist_add_check, color: Colors.white),
+                  label: const Text('Mark All Present',
+                      style: TextStyle(color: Colors.white)),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton.extended(
+                  onPressed: _bulkSaving ? null : () => _bulkMark('absent'),
+                  backgroundColor: Colors.redAccent,
+                  icon: const Icon(Icons.block, color: Colors.white),
+                  label: const Text('Mark All Absent',
+                      style: TextStyle(color: Colors.white)),
+                ),
+              ],
             )
           : null,
     );
@@ -688,13 +702,12 @@ class _DutiesScreenState extends State<DutiesScreen> {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(spacing: 12, runSpacing: 12, children: [
-              SizedBox(
-                width: 200,
+            // Row 1: Seat Plan full width
+            Row(children: [
+              Expanded(
                 child: _loadingPlans
-                    ? const _LoadingBox(label: 'Plans')
+                    ? const _LoadingBox(label: 'Seat Plan')
                     : DropdownButtonFormField<String>(
                         decoration:
                             const InputDecoration(labelText: 'Seat Plan'),
@@ -709,27 +722,54 @@ class _DutiesScreenState extends State<DutiesScreen> {
                         onChanged: (v) {
                           setState(() {
                             _selectedPlanId = v;
+                            _selectedDate = null;
                             _selectedRoomId = null;
+                            _examDates = [];
+                            _rooms = [];
+                            _students.clear();
                           });
-                          _loadRooms();
+                          if (_selectedPlanId != null) _loadDatesForPlan();
+                        },
+                      ),
+              )
+            ]),
+            const SizedBox(height: 12),
+            // Row 2: Date and Room (2 columns)
+            Row(children: [
+              Expanded(
+                child: _loadingDates
+                    ? const _LoadingBox(label: 'Date')
+                    : DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Date'),
+                        value: _selectedDate,
+                        items: _examDates
+                            .map((d) => DropdownMenuItem(
+                                  value: d,
+                                  child: Text(() {
+                                    try {
+                                      return DateFormat('dd-MM-yyyy')
+                                          .format(DateTime.parse(d));
+                                    } catch (_) {
+                                      return d;
+                                    }
+                                  }()),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          setState(() {
+                            _selectedDate = v;
+                            _selectedRoomId = null;
+                            _rooms = [];
+                            _students.clear();
+                          });
+                          if (_selectedDate != null) _loadRoomsForTeacher();
                         },
                       ),
               ),
-              SizedBox(
-                width: 150,
-                child: TextFormField(
-                  decoration: InputDecoration(
-                      labelText: 'Date',
-                      suffixIcon: const Icon(Icons.calendar_month)),
-                  initialValue: _displayDate(_date),
-                  readOnly: true,
-                  onTap: _pickDate,
-                ),
-              ),
-              SizedBox(
-                width: 160,
+              const SizedBox(width: 12),
+              Expanded(
                 child: _loadingRooms
-                    ? const _LoadingBox(label: 'Rooms')
+                    ? const _LoadingBox(label: 'Room')
                     : DropdownButtonFormField<String>(
                         decoration: const InputDecoration(labelText: 'Room'),
                         value: _selectedRoomId,
@@ -750,15 +790,7 @@ class _DutiesScreenState extends State<DutiesScreen> {
                         },
                       ),
               ),
-              if (_students.isNotEmpty)
-                ElevatedButton.icon(
-                  onPressed: _bulkSaving ? null : () => _bulkMark('absent'),
-                  icon: const Icon(Icons.block),
-                  label: const Text('Mark All Absent'),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent),
-                ),
-            ])
+            ]),
           ],
         ),
       ),
