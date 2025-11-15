@@ -7,8 +7,15 @@ $plan_id = (int)($_GET['plan_id'] ?? 0);
 $room_id = (int)($_GET['room_id'] ?? 0);
 if (!validate_date($date) || $plan_id<=0 || $room_id<=0) api_response(false,'Missing parameters',400);
 
-// Permission: teacher must be assigned to room on date
-if ($authUser['role']==='teacher') {
+// Helper: is current user an active exam controller?
+function api_is_controller(mysqli $conn, $userId){
+  $userId=(int)$userId; if ($userId<=0) return false;
+  $q = $conn->query('SELECT 1 FROM exam_controllers WHERE active=1 AND user_id='.$userId.' LIMIT 1');
+  return ($q && $q->num_rows>0);
+}
+
+// Permission: teacher must be assigned to room on date, unless controller
+if ($authUser['role']==='teacher' && !api_is_controller($conn, $authUser['id'])) {
   $chk = $conn->prepare('SELECT 1 FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? AND teacher_user_id=? LIMIT 1');
   $chk->bind_param('siii',$date,$plan_id,$room_id,$authUser['id']);
   $chk->execute(); $chk->store_result();

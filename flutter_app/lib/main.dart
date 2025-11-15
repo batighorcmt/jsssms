@@ -1525,10 +1525,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   bool _loadingReport = false;
 
   List<dynamic> _rooms = [];
-  Map<String, Map<String, int>> _byRoomClassP = {}; // roomNo -> class -> P
-  Map<String, Map<String, int>> _byRoomClassA = {}; // roomNo -> class -> A
-  Map<String, int> _roomTotalP = {}; // roomNo -> total P
-  Map<String, int> _roomTotalA = {}; // roomNo -> total A
+  Map<String, Map<String, int>> _byRoomClassP = {};
+  Map<String, Map<String, int>> _byRoomClassA = {};
+  Map<String, int> _roomTotalP = {};
+  Map<String, int> _roomTotalA = {};
   List<String> _classList = [];
 
   @override
@@ -1541,12 +1541,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     setState(() => _loadingInit = true);
     try {
       final plans = await ApiService.getSeatPlans('');
-      if (mounted) {
-        setState(() {
-          _plans = plans;
-          _selectedPlanId = null; // keep blank until user selects
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _plans = plans;
+        _selectedPlanId = null;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -1567,12 +1566,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     });
     try {
       final d = await ApiService.getPlanDates(pid);
-      if (mounted) {
-        setState(() {
-          _dates = d;
-          _selectedDate = null;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _dates = d;
+        _selectedDate = null;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -1598,13 +1596,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     });
     try {
       final rooms = await ApiService.getRooms(pid, dt);
-      _rooms = rooms;
       final classSet = <String>{};
-      // Fetch attendance for each room in parallel
+      _rooms = rooms;
       await Future.wait(rooms.map((room) async {
         final roomId = room['id'].toString();
         final roomNo = (room['room_no'] ?? '').toString();
-        final list = await ApiService.getAttendance(
+        final list = await ApiService.getAttendanceForReport(
             dt, int.parse(pid), int.parse(roomId));
         int tp = 0, ta = 0;
         final pMap = <String, int>{};
@@ -1626,10 +1623,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         _roomTotalP[roomNo] = tp;
         _roomTotalA[roomNo] = ta;
       }));
-      final classes = classSet.toList();
-      classes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-      _classList = classes;
-      if (mounted) setState(() {});
+      final classes = classSet.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      if (!mounted) return;
+      setState(() {
+        _classList = classes;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -1658,54 +1657,48 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       margin: const EdgeInsets.all(8),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Wrap(
-          spacing: 16,
-          runSpacing: 12,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              width: 250,
-              child: _loadingInit
-                  ? const _LoadingBox(label: 'Seat Plan')
-                  : DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Seat Plan'),
-                      value: _selectedPlanId,
-                      items: _plans
-                          .map<DropdownMenuItem<String>>((p) =>
-                              DropdownMenuItem(
-                                value: p['id'].toString(),
-                                child:
-                                    Text('${p['plan_name']} (${p['shift']})'),
-                              ))
-                          .toList(),
-                      onChanged: (v) {
-                        setState(() {
-                          _selectedPlanId = v;
-                          _selectedDate = null;
-                        });
-                        _loadDates();
-                      },
-                    ),
-            ),
-            SizedBox(
-              width: 200,
-              child: _loadingDates
-                  ? const _LoadingBox(label: 'Date')
-                  : DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Date'),
-                      value: _selectedDate,
-                      items: _dates
-                          .map((d) => DropdownMenuItem(
-                                value: d,
-                                child: Text(DateFormat('dd/MM/yyyy')
-                                    .format(DateTime.parse(d))),
-                              ))
-                          .toList(),
-                      onChanged: (v) {
-                        setState(() => _selectedDate = v);
-                        _loadReport();
-                      },
-                    ),
-            ),
+            _loadingInit
+                ? const _LoadingBox(label: 'Seat Plan')
+                : DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Seat Plan'),
+                    value: _selectedPlanId,
+                    items: _plans
+                        .map<DropdownMenuItem<String>>((p) => DropdownMenuItem(
+                              value: p['id'].toString(),
+                              child: Text('${p['plan_name']} (${p['shift']})'),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedPlanId = v;
+                        _selectedDate = null;
+                      });
+                      _loadDates();
+                    },
+                  ),
+            const SizedBox(height: 12),
+            _loadingDates
+                ? const _LoadingBox(label: 'Date')
+                : DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Date'),
+                    value: _selectedDate,
+                    items: _dates
+                        .map((d) => DropdownMenuItem(
+                              value: d,
+                              child: Text(DateFormat('dd/MM/yyyy')
+                                  .format(DateTime.parse(d))),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() => _selectedDate = v);
+                      _loadReport();
+                    },
+                  ),
           ],
         ),
       ),
@@ -1719,7 +1712,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     if (_rooms.isEmpty || _classList.isEmpty) {
       return const Center(child: Text('Select Seat Plan and Date.'));
     }
-    // Build DataTable columns
     final columns = <DataColumn>[
       const DataColumn(label: Text('Room')),
       ..._classList
@@ -1731,8 +1723,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       const DataColumn(label: Center(child: Text('Total Present'))),
       const DataColumn(label: Center(child: Text('Total Absent'))),
     ];
-
-    // Build rows per room
     final rows = _rooms.map<DataRow>((room) {
       final roomNo = (room['room_no'] ?? '').toString();
       final pMap = _byRoomClassP[roomNo] ?? const {};
@@ -1760,7 +1750,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       ];
       return DataRow(cells: cells);
     }).toList();
-
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: SingleChildScrollView(
@@ -2571,6 +2560,28 @@ class ApiService {
     final data = await _get(
         'exam/attendance_get.php?date=$date&plan_id=$planId&room_id=$roomId');
     return data['students'] as List<dynamic>;
+  }
+
+  // Controller-capable attendance fetch for any room (used by report screen)
+  static Future<List<dynamic>> getAttendanceForReport(
+      String date, int planId, int roomId) async {
+    final attempts = <String>[
+      'exam/attendance_get.php?date=$date&plan_id=$planId&room_id=$roomId&as=controller',
+      'exam/attendance_get.php?date=$date&plan_id=$planId&room_id=$roomId&controller=1',
+      'exam/attendance_get_admin.php?date=$date&plan_id=$planId&room_id=$roomId',
+    ];
+    for (final ep in attempts) {
+      try {
+        final data = await _get(ep);
+        final students = data['students'];
+        if (students is List) return students.cast<dynamic>();
+      } catch (e) {
+        // If unauthorized (403), try next variant; otherwise keep trying next
+        // No rethrow here to allow graceful fallback
+      }
+    }
+    // Fallback to teacher-scoped endpoint if others unavailable
+    return await getAttendance(date, planId, roomId);
   }
 
   static Future<void> submitAttendance(String date, int planId, int roomId,
