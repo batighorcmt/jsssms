@@ -1732,11 +1732,9 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
       _error = null;
     });
     try {
-      // Always show all active plans; seat allocations are plan-scoped
+      // Always show all active plans; keep selection blank by default
       _plans = await ApiService.getSeatPlans('');
-      if (_plans.isNotEmpty) {
-        _selectedPlanId ??= _plans.first['id']?.toString();
-      }
+      _selectedPlanId = null;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -1840,7 +1838,11 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
                         SizedBox(
                           height: 56,
                           child: ElevatedButton.icon(
-                            onPressed: _searching ? null : _doSearch,
+                            onPressed: (_searching ||
+                                    _selectedPlanId == null ||
+                                    _search.trim().isEmpty)
+                                ? null
+                                : _doSearch,
                             icon: const Icon(Icons.search),
                             label: _searching
                                 ? const Text('Searching...')
@@ -2143,9 +2145,20 @@ class ApiService {
   // Each result item should contain: roll_no, student_name, class_name, room_no, col_no, bench_no, position
   static Future<List<dynamic>> searchSeatPlan(int planId, String query) async {
     if (query.trim().isEmpty) return [];
-    final data = await _get(
-        'exam/seat_plan_search.php?plan_id=$planId&find=${Uri.encodeComponent(query.trim())}');
-    return (data['results'] ?? []) as List<dynamic>;
+    final ep =
+        'exam/seat_plan_search.php?plan_id=$planId&find=${Uri.encodeComponent(query.trim())}';
+    try {
+      final data = await _get(ep);
+      return (data['results'] ?? []) as List<dynamic>;
+    } catch (e) {
+      // Gracefully surface a clearer error if server redirects to login or 404
+      final msg = e.toString();
+      if (msg.contains('login.php') || msg.contains('Redirect')) {
+        throw Exception(
+            'Search endpoint unavailable. Please update server APIs.');
+      }
+      rethrow;
+    }
   }
 
   // API methods for Room Duty Allocation
