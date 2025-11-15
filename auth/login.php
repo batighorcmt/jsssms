@@ -168,7 +168,7 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 	<main class="auth-card">
 		<div class="brand">
 			<div class="logo" style="background: none; box-shadow: none; padding: 0;">
-				<img src="../logo.png" alt="Institute Logo" style="width: 54px; height: 54px; object-fit: contain; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(34,211,238,0.10); display: block; margin: 0 auto 6px auto;">
+				<img src="../assets/logo.png" alt="Institute Logo" style="width: 54px; height: 54px; object-fit: contain; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(34,211,238,0.10); display: block; margin: 0 auto 6px auto;">
 			</div>
 		</div>
 		<div class="brand" style="margin-top: -18px;">
