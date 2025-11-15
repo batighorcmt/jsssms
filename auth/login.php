@@ -127,8 +127,8 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 		}
 		.form-floating > .form-control:focus ~ label,
 		.form-floating > .form-control:not(:placeholder-shown) ~ label {
-			left: 0.75rem;
-			padding-left: 2.1rem;
+			left: 1.6rem;
+			padding-left: 0.9rem;
 			background: transparent !important;
 			z-index: 1;
 		}
