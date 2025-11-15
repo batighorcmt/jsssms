@@ -122,11 +122,18 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 		.form-floating > label {
 			left: 2.5rem;
 			padding-left: 0.1rem;
+			background: transparent !important;
+			z-index: 1;
 		}
 		.form-floating > .form-control:focus ~ label,
 		.form-floating > .form-control:not(:placeholder-shown) ~ label {
 			left: 0.75rem;
 			padding-left: 2.1rem;
+			background: transparent !important;
+			z-index: 1;
+		}
+		.form-floating .icon {
+			z-index: 2;
 		}
 		.form-floating .form-control::placeholder {
 			color: transparent;
