@@ -391,7 +391,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Navigator.push(context,
                   MaterialPageRoute(builder: (context) => MarksEntryScreen()));
             }),
-            if (_isController)
+            if (_isController) ...[
               _buildDashboardCard(context, 'Room Duty Allocation',
                   Icons.supervisor_account, Colors.purple, () {
                 Navigator.push(
@@ -399,6 +399,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     MaterialPageRoute(
                         builder: (context) => RoomDutyAllocationScreen()));
               }),
+              _buildDashboardCard(context, 'Exam Attendance Report',
+                  Icons.table_chart, Colors.teal, () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => AttendanceReportScreen()));
+              }),
+            ],
           ],
         ),
       ),
@@ -464,6 +472,9 @@ class _DutiesScreenState extends State<DutiesScreen> {
   bool _loadingStudents = false;
   bool _bulkSaving = false;
   String? _userName;
+  bool _isController = false; // loaded from preferences
+  bool _noDutyMessage =
+      false; // show message when teacher selects non-today date
 
   @override
   void initState() {
@@ -474,6 +485,7 @@ class _DutiesScreenState extends State<DutiesScreen> {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _userName = prefs.getString('user_name');
+    _isController = prefs.getBool('is_controller') ?? false;
     await _loadPlans();
   }
 
@@ -524,6 +536,21 @@ class _DutiesScreenState extends State<DutiesScreen> {
 
   Future<void> _loadRoomsForTeacher() async {
     if (_selectedPlanId == null || _selectedDate == null) return;
+    // Restrict ordinary teachers to today's date only
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    if (!_isController && _selectedDate != today) {
+      setState(() {
+        _rooms = [];
+        _selectedRoomId = null;
+        _students.clear();
+        _loadingRooms = false;
+        _loadingStudents = false;
+        _noDutyMessage = true;
+      });
+      return; // do not fetch rooms for other dates
+    } else {
+      _noDutyMessage = false; // reset if valid date
+    }
     setState(() {
       _loadingRooms = true;
       _rooms = [];
@@ -675,7 +702,11 @@ class _DutiesScreenState extends State<DutiesScreen> {
               child: Stack(
                 children: [
                   // Scrollable list with bottom padding so content isn't hidden under the overlay bar
-                  Positioned.fill(child: _buildStudentsTable()),
+                  Positioned.fill(
+                      child: _noDutyMessage
+                          ? const Center(
+                              child: Text('আজকের জন্য আপনার কোনো দায়িত্ব নেই।'))
+                          : _buildStudentsTable()),
                   // Fixed bottom-center bulk toggle bar
                   if (_students.isNotEmpty)
                     Align(
@@ -1476,6 +1507,268 @@ class RoomDutyAllocationScreen extends StatefulWidget {
   @override
   _RoomDutyAllocationScreenState createState() =>
       _RoomDutyAllocationScreenState();
+}
+
+class AttendanceReportScreen extends StatefulWidget {
+  @override
+  State<AttendanceReportScreen> createState() => _AttendanceReportScreenState();
+}
+
+class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
+  List<dynamic> _plans = [];
+  String? _selectedPlanId;
+  List<String> _dates = [];
+  String? _selectedDate;
+
+  bool _loadingInit = true;
+  bool _loadingDates = false;
+  bool _loadingReport = false;
+
+  List<dynamic> _rooms = [];
+  Map<String, Map<String, int>> _byRoomClassP = {}; // roomNo -> class -> P
+  Map<String, Map<String, int>> _byRoomClassA = {}; // roomNo -> class -> A
+  Map<String, int> _roomTotalP = {}; // roomNo -> total P
+  Map<String, int> _roomTotalA = {}; // roomNo -> total A
+  List<String> _classList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlans();
+  }
+
+  Future<void> _loadPlans() async {
+    setState(() => _loadingInit = true);
+    try {
+      final plans = await ApiService.getSeatPlans('');
+      if (mounted) {
+        setState(() {
+          _plans = plans;
+          _selectedPlanId = null; // keep blank until user selects
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed to load plans: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingInit = false);
+    }
+  }
+
+  Future<void> _loadDates() async {
+    final pid = _selectedPlanId;
+    if (pid == null) return;
+    setState(() {
+      _loadingDates = true;
+      _dates = [];
+      _selectedDate = null;
+    });
+    try {
+      final d = await ApiService.getPlanDates(pid);
+      if (mounted) {
+        setState(() {
+          _dates = d;
+          _selectedDate = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed to load dates: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingDates = false);
+    }
+  }
+
+  Future<void> _loadReport() async {
+    final pid = _selectedPlanId;
+    final dt = _selectedDate;
+    if (pid == null || dt == null) return;
+    setState(() {
+      _loadingReport = true;
+      _rooms = [];
+      _byRoomClassP = {};
+      _byRoomClassA = {};
+      _roomTotalP = {};
+      _roomTotalA = {};
+      _classList = [];
+    });
+    try {
+      final rooms = await ApiService.getRooms(pid, dt);
+      _rooms = rooms;
+      final classSet = <String>{};
+      // Fetch attendance for each room in parallel
+      await Future.wait(rooms.map((room) async {
+        final roomId = room['id'].toString();
+        final roomNo = (room['room_no'] ?? '').toString();
+        final list = await ApiService.getAttendance(
+            dt, int.parse(pid), int.parse(roomId));
+        int tp = 0, ta = 0;
+        final pMap = <String, int>{};
+        final aMap = <String, int>{};
+        for (final s in list) {
+          final cls = (s['class_name'] ?? '-').toString();
+          classSet.add(cls);
+          final st = (s['status'] ?? '').toString();
+          if (st == 'present') {
+            pMap[cls] = (pMap[cls] ?? 0) + 1;
+            tp++;
+          } else if (st == 'absent') {
+            aMap[cls] = (aMap[cls] ?? 0) + 1;
+            ta++;
+          }
+        }
+        _byRoomClassP[roomNo] = pMap;
+        _byRoomClassA[roomNo] = aMap;
+        _roomTotalP[roomNo] = tp;
+        _roomTotalA[roomNo] = ta;
+      }));
+      final classes = classSet.toList();
+      classes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      _classList = classes;
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed to load report: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingReport = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Exam Attendance Report')),
+      body: Column(
+        children: [
+          _buildFilters(),
+          Expanded(child: _buildReportTable()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Card(
+      margin: const EdgeInsets.all(8),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Wrap(
+          spacing: 16,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: 250,
+              child: _loadingInit
+                  ? const _LoadingBox(label: 'Seat Plan')
+                  : DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'Seat Plan'),
+                      value: _selectedPlanId,
+                      items: _plans
+                          .map<DropdownMenuItem<String>>((p) =>
+                              DropdownMenuItem(
+                                value: p['id'].toString(),
+                                child:
+                                    Text('${p['plan_name']} (${p['shift']})'),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedPlanId = v;
+                          _selectedDate = null;
+                        });
+                        _loadDates();
+                      },
+                    ),
+            ),
+            SizedBox(
+              width: 200,
+              child: _loadingDates
+                  ? const _LoadingBox(label: 'Date')
+                  : DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'Date'),
+                      value: _selectedDate,
+                      items: _dates
+                          .map((d) => DropdownMenuItem(
+                                value: d,
+                                child: Text(DateFormat('dd/MM/yyyy')
+                                    .format(DateTime.parse(d))),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        setState(() => _selectedDate = v);
+                        _loadReport();
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportTable() {
+    if (_loadingReport) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_rooms.isEmpty || _classList.isEmpty) {
+      return const Center(child: Text('Select Seat Plan and Date.'));
+    }
+    // Build DataTable columns
+    final columns = <DataColumn>[
+      const DataColumn(label: Text('Room')),
+      ..._classList
+          .expand((c) => [
+                DataColumn(label: Center(child: Text('$c P'))),
+                DataColumn(label: Center(child: Text('$c A'))),
+              ])
+          .toList(),
+      const DataColumn(label: Center(child: Text('Total Present'))),
+      const DataColumn(label: Center(child: Text('Total Absent'))),
+    ];
+
+    // Build rows per room
+    final rows = _rooms.map<DataRow>((room) {
+      final roomNo = (room['room_no'] ?? '').toString();
+      final pMap = _byRoomClassP[roomNo] ?? const {};
+      final aMap = _byRoomClassA[roomNo] ?? const {};
+      final cells = <DataCell>[
+        DataCell(Text(roomNo)),
+        ..._classList.expand((c) {
+          final p = pMap[c] ?? 0;
+          final a = aMap[c] ?? 0;
+          return [
+            DataCell(Center(child: Text(p.toString()))),
+            DataCell(Center(
+                child: Text(a.toString(),
+                    style: const TextStyle(color: Colors.red)))),
+          ];
+        }),
+        DataCell(Center(
+            child: Text((_roomTotalP[roomNo] ?? 0).toString(),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.green)))),
+        DataCell(Center(
+            child: Text((_roomTotalA[roomNo] ?? 0).toString(),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.red)))),
+      ];
+      return DataRow(cells: cells);
+    }).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(columns: columns, rows: rows),
+      ),
+    );
+  }
 }
 
 class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
