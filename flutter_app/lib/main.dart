@@ -449,6 +449,8 @@ class DutiesScreen extends StatefulWidget {
 }
 
 class _DutiesScreenState extends State<DutiesScreen> {
+  static const double _bulkBarHeight = 56.0;
+  String _bulkNext = 'present'; // next bulk action mode
   List<dynamic> _plans = [];
   List<dynamic> _rooms = [];
   List<dynamic> _students = [];
@@ -640,6 +642,8 @@ class _DutiesScreenState extends State<DutiesScreen> {
     } finally {
       setState(() {
         _bulkSaving = false;
+        // flip next mode after operation completes
+        _bulkNext = mode == 'present' ? 'absent' : 'present';
       });
     }
   }
@@ -667,33 +671,30 @@ class _DutiesScreenState extends State<DutiesScreen> {
             const SizedBox(height: 8),
             _buildStatsBar(stats, classes),
             const SizedBox(height: 8),
-            Expanded(child: _buildStudentsTable()),
+            Expanded(
+              child: Stack(
+                children: [
+                  // Scrollable list with bottom padding so content isn't hidden under the overlay bar
+                  Positioned.fill(child: _buildStudentsTable()),
+                  // Fixed bottom-center bulk toggle bar
+                  if (_students.isNotEmpty)
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: _buildBulkToggleBar(),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-      floatingActionButton: (_students.isNotEmpty)
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.extended(
-                  onPressed: _bulkSaving ? null : () => _bulkMark('present'),
-                  backgroundColor: Colors.green,
-                  icon:
-                      const Icon(Icons.playlist_add_check, color: Colors.white),
-                  label: const Text('Mark All Present',
-                      style: TextStyle(color: Colors.white)),
-                ),
-                const SizedBox(height: 10),
-                FloatingActionButton.extended(
-                  onPressed: _bulkSaving ? null : () => _bulkMark('absent'),
-                  backgroundColor: Colors.redAccent,
-                  icon: const Icon(Icons.block, color: Colors.white),
-                  label: const Text('Mark All Absent',
-                      style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            )
-          : null,
+      // No floatingActionButton; bulk actions are provided by the fixed bottom toggle bar
     );
   }
 
@@ -732,7 +733,7 @@ class _DutiesScreenState extends State<DutiesScreen> {
                           if (_selectedPlanId != null) _loadDatesForPlan();
                         },
                       ),
-              )
+              ),
             ]),
             const SizedBox(height: 12),
             // Row 2: Date and Room (2 columns)
@@ -856,55 +857,11 @@ class _DutiesScreenState extends State<DutiesScreen> {
       return const Center(child: Text('No students loaded'));
     }
     return ListView.separated(
-      itemCount: _students.length + 1, // extra footer item for bulk buttons
+      padding: EdgeInsets.only(
+          bottom: _students.isNotEmpty ? (_bulkBarHeight + 16) : 0),
+      itemCount: _students.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, index) {
-        if (index == _students.length) {
-          // Footer row with two bulk buttons sized similarly to ToggleButtons
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed:
-                          _bulkSaving ? null : () => _bulkMark('present'),
-                      child: _bulkSaving
-                          ? const Text('Saving...')
-                          : const Text('Mark All Present',
-                              style: TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: _bulkSaving ? null : () => _bulkMark('absent'),
-                      child: _bulkSaving
-                          ? const Text('Saving...')
-                          : const Text('Mark All Absent',
-                              style: TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
         final s = _students[index];
         final status = (s['status'] ?? '').toString();
         final seatInfo = s['seat'] != null
@@ -931,6 +888,34 @@ class _DutiesScreenState extends State<DutiesScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildBulkToggleBar() {
+    final isPresentMode = _bulkNext == 'present';
+    final color = isPresentMode ? Colors.green : Colors.redAccent;
+    final icon = isPresentMode ? Icons.playlist_add_check : Icons.block;
+    final label = isPresentMode ? 'Mark All Present' : 'Mark All Absent';
+    return SizedBox(
+      height: _bulkBarHeight,
+      child: Center(
+        child: SizedBox(
+          height: 40,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: _bulkSaving ? null : () => _bulkMark(_bulkNext),
+            icon: Icon(icon, color: Colors.white),
+            label: _bulkSaving
+                ? const Text('Saving...', style: TextStyle(color: Colors.white))
+                : Text(label, style: const TextStyle(color: Colors.white)),
+          ),
+        ),
+      ),
     );
   }
 }

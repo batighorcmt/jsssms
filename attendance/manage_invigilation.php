@@ -264,6 +264,7 @@ include '../includes/sidebar.php';
                         <select name="room_teacher[<?= $rid ?>]" class="form-control js-teacher-select" required>
                           <option value="">-- Select --</option>
                           <?php foreach($teachers as $t): ?>
+                            <option value="">Select Teacher</option>
                             <option value="<?= (int)$t['user_id'] ?>" <?= $assigned===(int)$t['user_id']?'selected':'' ?>><?= htmlspecialchars($t['display_name']) ?></option>
                           <?php endforeach; ?>
                         </select>
