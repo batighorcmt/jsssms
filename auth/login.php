@@ -81,30 +81,58 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 			pointer-events: none; z-index: 0;
 		}
 
-		.brand {
-			display: flex; align-items: center; gap: 10px; justify-content: center;
-			margin-bottom: 10px; text-align: center;
+		.login-logo {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			margin-bottom: 10px;
 		}
-		.brand .logo {
-			width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px;
-			background: linear-gradient(135deg, #60a5fa, #22d3ee);
-			color: white; box-shadow: 0 8px 20px rgba(34, 211, 238, 0.4);
+		.login-logo img {
+			width: 54px;
+			height: 54px;
+			object-fit: contain;
+			border-radius: 12px;
+			background: #fff;
+			box-shadow: 0 2px 8px rgba(34,211,238,0.10);
+			margin-bottom: 6px;
 		}
-		.brand h1 { font-size: 1.25rem; font-weight: 700; margin: 0; }
+		.login-logo h1 {
+			font-size: 1.25rem;
+			font-weight: 700;
+			margin: 0;
+			text-align: center;
+		}
 		.sub { font-size: .95rem; color: var(--text-light); margin-bottom: 18px; text-align: center; }
 
 		/* Floating labels with icons */
 		.form-floating { position: relative; }
-		.form-floating .form-control { padding-left: 42px; }
 		.form-floating .form-control {
 			padding-left: 2.5rem;
 		}
 		.form-floating .icon {
-			left: 1rem;
+			position: absolute;
+			left: 1.1rem;
+			top: 50%;
+			transform: translateY(-50%);
+			color: #64748b;
+			font-size: 1rem;
+			pointer-events: none;
+			z-index: 2;
 		}
-		.form-floating .icon {
-			position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-			color: #64748b; font-size: 1rem; pointer-events: none;
+		.form-floating > label {
+			left: 2.5rem;
+			padding-left: 0.1rem;
+		}
+		.form-floating > .form-control:focus ~ label,
+		.form-floating > .form-control:not(:placeholder-shown) ~ label {
+			left: 0.75rem;
+			padding-left: 2.1rem;
+		}
+		.form-floating .form-control::placeholder {
+			color: transparent;
+		}
+		.form-floating .form-control:focus::placeholder {
+			color: #a0aec0;
 		}
 
 		/* Password toggle */
@@ -166,13 +194,8 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 	<div class="overlay"></div>
 
 	<main class="auth-card">
-		<div class="brand">
-			<div class="logo" style="background: none; box-shadow: none; padding: 0;">
-				<img src="../assets/logo.png" alt="Institute Logo" style="width: 54px; height: 54px; object-fit: contain; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(34,211,238,0.10); display: block; margin: 0 auto 6px auto;">
-			</div>
-		</div>
-		<div class="brand" style="margin-top: -18px;">
-			<div class="logo" style="display:none;"></div>
+		<div class="login-logo">
+			<img src="../assets/logo.png" alt="Institute Logo">
 			<h1>Jorepukuria Secondary School</h1>
 		</div>
 		<div class="sub">Login — Securely access your account</div>
