@@ -10,7 +10,7 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>জোরেপুকুরিয়া মাধ্যমিক বিদ্যালয় — লগইন</title>
+	<title>login - Jorepukuria Secondary School</title>
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 	<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
 	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
@@ -162,9 +162,9 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 	<main class="auth-card">
 		<div class="brand">
 			<div class="logo"><i class="fa-solid fa-school"></i></div>
-			<h1>জোরেপুকুরিয়া মাধ্যমিক বিদ্যালয়</h1>
+			<h1>Jorepukuria Secondary School</h1>
 		</div>
-		<div class="sub">লগইন করুন — সুরক্ষিতভাবে প্রবেশ করুন</div>
+		<div class="sub">Login — Securely access your account</div>
 
 		<?php if (isset($_GET['error'])): ?>
 			<div class="alert alert-danger mb-3" role="alert">
@@ -182,19 +182,19 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 		<form action="check-login.php" method="post" novalidate>
 			<div class="form-floating mb-3">
 				<i class="fa-solid fa-user icon" aria-hidden="true"></i>
-				<input type="text" class="form-control" id="username" name="username" placeholder="ইউজারনেম" required autofocus />
-				<label for="username">ইউজারনেম</label>
+				<input type="text" class="form-control" id="username" name="username" placeholder="Username" required autofocus />
+				<label for="username">Username</label>
 			</div>
 
 			<div class="form-floating mb-2 position-relative">
 				<i class="fa-solid fa-lock icon" aria-hidden="true"></i>
-				<input type="password" class="form-control" id="password" name="password" placeholder="পাসওয়ার্ড" required />
-				<label for="password">পাসওয়ার্ড</label>
-				<button type="button" class="toggle-visibility" id="togglePassword" tabindex="-1" aria-label="পাসওয়ার্ড দেখুন"><i class="fa-solid fa-eye"></i></button>
+				<input type="password" class="form-control" id="password" name="password" placeholder="Password" required />
+				<label for="password">Password</label>
+				<button type="button" class="toggle-visibility" id="togglePassword" tabindex="-1" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
 			</div>
 
-			<button type="submit" class="btn btn-gradient w-100 mt-2">লগইন</button>
-			<div class="foot">আপনার তথ্য সর্বোচ্চ নিরাপত্তায় সংরক্ষিত হয়।</div>
+			<button type="submit" class="btn btn-gradient w-100 mt-2">Login</button>
+			<div class="foot">Your information is securely protected.</div>
 		</form>
 	</main>
 
@@ -209,7 +209,7 @@ if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
 				pw.type = hidden ? 'text' : 'password';
 				var icon = btn.querySelector('i');
 				if (icon) { icon.className = hidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'; }
-				btn.setAttribute('aria-label', hidden ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন');
+				btn.setAttribute('aria-label', hidden ? 'Hide password' : 'Show password');
 			});
 		}
 	});
