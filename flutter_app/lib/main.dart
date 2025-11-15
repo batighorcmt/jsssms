@@ -35,19 +35,20 @@ class _SplashGateState extends State<SplashGate> {
   bool _ready = false;
   String? _token;
   String? _userName;
+
   @override
   void initState() {
     super.initState();
-    _init();
+    _load();
   }
 
-  Future<void> _init() async {
+  Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('token');
     _userName = prefs.getString('user_name');
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    setState(() => _ready = true);
+    if (mounted) {
+      setState(() => _ready = true);
+    }
   }
 
   @override
@@ -855,9 +856,55 @@ class _DutiesScreenState extends State<DutiesScreen> {
       return const Center(child: Text('No students loaded'));
     }
     return ListView.separated(
-      itemCount: _students.length,
+      itemCount: _students.length + 1, // extra footer item for bulk buttons
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, index) {
+        if (index == _students.length) {
+          // Footer row with two bulk buttons sized similarly to ToggleButtons
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 40,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed:
+                          _bulkSaving ? null : () => _bulkMark('present'),
+                      child: _bulkSaving
+                          ? const Text('Saving...')
+                          : const Text('Mark All Present',
+                              style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 40,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _bulkSaving ? null : () => _bulkMark('absent'),
+                      child: _bulkSaving
+                          ? const Text('Saving...')
+                          : const Text('Mark All Absent',
+                              style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         final s = _students[index];
         final status = (s['status'] ?? '').toString();
         final seatInfo = s['seat'] != null
