@@ -137,15 +137,35 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
     }
 }
 
+// Post/Redirect/Get: after any POST action (including filter) redirect to avoid form resubmission warning
+if ($_SERVER['REQUEST_METHOD']==='POST') {
+  // Persist toast & posted map in session for retrieval after redirect
+  if ($toast) { $_SESSION['toast'] = $toast; }
+  if (is_array($postedDutyMap)) { $_SESSION['postedDutyMap'] = json_encode($postedDutyMap); }
+  // Preserve selected plan/date through query string
+  $redirPlan = (int)($_POST['plan_id'] ?? 0);
+  $redirDate = $_POST['duty_date'] ?? '';
+  $qs = [];
+  if ($redirPlan > 0) { $qs['plan_id'] = $redirPlan; }
+  if (preg_match('~^\d{4}-\d{2}-\d{2}$~', $redirDate)) { $qs['duty_date'] = $redirDate; }
+  $query = empty($qs) ? '' : ('?' . http_build_query($qs));
+  header('Location: manage_invigilation.php' . $query);
+  exit();
+}
+
 // Current controller
 $controller = null;
 if ($rc=$conn->query('SELECT user_id FROM exam_controllers WHERE active=1 ORDER BY id DESC LIMIT 1')){
     if ($rc->num_rows>0){ $cid=$rc->fetch_assoc()['user_id']; foreach($teachers as $t){ if ((int)$t['user_id']===(int)$cid){ $controller=$t; break; } } }
 }
 
-// Selected date/plan
-$sel_date = isset($_POST['duty_date']) ? $_POST['duty_date'] : NULL;
-$sel_plan = isset($_POST['plan_id']) ? (int)$_POST['plan_id'] : (count($plans)? (int)$plans[0]['id'] : 0);
+// Retrieve toast / posted map from session after redirect
+if (isset($_SESSION['toast'])) { $toast = $_SESSION['toast']; unset($_SESSION['toast']); }
+if (isset($_SESSION['postedDutyMap'])) { $postedDutyMap = json_decode($_SESSION['postedDutyMap'], true); unset($_SESSION['postedDutyMap']); }
+
+// Selected date/plan sourced from GET (PRG avoids resubmit warnings)
+$sel_date = isset($_GET['duty_date']) ? $_GET['duty_date'] : NULL;
+$sel_plan = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : (count($plans)? (int)$plans[0]['id'] : 0);
 
 // Precompute mapped exam dates for selected plan and normalize selected date
 $examDates = [];
@@ -230,7 +250,7 @@ include '../includes/sidebar.php';
                 <label>Date</label>
                 <?php if (!empty($examDates)): ?>
                   <select id="filterDate" name="duty_date" class="form-control" required>
-                    <option value="" <?= $sel_date ? '' : 'selected' ?>>— তারিখ নির্বাচন করুন —</option>
+                    <option value="" <?= $sel_date ? '' : 'selected' ?>>-- Select Date --</option>
                     <?php foreach($examDates as $d): ?>
                       <?php $disp = ($t=strtotime($d)) ? date('d/m/Y',$t) : $d; ?>
                       <option value="<?= htmlspecialchars($d) ?>" <?= $sel_date===$d?'selected':'' ?>><?= htmlspecialchars($disp) ?></option>
@@ -238,12 +258,12 @@ include '../includes/sidebar.php';
                   </select>
                 <?php else: ?>
                   <select id="filterDate" class="form-control" disabled>
-                    <option value="">কোন তারিখ পাওয়া যায় নি</option>
+                    <option value="">No dates found</option>
                   </select>
-                  <small class="form-text text-muted">Seat Plan → Edit এ গিয়ে Exams নির্বাচন করুন; তখন তারিখগুলো এখানে দেখাবে।</small>
+                  <small class="form-text text-muted">Go to Seat Plan → Edit and select Exams; then dates will appear here.</small>
                   <?php if ($sel_plan>0): ?>
                   <div class="alert alert-warning mt-2" role="alert">
-                    কোন তারিখ পাওয়া যায় নি। অনুগ্রহ করে এই Seat Plan এর সাথে Exams ম্যাপ করুন।
+                    No dates found. Please map Exams to this Seat Plan.
                     <a class="alert-link" href="<?= BASE_URL ?>exam/seat_plan_edit.php?plan_id=<?= (int)$sel_plan ?>">Open Seat Plan → Edit</a>
                   </div>
                   <?php endif; ?>

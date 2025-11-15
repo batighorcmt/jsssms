@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $student_id = $_POST['student_id'] ?? '';
     
     if (!$student_id) {
-        $_SESSION['error'] = "শিক্ষার্থী ID পাওয়া যায়নি";
+        $_SESSION['error'] = "Student ID not found";
         header("Location: student_list.php");
         exit;
     }

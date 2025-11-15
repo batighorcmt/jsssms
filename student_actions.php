@@ -17,7 +17,7 @@ function generate_student_id($conn, $class_id) {
     // Year: last two digit of current year
     $year = date('y');
 
-    // Map class id to class code (যেমন: Six=06, Seven=07, etc)
+    // Map class id to class code (e.g., Six=06, Seven=07, etc)
     $class_codes = [
         1 => '06', // Six
         2 => '07', // Seven
@@ -147,8 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <?php include "sidebar.php"; ?>
 
 <div class="container mt-4">
-    <h3>ছাত্র/ছাত্রী পরিচালনা (Manage Students)</h3>
-    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addStudentModal">নতুন ছাত্র/ছাত্রী যুক্ত করুন</button>
+    <h3>Manage Students</h3>
+    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addStudentModal">Add New Student</button>
 
     <table class="table table-bordered table-striped">
         <thead>
@@ -228,14 +228,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             >Edit</button>
 
                             <?php if ($row['status'] === 'Active'): ?>
-                                <form style="display:inline;" method="post" onsubmit="return confirm('আপনি কি স্ট্যাটাস পরিবর্তন করতে চান?');">
+                                <form style="display:inline;" method="post" onsubmit="return confirm('Do you want to change status?');">
                                     <input type="hidden" name="action" value="change_status">
                                     <input type="hidden" name="student_id" value="<?= htmlspecialchars($row['student_id']) ?>">
                                     <input type="hidden" name="new_status" value="Inactive">
                                     <button type="submit" class="btn btn-sm btn-warning">Deactivate</button>
                                 </form>
                             <?php else: ?>
-                                <form style="display:inline;" method="post" onsubmit="return confirm('আপনি কি স্ট্যাটাস পরিবর্তন করতে চান?');">
+                                <form style="display:inline;" method="post" onsubmit="return confirm('Do you want to change status?');">
                                     <input type="hidden" name="action" value="change_status">
                                     <input type="hidden" name="student_id" value="<?= htmlspecialchars($row['student_id']) ?>">
                                     <input type="hidden" name="new_status" value="Active">
@@ -243,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </form>
                             <?php endif; ?>
 
-                            <form style="display:inline;" method="post" onsubmit="return confirm('আপনি কি ডিলিট করতে চান?');">
+                            <form style="display:inline;" method="post" onsubmit="return confirm('Do you want to delete?');">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="student_id" value="<?= htmlspecialchars($row['student_id']) ?>">
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
@@ -252,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </tr>
                 <?php endwhile; ?>
             <?php else: ?>
-                <tr><td colspan="21" class="text-center">কোনো তথ্য পাওয়া যায়নি</td></tr>
+                <tr><td colspan="21" class="text-center">No data found</td></tr>
             <?php endif; ?>
         </tbody>
     </table>

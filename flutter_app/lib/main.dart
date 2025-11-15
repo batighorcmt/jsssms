@@ -139,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (role.toLowerCase() != 'teacher') {
           setState(() {
             _busy = false;
-            _error = 'শুধুমাত্র শিক্ষক লগইন করতে পারবেন';
+            _error = 'Only teachers can log in';
           });
           return;
         }
@@ -616,7 +616,7 @@ class _DutiesScreenState extends State<DutiesScreen> {
       ]);
     } catch (e) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('সংরক্ষণ ব্যর্থ: $e')));
+          .showSnackBar(SnackBar(content: Text('Save failed: $e')));
     } finally {
       setState(() {});
     }
@@ -1227,7 +1227,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
     }).catchError((e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('মার্কস সংরক্ষণে সমস্যা: $e')),
+        SnackBar(content: Text('Failed to save marks: $e')),
       );
     });
   }
@@ -1241,7 +1241,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
           TextSelection.fromPosition(TextPosition(offset: c.text.length));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$partLabel এর মান 0 থেকে $max এর মধ্যে দিন')),
+          SnackBar(content: Text('Enter $partLabel value between 0 and $max')),
         );
       }
     } else if (v > max) {
@@ -1250,7 +1250,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
           TextSelection.fromPosition(TextPosition(offset: c.text.length));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$partLabel এর মান 0 থেকে $max এর মধ্যে দিন')),
+          SnackBar(content: Text('Enter $partLabel value between 0 and $max')),
         );
       }
     }
@@ -1716,18 +1716,43 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
                     )),
               ],
               onChanged: (value) {
-                setState(() {
-                  // Enforce one teacher per room
-                  final currentAssignments = Map<String, String>.from(_dutyMap);
-                  // Clear previous assignment of this teacher if any
-                  currentAssignments.forEach((rId, tId) {
-                    if (tId == value) {
-                      currentAssignments[rId] = '';
-                    }
+                final previous = _dutyMap[roomId] ?? '';
+                // Empty value means unassign this room
+                if (value == null || value.isEmpty) {
+                  setState(() {
+                    _dutyMap[roomId] = '';
                   });
-                  _dutyMap = currentAssignments;
-                  _dutyMap[roomId] = value ?? '';
-                });
+                  return;
+                }
+                // Check if selected teacher already assigned to another room
+                final already = _dutyMap.entries.firstWhere(
+                  (e) => e.value == value && e.key != roomId,
+                  orElse: () => const MapEntry('', ''),
+                );
+                if (already.key.isNotEmpty) {
+                  // Show dialog and do NOT move teacher; keep previous assignment
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Teacher Already Assigned'),
+                      content: Text(
+                          'This teacher is already assigned to Room ${_rooms.firstWhere((r) => r['id'].toString() == already.key)['room_no']}. Remove that assignment first if you want to reassign.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('OK')),
+                      ],
+                    ),
+                  );
+                  // Revert UI selection
+                  setState(() {
+                    _dutyMap[roomId] = previous;
+                  });
+                } else {
+                  setState(() {
+                    _dutyMap[roomId] = value;
+                  });
+                }
               },
             ),
           ),
@@ -1844,16 +1869,24 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
                                   decoration: const InputDecoration(
                                       labelText: 'Seat Plan'),
                                   value: _selectedPlanId,
-                                  items: _plans
-                                      .map((p) => DropdownMenuItem<String>(
-                                            value: p['id']?.toString(),
-                                            child: Text(
-                                                '${p['plan_name']} (${p['shift']})'),
-                                          ))
-                                      .toList(),
+                                  items: [
+                                    const DropdownMenuItem<String>(
+                                        value: '', child: Text('')),
+                                    ..._plans
+                                        .map((p) => DropdownMenuItem<String>(
+                                              value: p['id']?.toString(),
+                                              child: Text(
+                                                  '${p['plan_name']} (${p['shift']})'),
+                                            ))
+                                  ],
                                   onChanged: (v) {
                                     setState(() {
-                                      _selectedPlanId = v;
+                                      if (v == null || v.isEmpty) {
+                                        _selectedPlanId = null;
+                                        _results = [];
+                                      } else {
+                                        _selectedPlanId = v;
+                                      }
                                     });
                                   },
                                 ),
@@ -1862,8 +1895,8 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
                           width: 240,
                           child: TextFormField(
                             decoration: const InputDecoration(
-                                labelText: 'Roll বা Name লিখুন'),
-                            onChanged: (v) => _search = v,
+                                labelText: 'Roll or Name'),
+                            onChanged: (v) => setState(() => _search = v),
                             onFieldSubmitted: (_) => _doSearch(),
                           ),
                         ),
@@ -1900,93 +1933,101 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
       return const Center(heightFactor: 5, child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(child: Text('ত্রুটি: $_error'));
+      return Center(child: Text('Error: $_error'));
     }
     if (_results.isEmpty) {
       return const Center(
-          heightFactor: 5, child: Text('প্ল্যান সিলেক্ট করে সার্চ করুন'));
+          heightFactor: 5, child: Text('Select a plan and search'));
     }
-    return Card(
-      elevation: 1,
-      child: Column(
-        children: [
-          Container(
-            color: Colors.grey.shade100,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-            child: Row(
-              children: const [
-                Expanded(
-                    flex: 2,
-                    child: Text('Roll',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-                Expanded(
-                    flex: 3,
-                    child: Text('Name',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-                Expanded(
-                    flex: 2,
-                    child: Text('Class',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-                Expanded(
-                    flex: 2,
-                    child: Text('Room',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-                Expanded(
-                    flex: 1,
-                    child: Text('Col',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-                Expanded(
-                    flex: 1,
-                    child: Text('Bench',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-                Expanded(
-                    flex: 2,
-                    child: Text('Side',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          children: [
+            Chip(
+              label: Text('Total: ${_results.length}'),
+              backgroundColor: Colors.indigo.shade50,
             ),
-          ),
-          const Divider(height: 1),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _results.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final r = _results[i];
-              return InkWell(
-                onTap: () {},
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                          flex: 2, child: Text(r['roll_no']?.toString() ?? '')),
-                      Expanded(
-                          flex: 3,
-                          child: Text(r['student_name']?.toString() ?? '')),
-                      Expanded(
-                          flex: 2,
-                          child: Text(r['class_name']?.toString() ?? '')),
-                      Expanded(
-                          flex: 2, child: Text(r['room_no']?.toString() ?? '')),
-                      Expanded(
-                          flex: 1, child: Text((r['col_no'] ?? '').toString())),
-                      Expanded(
-                          flex: 1,
-                          child: Text((r['bench_no'] ?? '').toString())),
-                      Expanded(
-                          flex: 2,
-                          child: Text(_sideLabel(r['position']?.toString()))),
-                    ],
-                  ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _results.length,
+          itemBuilder: (context, i) {
+            final r = _results[i];
+            final roll = r['roll_no']?.toString() ?? '';
+            final name = r['student_name']?.toString() ?? '';
+            final cls = r['class_name']?.toString() ?? '';
+            final room = r['room_no']?.toString() ?? '';
+            final col = (r['col_no'] ?? '').toString();
+            final bench = (r['bench_no'] ?? '').toString();
+            final side = _sideLabel(r['position']?.toString());
+            return Card(
+              elevation: 2,
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Colors.indigo.shade600,
+                          foregroundColor: Colors.white,
+                          child:
+                              Text(roll, style: const TextStyle(fontSize: 12)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(name,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 4),
+                              Text('Class: $cls  •  Room: $room',
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.black54)),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: -4,
+                      children: [
+                        Chip(
+                          label: Text('Column $col'),
+                          backgroundColor: Colors.blue.shade50,
+                        ),
+                        Chip(
+                          label: Text('Bench $bench'),
+                          backgroundColor: Colors.green.shade50,
+                        ),
+                        Chip(
+                          label: Text('Side $side'),
+                          backgroundColor: Colors.orange.shade50,
+                        ),
+                      ],
+                    )
+                  ],
                 ),
-              );
-            },
-          )
-        ],
-      ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }
