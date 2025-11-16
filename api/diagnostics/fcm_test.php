@@ -15,6 +15,17 @@ function mask_tok($t){ $l=strlen($t); return $l>12?substr($t,0,8).'...'.substr($
 $mode = (defined('FCM_SERVER_KEY') && FCM_SERVER_KEY) ? 'legacy' : (defined('FIREBASE_SERVICE_ACCOUNT_FILE') && is_readable(FIREBASE_SERVICE_ACCOUNT_FILE) ? 'v1' : 'disabled');
 
 $userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+// Optional: resolve user by username/contact if provided
+$username = isset($_GET['username']) ? trim((string)$_GET['username']) : '';
+if ($userId <= 0 && $username !== '' && isset($conn)) {
+  if ($st = $conn->prepare('SELECT id FROM users WHERE username=? LIMIT 1')) {
+    $st->bind_param('s', $username);
+    if ($st->execute() && ($res = $st->get_result()) && ($row = $res->fetch_assoc())) {
+      $userId = (int)$row['id'];
+    }
+    $st->close();
+  }
+}
 // Device token input: prefer 'device' or 'device_token'; fall back to 'token' only if it is not the API auth token
 $directToken = '';
 if (isset($_GET['device'])) { $directToken = trim((string)$_GET['device']); }
@@ -40,7 +51,12 @@ if ($directToken !== '') {
 }
 
 if (empty($tokens)) {
-  echo json_encode(['success'=>false,'error'=>'No tokens found. Provide ?device=... or ?user_id=...','mode'=>$mode]);
+  echo json_encode([
+    'success'=>false,
+    'error'=>'No tokens found. Provide ?device=... or ?user_id=... or ?username=...',
+    'mode'=>$mode,
+    'resolved_user_id' => $userId,
+  ]);
   exit;
 }
 
