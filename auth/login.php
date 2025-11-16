@@ -1,8 +1,20 @@
 <?php
 session_start();
-if (isset($_SESSION['username']) && isset($_SESSION['id'])) {
-	header("Location: ../dashboard.php");
+@include_once __DIR__ . '/../config/config.php';
+// If already logged in with a valid role, send to the correct dashboard.
+if (isset($_SESSION['username'], $_SESSION['id'], $_SESSION['role'])) {
+	if ($_SESSION['role'] === 'teacher') {
+		header('Location: ' . BASE_URL . 'dashboard_teacher.php');
+	} else {
+		header('Location: ' . BASE_URL . 'dashboard.php');
+	}
 	exit();
+}
+// If partial session exists without role, reset to avoid redirect loops
+if (isset($_SESSION['username']) || isset($_SESSION['id'])) {
+	session_unset();
+	session_destroy();
+	session_start();
 }
 ?>
 <!DOCTYPE html>

@@ -19,7 +19,12 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
 @include_once __DIR__ . '/../config/db.php';
 
 function api_response($success, $payload = [], $code = 200) {
-    http_response_code($code);
+    // Avoid host-level ErrorDocument redirects for 401/403 on API routes
+    $status = $code;
+    if (!$success && in_array($code, [401, 403], true)) {
+        $status = 200;
+    }
+    http_response_code($status);
     if ($success) {
         echo json_encode(['success' => true, 'data' => $payload], JSON_UNESCAPED_UNICODE);
     } else {
