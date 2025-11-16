@@ -576,10 +576,11 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                                 <th>ID</th>
                                 <th>Name</th>
                                 <th class="d-none d-sm-table-cell">Father Name</th>
-                                <th class="d-none d-md-table-cell">Mother Name</th>
+                                <!-- <th class="d-none d-md-table-cell">Mother Name</th> -->
                                 <th>Class</th>
                                 <th class="d-none d-sm-table-cell">Section</th>
                                 <th>Roll</th>
+                                <th>Gender</th>
                                 <th class="d-none d-md-table-cell">Group</th>
                                 <th class="subject-codes-col">Subject Codes</th>
                                 <th class="d-none d-md-table-cell">Photo</th>
@@ -661,10 +662,11 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                 <td><?= htmlspecialchars($row['student_id']); ?></td>
                 <td class="truncate" title="<?= htmlspecialchars($row['student_name']); ?>"><?= htmlspecialchars($row['student_name']); ?></td>
                 <td class="d-none d-sm-table-cell truncate" title="<?= htmlspecialchars($row['father_name']); ?>"><?= htmlspecialchars($row['father_name']); ?></td>
-                <td class="d-none d-md-table-cell truncate" title="<?= htmlspecialchars($row['mother_name']); ?>"><?= htmlspecialchars($row['mother_name']); ?></td>
+                <!-- <td class="d-none d-md-table-cell truncate" title="<?= htmlspecialchars($row['mother_name']); ?>"><?= htmlspecialchars($row['mother_name']); ?></td> -->
                 <td><?= htmlspecialchars($row['class_name']); ?></td>
                 <td class="d-none d-sm-table-cell"><?= htmlspecialchars($row['section_name']); ?></td>
                 <td><?= htmlspecialchars($row['roll_no']); ?></td>
+                <td><?= htmlspecialchars($row['gender'] ?? ''); ?></td>
                 <td class="d-none d-md-table-cell"><?= htmlspecialchars($row['student_group'] ?? '') ?></td>
                 <td class="subject-codes-col">
                   <?php
