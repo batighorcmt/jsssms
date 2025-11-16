@@ -132,6 +132,46 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
         }
         $stmt->close();
         $toast=['type'=>'success','msg'=>'Duties saved'];
+
+        // Push notifications (mirror api/exam/duties.php) if FCM enabled
+        @include_once __DIR__ . '/../config/notifications.php';
+        @include_once __DIR__ . '/../api/lib/notifications.php';
+        if (defined('FCM_ENABLED') && FCM_ENABLED) {
+          try {
+            // Collect teacher ids assigned in this submit
+            $teacherIdsSubmit = [];
+            foreach ($map as $r=>$t){ $rt=(int)$t; if($rt>0) $teacherIdsSubmit[]=$rt; }
+            $teacherIdsSubmit = array_values(array_unique($teacherIdsSubmit));
+            if (!empty($teacherIdsSubmit)) {
+              $tokensMap = get_user_device_tokens($conn, $teacherIdsSubmit);
+              // Fetch plan metadata
+              $planName=''; $shift='';
+              if ($sp=$conn->prepare('SELECT plan_name, shift FROM seat_plans WHERE id=? LIMIT 1')) {
+                $sp->bind_param('i',$plan_id); if($sp->execute()){ $res=$sp->get_result(); if($res && ($row=$res->fetch_assoc())){ $planName=(string)$row['plan_name']; $shift=(string)$row['shift']; } }
+                $sp->close();
+              }
+              // Send per teacher
+              foreach ($map as $room_id=>$teacher_user_id){
+                $rid=(int)$room_id; $tid=(int)$teacher_user_id; if($rid<=0||$tid<=0) continue;
+                $tokens = $tokensMap[$tid] ?? [];
+                if (empty($tokens)) continue;
+                // Room number
+                $roomNo='';
+                if ($sr=$conn->prepare('SELECT room_no FROM seat_plan_rooms WHERE id=? LIMIT 1')) {
+                  $sr->bind_param('i',$rid); if($sr->execute()){ $rr=$sr->get_result(); if($rr && ($rm=$rr->fetch_assoc())) $roomNo=(string)$rm['room_no']; }
+                  $sr->close();
+                }
+                $title='Duty Room Assigned to You';
+                $parts = array_filter([$planName,$shift,$roomNo?('Room '.$roomNo):'']);
+                $body = implode(' • ',$parts);
+                $data = [ 'type'=>'duty_assignment','date'=>$duty_date,'plan_id'=>$plan_id,'room_id'=>$rid ];
+                fcm_send_tokens($tokens,$title,$body,$data); // fire-and-forget
+              }
+            }
+          } catch (Throwable $e) {
+            // swallow; do not break UI toast
+          }
+        }
       }
     }
     }
