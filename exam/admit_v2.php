@@ -308,20 +308,25 @@ function shortSubjectName($name){
               <div class="k">নাম</div><div class="v"><?php echo htmlspecialchars($full_name); ?></div>
               <div class="k">রোল</div><div class="v"><span class="bn"><?php echo htmlspecialchars(bn_num($roll)); ?></span></div>
               <div class="k">পিতার নাম</div><div class="v"><?php echo htmlspecialchars($father); ?></div>
-              <div class="k">শ্রেণি</div><div class="v"><?php echo htmlspecialchars($class_name . ($section_name? (' - '.$section_name) : '')); ?></div>
+              <div class="k">শ্রেণি</div><div class="v"><?php echo htmlspecialchars($class_name); ?></div>
               <div class="k">মাতার নাম</div><div class="v"><?php echo htmlspecialchars($mother); ?></div>
               <div class="k">শাখা</div><div class="v"><?php echo htmlspecialchars($section_name ? : ''); ?></div>
               <div class="k">আইডি</div><div class="v"><?php echo htmlspecialchars((string)($stu['student_id'] ?? $stu['id'])); ?></div>
-              <div class="k">গ্রুপ</div><div class="v"><?php echo $col_has_year ? '<span class="bn">'.htmlspecialchars(bn_num((string)($stu['group'] ?? ''))).'</span>' : '-'; ?></div>
+              <div class="k">গ্রুপ</div><div class="v"><?php 
+                // Try to show group from student_group, group, or fallback
+                $group = isset($stu['student_group']) ? $stu['student_group'] : (isset($stu['group']) ? $stu['group'] : '');
+                echo $group !== '' ? htmlspecialchars($group) : '-';
+              ?></div>
             </div>
           </div>
           <div class="panel">
             <div class="ttl">পরীক্ষার সময়সূচী</div>
             <table>
-              <thead><tr><th>তারিখ</th><th>বার</th><th>বিষয়</th><th>সময়</th></tr></thead>
+              <thead><tr><th>#</th><th>তারিখ</th><th>বার</th><th>বিষয়</th><th>সময়</th></tr></thead>
               <tbody>
-              <?php foreach ($sched_for_student as $row): ?>
+              <?php $sn=1; foreach ($sched_for_student as $row): ?>
                 <tr>
+                  <td><span class="bn"><?php echo htmlspecialchars(bn_num($sn++)); ?></span></td>
                   <td><span class="bn"><?php echo htmlspecialchars(bn_num(fmt_date($row['exam_date'] ?? null))); ?></span></td>
                   <td><?php $d=$row['exam_date']??null; echo $d? htmlspecialchars($bnDays[intval(date('w', strtotime($d)))]):'-'; ?></td>
                   <td><?php echo htmlspecialchars(shortSubjectName($row['subject_name'] ?? '')); ?></td>
