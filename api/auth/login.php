@@ -77,9 +77,10 @@ try {
             exit;
         }
 
-        // Enforce teacher-only access
-        if (($u['role'] ?? '') !== 'teacher') {
-            echo json_encode(['success' => false, 'error' => 'Only teacher users can log in']);
+        // Enforce allowed roles
+        $allowed_roles = ['teacher', 'super_admin'];
+        if (!in_array($u['role'] ?? '', $allowed_roles)) {
+            echo json_encode(['success' => false, 'error' => 'Only teachers and admins can log in']);
             exit;
         }
 
