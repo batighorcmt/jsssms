@@ -5,7 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
-void main() => runApp(const JssApp());
+import 'package:batighor_jss_management/services/notification_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
+  runApp(const JssApp());
+}
 
 class JssApp extends StatelessWidget {
   const JssApp({super.key});
@@ -139,6 +145,10 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
         if (!mounted) return;
+        // Ensure device token is registered now that we have auth
+        try {
+          await NotificationService.registerCurrentToken();
+        } catch (_) {}
         Navigator.of(context).pushReplacement(MaterialPageRoute(
             builder: (_) => DashboardScreen(
                   token: data['data']['token'],
@@ -2953,6 +2963,15 @@ class ApiService {
       'class_id': classId,
       'subject_id': subjectId,
       'marks': marks,
+    });
+  }
+
+  // Register/update this device's FCM token with the server for push notifications
+  static Future<void> saveDeviceToken(String token) async {
+    final platform = 'android'; // Adjust via Platform.isIOS if needed
+    await _post('devices/register.php', {
+      'token': token,
+      'platform': platform,
     });
   }
 }

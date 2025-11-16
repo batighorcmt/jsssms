@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "576697468602",
+    "project_id": "jss-teacherapp",
+    "storage_bucket": "jss-teacherapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:576697468602:android:db0a03c09d1cae2d426483",
+        "android_client_info": {
+          "package_name": "com.example.batighor_jss_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCEjpTJgO4TikVU4t_SU96vl6H_RfmRHUw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

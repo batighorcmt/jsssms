@@ -2,6 +2,8 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../lib/notifications.php';
+@include_once __DIR__ . '/../../config/notifications.php';
 
 // Note: GET (read) is open; POST (write) requires auth. No redirects, JSON only.
 
@@ -105,6 +107,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->close();
         }
+        // Fire-and-forget push notifications (best-effort)
+        if (defined('FCM_ENABLED') && FCM_ENABLED) {
+            try {
+                // Load plan and room metadata for message
+                $planName = '';
+                $shift = '';
+                if ($stp = $conn->prepare('SELECT plan_name, shift FROM seat_plans WHERE id=? LIMIT 1')) {
+                    $stp->bind_param('i', $plan_id);
+                    if ($stp->execute()) {
+                        $rp = $stp->get_result();
+                        if ($rp && ($pr = $rp->fetch_assoc())) {
+                            $planName = (string)$pr['plan_name'];
+                            $shift = (string)$pr['shift'];
+                        }
+                    }
+                    $stp->close();
+                }
+
+                // Build per-teacher tokens
+                $teacherIds = [];
+                foreach ($map as $room_id => $teacher_user_id) {
+                    $rid = (int)$room_id; $tid = (int)$teacher_user_id;
+                    if ($rid>0 && $tid>0) $teacherIds[] = $tid;
+                }
+                $tokensMap = get_user_device_tokens($conn, $teacherIds);
+
+                // For each assignment submitted, send a tailored message to that teacher
+                foreach ($map as $room_id => $teacher_user_id) {
+                    $rid = (int)$room_id; $tid = (int)$teacher_user_id;
+                    if ($rid<=0 || $tid<=0) continue;
+                    $tokens = $tokensMap[$tid] ?? [];
+                    if (empty($tokens)) continue;
+                    $roomNo = '';
+                    if ($str = $conn->prepare('SELECT room_no FROM seat_plan_rooms WHERE id=? LIMIT 1')) {
+                        $str->bind_param('i', $rid);
+                        if ($str->execute()) {
+                            $rr = $str->get_result();
+                            if ($rr && ($rm = $rr->fetch_assoc())) $roomNo = (string)$rm['room_no'];
+                        }
+                        $str->close();
+                    }
+                    $title = 'Duty Room Assigned to You';
+                    $parts = array_filter([$planName, $shift, $roomNo ? ('Room '.$roomNo) : '']);
+                    $body  = implode(' • ', $parts);
+                    $data  = [
+                        'type' => 'duty_assignment',
+                        'date' => $duty_date,
+                        'plan_id' => $plan_id,
+                        'room_id' => $rid,
+                    ];
+                    // Best-effort; ignore response
+                    fcm_send_tokens($tokens, $title, $body, $data);
+                }
+            } catch (Throwable $e) {
+                // Swallow to avoid breaking API response
+            }
+        }
+
         echo json_encode(['success' => true, 'data' => ['duties' => (object)$dutyMap]]);
     } else {
         echo json_encode(['success' => false, 'error' => 'One or more duty assignments failed to save.']);
