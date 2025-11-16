@@ -39,7 +39,8 @@ function api_response($success, $payload = [], $code = 200) {
 function get_auth_header_token() {
     $h = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['Authorization'] ?? '';
     if ($h && preg_match('~Bearer\s+(\S+)~i', $h, $m)) return $m[1];
-    // Fallback: token query param for easier testing
+    // Fallbacks for easier testing: prefer api_token over token to avoid clashes
+    if (!empty($_GET['api_token'])) return $_GET['api_token'];
     if (!empty($_GET['token'])) return $_GET['token'];
     return '';
 }

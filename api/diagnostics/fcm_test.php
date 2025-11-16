@@ -7,13 +7,24 @@ require_once __DIR__ . '/../bootstrap.php';
 
 // Restrict to super_admins only
 api_require_auth(['super_admin']);
+// Capture which API token was used (to avoid confusing it with a device token param)
+$authTokenUsed = function_exists('get_auth_header_token') ? get_auth_header_token() : '';
 
 function mask_tok($t){ $l=strlen($t); return $l>12?substr($t,0,8).'...'.substr($t,-4):str_repeat('*',$l); }
 
 $mode = (defined('FCM_SERVER_KEY') && FCM_SERVER_KEY) ? 'legacy' : (defined('FIREBASE_SERVICE_ACCOUNT_FILE') && is_readable(FIREBASE_SERVICE_ACCOUNT_FILE) ? 'v1' : 'disabled');
 
 $userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
-$directToken = isset($_GET['token']) ? trim($_GET['token']) : '';
+// Device token input: prefer 'device' or 'device_token'; fall back to 'token' only if it is not the API auth token
+$directToken = '';
+if (isset($_GET['device'])) { $directToken = trim((string)$_GET['device']); }
+elseif (isset($_GET['device_token'])) { $directToken = trim((string)$_GET['device_token']); }
+elseif (isset($_GET['token'])) {
+  $candidate = trim((string)$_GET['token']);
+  if ($authTokenUsed === '' || $candidate !== $authTokenUsed) {
+    $directToken = $candidate; // treat as device token only if not the auth token
+  }
+}
 $title = isset($_GET['title']) ? trim($_GET['title']) : 'JSS Diagnostic Test';
 $body = isset($_GET['body']) ? trim($_GET['body']) : 'Test push from diagnostics endpoint';
 
@@ -29,7 +40,7 @@ if ($directToken !== '') {
 }
 
 if (empty($tokens)) {
-  echo json_encode(['success'=>false,'error'=>'No tokens found. Provide ?token=... or ?user_id=...','mode'=>$mode]);
+  echo json_encode(['success'=>false,'error'=>'No tokens found. Provide ?device=... or ?user_id=...','mode'=>$mode]);
   exit;
 }
 
@@ -50,6 +61,7 @@ $response = [
   'token_count' => count($tokens),
   'tokens_masked' => $masked,
   'result' => $result,
+  'source' => $source,
 ];
 
 // Optional debug: include tail of notifications log to see error details
