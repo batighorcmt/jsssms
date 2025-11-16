@@ -52,4 +52,23 @@ $response = [
   'result' => $result,
 ];
 
+// Optional debug: include tail of notifications log to see error details
+if (!empty($_GET['debug'])) {
+  $logTail = '';
+  $logPath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'notifications_log.txt';
+  if (is_readable($logPath)) {
+    $size = filesize($logPath);
+    $fh = fopen($logPath, 'rb');
+    if ($fh) {
+      $read = 4096; // ~ last 4KB
+      if ($size > $read) fseek($fh, -$read, SEEK_END);
+      $logTail = stream_get_contents($fh) ?: '';
+      fclose($fh);
+    }
+  }
+  $response['debug'] = [
+    'log_tail' => $logTail,
+  ];
+}
+
 echo json_encode($response);
