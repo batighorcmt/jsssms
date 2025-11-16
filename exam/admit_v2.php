@@ -308,9 +308,11 @@ function shortSubjectName($name){
               <div class="k">নাম</div><div class="v"><?php echo htmlspecialchars($full_name); ?></div>
               <div class="k">রোল</div><div class="v"><span class="bn"><?php echo htmlspecialchars(bn_num($roll)); ?></span></div>
               <div class="k">পিতার নাম</div><div class="v"><?php echo htmlspecialchars($father); ?></div>
-              <div class="k">মাতার নাম</div><div class="v"><?php echo htmlspecialchars($mother); ?></div>
               <div class="k">শ্রেণি</div><div class="v"><?php echo htmlspecialchars($class_name . ($section_name? (' - '.$section_name) : '')); ?></div>
+              <div class="k">মাতার নাম</div><div class="v"><?php echo htmlspecialchars($mother); ?></div>
+              <div class="k">শাখা</div><div class="v"><?php echo htmlspecialchars($section_name ? : ''); ?></div>
               <div class="k">আইডি</div><div class="v"><?php echo htmlspecialchars((string)($stu['student_id'] ?? $stu['id'])); ?></div>
+              <div class="k">গ্রুপ</div><div class="v"><?php echo $col_has_year ? '<span class="bn">'.htmlspecialchars(bn_num((string)($stu['group'] ?? ''))).'</span>' : '-'; ?></div>
             </div>
           </div>
           <div class="panel">
