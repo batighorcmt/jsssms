@@ -34,6 +34,16 @@ function get_user_device_tokens(mysqli $conn, array $userIds): array {
     return $out;
 }
 
+// Structured logger for notification events
+function notify_log(string $message, array $context = []): void {
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $message;
+    if (!empty($context)) {
+        $line .= ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+    $line .= "\n";
+    @file_put_contents(__DIR__ . '/../../logs/notifications_log.txt', $line, FILE_APPEND);
+}
+
 /**
  * Send an FCM push to a list of device tokens
  * @param string[] $tokens
@@ -44,17 +54,21 @@ function get_user_device_tokens(mysqli $conn, array $userIds): array {
  */
 function fcm_send_tokens(array $tokens, string $title, string $body, array $data = []): array {
     if (empty($tokens) || !defined('FCM_SERVER_KEY') || !FCM_SERVER_KEY) {
+        notify_log('FCM_SKIP', [
+            'reason' => empty($tokens) ? 'no_tokens' : 'server_key_missing',
+            'token_count' => count($tokens),
+            'title' => $title,
+            'data' => $data,
+        ]);
         return ['sent' => 0, 'failed' => count($tokens), 'responses' => []];
     }
 
-    // Log the attempt
-    $log_msg = sprintf(
-        "[%s] FCM_SEND: Attempting to send to %d tokens. Title: %s\n",
-        date('Y-m-d H:i:s'),
-        count($tokens),
-        $title
-    );
-    @file_put_contents(__DIR__ . '/../../logs/sms_log.txt', $log_msg, FILE_APPEND);
+    notify_log('FCM_SEND_ATTEMPT', [
+        'token_count' => count($tokens),
+        'title' => $title,
+        'body' => $body,
+        'data' => $data,
+    ]);
 
     $payload = [
         'notification' => [
@@ -62,27 +76,38 @@ function fcm_send_tokens(array $tokens, string $title, string $body, array $data
             'body'  => $body,
             'sound' => 'default',
         ],
-        'data' => $data
+        'data' => $data,
     ];
 
     $final_results = ['sent' => 0, 'failed' => 0, 'responses' => []];
 
     // Chunk tokens into batches of <= 1000
     $chunks = array_chunk($tokens, 1000);
-    foreach ($chunks as $chunk) {
+    foreach ($chunks as $idx => $chunk) {
         $json_payload = json_encode(array_merge($payload, ['registration_ids' => $chunk]));
         $response_json = _fcm_send_raw($json_payload);
+        $succ = 0; $fail = 0;
         if ($response_json) {
             $response_data = json_decode($response_json, true);
             if (is_array($response_data)) {
-                $final_results['sent'] += (int)($response_data['success'] ?? 0);
-                $final_results['failed'] += (int)($response_data['failure'] ?? 0);
+                $succ = (int)($response_data['success'] ?? 0);
+                $fail = (int)($response_data['failure'] ?? 0);
+                $final_results['sent'] += $succ;
+                $final_results['failed'] += $fail;
                 if (!empty($response_data['results'])) {
                     $final_results['responses'] = array_merge($final_results['responses'], $response_data['results']);
                 }
             }
         }
+        notify_log('FCM_SEND_CHUNK_RESULT', [
+            'chunk_index' => $idx,
+            'chunk_size' => count($chunk),
+            'success' => $succ,
+            'failure' => $fail,
+            'raw' => $response_json,
+        ]);
     }
+    notify_log('FCM_SEND_SUMMARY', $final_results + ['chunks' => count($chunks)]);
     return $final_results;
 }
 
@@ -98,15 +123,9 @@ function _fcm_send_raw(string $json_payload): ?string {
     curl_setopt($ch, CURLOPT_POSTFIELDS, $json_payload);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $result = curl_exec($ch);
-
-    // Log the response from FCM server
-    $log_resp = sprintf(
-        "[%s] FCM_RESPONSE: %s\n",
-        date('Y-m-d H:i:s'),
-        $result ?: 'cURL Error: ' . curl_error($ch)
-    );
-    @file_put_contents(__DIR__ . '/../../logs/sms_log.txt', $log_resp, FILE_APPEND);
-
+    if ($result === false) {
+        notify_log('FCM_HTTP_ERROR', ['curl_error' => curl_error($ch)]);
+    }
     curl_close($ch);
     return $result ?: null;
 }
