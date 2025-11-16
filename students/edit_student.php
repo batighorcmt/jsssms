@@ -192,6 +192,17 @@ $dob_display = formatDobForInput($student['date_of_birth'] ?? '');
                         </div>
                     </div>
 
+                    <!-- Gender -->
+                    <div class="col-md-4">
+                        <label class="form-label">Gender</label>
+                        <select name="gender" class="form-control form-control-lg">
+                            <option value="">Select</option>
+                            <option value="Male" <?= (isset($student['gender']) && $student['gender'] == 'Male') ? 'selected' : '' ?>>Male</option>
+                            <option value="Female" <?= (isset($student['gender']) && $student['gender'] == 'Female') ? 'selected' : '' ?>>Female</option>
+                            <option value="Other" <?= (isset($student['gender']) && $student['gender'] == 'Other') ? 'selected' : '' ?>>Other</option>
+                        </select>
+                        <div class="invalid-feedback">Please select gender</div>
+                    </div>
                     <!-- Religion -->
                     <div class="col-md-4">
                         <label class="form-label">Religion</label>
