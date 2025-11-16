@@ -79,13 +79,35 @@ try {
 // curl availability
 $curlAvailable = function_exists('curl_init');
 
+$saFile = defined('FIREBASE_SERVICE_ACCOUNT_FILE') ? FIREBASE_SERVICE_ACCOUNT_FILE : null;
+$saExists = $saFile && is_readable($saFile);
+$projectId = null; $tokenPreview = null; $tokenLen = 0; $tokenError = null;
+if ($saExists) {
+    $json = json_decode(@file_get_contents($saFile), true);
+    if (is_array($json)) $projectId = $json['project_id'] ?? null;
+    // Attempt short token fetch (do not fail whole diagnostics)
+    if (function_exists('firebase_v1_get_access_token')) {
+        try {
+            $tok = firebase_v1_get_access_token();
+            if ($tok) { $tokenLen = strlen($tok); $tokenPreview = substr($tok,0,12) . '...'; }
+        } catch (Throwable $e) { $tokenError = $e->getMessage(); }
+    }
+}
+
 $payload = [
     'server_time' => date('c'),
     'fcm' => [
-        'enabled' => defined('FCM_ENABLED') ? (bool)FCM_ENABLED : false,
-        'server_key_len' => defined('FCM_SERVER_KEY') ? strlen((string)FCM_SERVER_KEY) : 0,
-        'sender_id_present' => defined('FCM_SENDER_ID') ? ((string)FCM_SENDER_ID !== '') : false,
+        'legacy_server_key_len' => defined('FCM_SERVER_KEY') ? strlen((string)FCM_SERVER_KEY) : 0,
         'curl_available' => $curlAvailable,
+        'mode' => (defined('FCM_SERVER_KEY') && FCM_SERVER_KEY) ? 'legacy' : ($saExists ? 'v1' : 'disabled'),
+        'v1' => [
+            'service_account_file' => $saFile,
+            'service_account_exists' => $saExists,
+            'project_id' => $projectId,
+            'access_token_len' => $tokenLen,
+            'access_token_preview' => $tokenPreview,
+            'access_token_error' => $tokenError,
+        ],
     ],
     'paths' => [
         'logs' => path_info_status($logsDir, $logFile),

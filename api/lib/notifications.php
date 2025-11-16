@@ -70,63 +70,169 @@ function notify_log(string $message, array $context = []): void {
  * @return array{sent:int, failed:int, responses:array}
  */
 function fcm_send_tokens(array $tokens, string $title, string $body, array $data = []): array {
+    // Decide path: legacy key present -> legacy; else attempt v1 service account
+    if (defined('FCM_SERVER_KEY') && FCM_SERVER_KEY) {
+        return fcm_send_tokens_legacy($tokens, $title, $body, $data);
+    }
+    return fcm_send_tokens_v1($tokens, $title, $body, $data);
+}
+
+// Legacy HTTP API sender (unchanged logic moved here)
+function fcm_send_tokens_legacy(array $tokens, string $title, string $body, array $data = []): array {
     if (empty($tokens) || !defined('FCM_SERVER_KEY') || !FCM_SERVER_KEY) {
-        notify_log('FCM_SKIP', [
+        notify_log('FCM_LEGACY_SKIP', [
             'reason' => empty($tokens) ? 'no_tokens' : 'server_key_missing',
             'token_count' => count($tokens),
             'title' => $title,
             'data' => $data,
         ]);
-        return ['sent' => 0, 'failed' => count($tokens), 'responses' => []];
+        return ['sent' => 0, 'failed' => count($tokens), 'responses' => [], 'mode' => 'legacy'];
     }
-
-    notify_log('FCM_SEND_ATTEMPT', [
-        'token_count' => count($tokens),
-        'title' => $title,
-        'body' => $body,
-        'data' => $data,
+    notify_log('FCM_LEGACY_SEND_ATTEMPT', [
+        'token_count' => count($tokens), 'title' => $title, 'body' => $body, 'data' => $data
     ]);
-
     $payload = [
-        'notification' => [
-            'title' => $title,
-            'body'  => $body,
-            'sound' => 'default',
-        ],
+        'notification' => ['title' => $title, 'body' => $body, 'sound' => 'default'],
         'data' => $data,
     ];
-
-    $final_results = ['sent' => 0, 'failed' => 0, 'responses' => []];
-
-    // Chunk tokens into batches of <= 1000
+    $final = ['sent' => 0, 'failed' => 0, 'responses' => [], 'mode' => 'legacy'];
     $chunks = array_chunk($tokens, 1000);
     foreach ($chunks as $idx => $chunk) {
         $json_payload = json_encode(array_merge($payload, ['registration_ids' => $chunk]));
-        $response_json = _fcm_send_raw($json_payload);
-        $succ = 0; $fail = 0;
-        if ($response_json) {
-            $response_data = json_decode($response_json, true);
-            if (is_array($response_data)) {
-                $succ = (int)($response_data['success'] ?? 0);
-                $fail = (int)($response_data['failure'] ?? 0);
-                $final_results['sent'] += $succ;
-                $final_results['failed'] += $fail;
-                if (!empty($response_data['results'])) {
-                    $final_results['responses'] = array_merge($final_results['responses'], $response_data['results']);
-                }
+        $resp_json = _fcm_send_raw($json_payload);
+        $succ = 0; $fail = 0; $results = [];
+        if ($resp_json) {
+            $resp_data = json_decode($resp_json, true);
+            if (is_array($resp_data)) {
+                $succ = (int)($resp_data['success'] ?? 0);
+                $fail = (int)($resp_data['failure'] ?? 0);
+                $results = $resp_data['results'] ?? [];
             }
         }
-        notify_log('FCM_SEND_CHUNK_RESULT', [
-            'chunk_index' => $idx,
-            'chunk_size' => count($chunk),
-            'success' => $succ,
-            'failure' => $fail,
-            'raw' => $response_json,
-        ]);
+        $final['sent'] += $succ; $final['failed'] += $fail; $final['responses'] = array_merge($final['responses'], $results);
+        notify_log('FCM_LEGACY_CHUNK_RESULT', ['chunk_index' => $idx, 'success' => $succ, 'failure' => $fail, 'raw' => $resp_json]);
     }
-    notify_log('FCM_SEND_SUMMARY', $final_results + ['chunks' => count($chunks)]);
-    return $final_results;
+    notify_log('FCM_LEGACY_SUMMARY', $final + ['chunks' => count($chunks)]);
+    return $final;
 }
+
+// FCM HTTP v1 sender (service account)
+function fcm_send_tokens_v1(array $tokens, string $title, string $body, array $data = []): array {
+    if (empty($tokens)) {
+        notify_log('FCM_V1_SKIP', ['reason' => 'no_tokens']);
+        return ['sent' => 0, 'failed' => 0, 'responses' => [], 'mode' => 'v1'];
+    }
+    $saFile = defined('FIREBASE_SERVICE_ACCOUNT_FILE') ? FIREBASE_SERVICE_ACCOUNT_FILE : null;
+    if (!$saFile || !is_readable($saFile)) {
+        notify_log('FCM_V1_SKIP', ['reason' => 'service_account_missing', 'file' => $saFile]);
+        return ['sent' => 0, 'failed' => count($tokens), 'responses' => [], 'mode' => 'v1'];
+    }
+    $accessToken = firebase_v1_get_access_token();
+    if (!$accessToken) {
+        notify_log('FCM_V1_SKIP', ['reason' => 'access_token_failed']);
+        return ['sent' => 0, 'failed' => count($tokens), 'responses' => [], 'mode' => 'v1'];
+    }
+    $projectId = firebase_v1_get_project_id();
+    if (!$projectId) {
+        notify_log('FCM_V1_SKIP', ['reason' => 'project_id_missing']);
+        return ['sent' => 0, 'failed' => count($tokens), 'responses' => [], 'mode' => 'v1'];
+    }
+    notify_log('FCM_V1_SEND_ATTEMPT', ['token_count' => count($tokens), 'title' => $title, 'body' => $body]);
+    $endpoint = 'https://fcm.googleapis.com/v1/projects/' . rawurlencode($projectId) . '/messages:send';
+    $results = []; $sent = 0; $failed = 0;
+    foreach ($tokens as $t) {
+        $message = [
+            'message' => [
+                'token' => $t,
+                'notification' => ['title' => $title, 'body' => $body],
+                'data' => $data,
+                'android' => [ 'priority' => 'HIGH' ],
+            ]
+        ];
+        $json = json_encode($message);
+        $ch = curl_init($endpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $accessToken,
+            ],
+            CURLOPT_POSTFIELDS => $json,
+            CURLOPT_RETURNTRANSFER => true,
+        ]);
+        $resp = curl_exec($ch);
+        $err = $resp === false ? curl_error($ch) : null;
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($err) {
+            $failed++; $results[] = ['token' => mask_token($t), 'error' => $err];
+            notify_log('FCM_V1_HTTP_ERROR', ['token_masked' => mask_token($t), 'error' => $err]);
+            continue;
+        }
+        $respData = json_decode($resp, true);
+        if ($code >= 200 && $code < 300 && isset($respData['name'])) {
+            $sent++; $results[] = ['token' => mask_token($t), 'name' => $respData['name']];
+        } else {
+            $failed++; $results[] = ['token' => mask_token($t), 'http_code' => $code, 'response' => $respData];
+        }
+    }
+    $final = ['sent' => $sent, 'failed' => $failed, 'responses' => $results, 'mode' => 'v1'];
+    notify_log('FCM_V1_SUMMARY', $final);
+    return $final;
+}
+
+function mask_token(string $t): string {
+    $len = strlen($t); return $len > 12 ? substr($t,0,8) . '...' . substr($t,-4) : str_repeat('*', $len);
+}
+
+function firebase_v1_get_project_id(): ?string {
+    static $pid = null; if ($pid !== null) return $pid;
+    $file = defined('FIREBASE_SERVICE_ACCOUNT_FILE') ? FIREBASE_SERVICE_ACCOUNT_FILE : null;
+    if (!$file || !is_readable($file)) return null;
+    $json = json_decode(@file_get_contents($file), true);
+    if (!is_array($json)) return null;
+    $pid = $json['project_id'] ?? null; return $pid ?: null;
+}
+
+function firebase_v1_get_access_token(): ?string {
+    static $cached = null; static $exp = 0;
+    if ($cached && time() < $exp - 60) return $cached; // reuse until near expiry
+    $file = defined('FIREBASE_SERVICE_ACCOUNT_FILE') ? FIREBASE_SERVICE_ACCOUNT_FILE : null;
+    if (!$file || !is_readable($file)) return null;
+    $sa = json_decode(@file_get_contents($file), true);
+    if (!is_array($sa)) return null;
+    $email = $sa['client_email'] ?? null; $key = $sa['private_key'] ?? null;
+    if (!$email || !$key) return null;
+    $iat = time(); $expTime = $iat + 3600;
+    $header = base64url_encode(json_encode(['alg' => 'RS256','typ'=>'JWT']));
+    $claims = base64url_encode(json_encode([
+        'iss' => $email,
+        'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
+        'aud' => 'https://oauth2.googleapis.com/token',
+        'iat' => $iat,
+        'exp' => $expTime,
+    ]));
+    $unsigned = $header . '.' . $claims;
+    $signature = '';
+    $ok = openssl_sign($unsigned, $signature, $key, OPENSSL_ALGO_SHA256);
+    if (!$ok) { notify_log('FCM_V1_JWT_SIGN_FAIL', []); return null; }
+    $jwt = $unsigned . '.' . base64url_encode($signature);
+    $postFields = http_build_query([
+        'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'assertion' => $jwt,
+    ]);
+    $ch = curl_init('https://oauth2.googleapis.com/token');
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $postFields, CURLOPT_RETURNTRANSFER => true]);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+    $resp = curl_exec($ch); $err = $resp === false ? curl_error($ch) : null; curl_close($ch);
+    if ($err) { notify_log('FCM_V1_TOKEN_HTTP_ERROR', ['error' => $err]); return null; }
+    $data = json_decode($resp, true); $token = $data['access_token'] ?? null; $ttl = (int)($data['expires_in'] ?? 0);
+    if ($token) { $cached = $token; $exp = time() + ($ttl ?: 3600); notify_log('FCM_V1_TOKEN_OK', ['len' => strlen($token), 'expires_in' => $ttl]); }
+    else { notify_log('FCM_V1_TOKEN_FAIL', ['response' => $data]); }
+    return $token ?: null;
+}
+
+function base64url_encode(string $in): string { return rtrim(strtr(base64_encode($in), '+/=', '-_'), '='); }
 
 function _fcm_send_raw(string $json_payload): ?string {
     if (!defined('FCM_SERVER_KEY') || !FCM_SERVER_KEY) return null;
@@ -145,6 +251,13 @@ function _fcm_send_raw(string $json_payload): ?string {
     }
     curl_close($ch);
     return $result ?: null;
+}
+
+// Simple local self-test helper (non-production). Returns summary without sending if no tokens.
+function fcm_self_test(): array {
+    $dummyToken = 'TEST_TOKEN_1234567890';
+    $res = fcm_send_tokens([$dummyToken], 'Test Title', 'Test Body', ['ping' => '1']);
+    return $res;
 }
 
 ?>
