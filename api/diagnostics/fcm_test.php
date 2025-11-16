@@ -66,6 +66,9 @@ $data = [
   'source' => $source,
 ];
 
+// Optional validate-only mode to surface detailed FCM errors without sending
+if (!empty($_GET['validate'])) { $data['_validate_only'] = true; }
+
 $result = fcm_send_tokens($tokens, $title, $body, $data);
 
 // Mask tokens in output

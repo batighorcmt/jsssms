@@ -137,8 +137,11 @@ function fcm_send_tokens_v1(array $tokens, string $title, string $body, array $d
         notify_log('FCM_V1_SKIP', ['reason' => 'project_id_missing']);
         return ['sent' => 0, 'failed' => count($tokens), 'responses' => [], 'mode' => 'v1'];
     }
-    notify_log('FCM_V1_SEND_ATTEMPT', ['token_count' => count($tokens), 'title' => $title, 'body' => $body]);
-    $endpoint = 'https://fcm.googleapis.com/v1/projects/' . rawurlencode($projectId) . '/messages:send';
+    $validateOnly = !empty($data['_validate_only']);
+    // Do not send internal flag as app data
+    if ($validateOnly) { unset($data['_validate_only']); }
+    notify_log('FCM_V1_SEND_ATTEMPT', ['token_count' => count($tokens), 'title' => $title, 'body' => $body, 'validate_only' => $validateOnly]);
+    $endpoint = 'https://fcm.googleapis.com/v1/projects/' . rawurlencode($projectId) . '/messages:send' . ($validateOnly ? '?validate_only=true' : '');
     $results = []; $sent = 0; $failed = 0;
     foreach ($tokens as $t) {
         $message = [
@@ -171,12 +174,17 @@ function fcm_send_tokens_v1(array $tokens, string $title, string $body, array $d
         }
         $respData = json_decode($resp, true);
         if ($code >= 200 && $code < 300 && isset($respData['name'])) {
-            $sent++; $results[] = ['token' => mask_token($t), 'name' => $respData['name']];
+            // In validate_only mode, server returns empty object on success; handle both
+            if ($validateOnly && empty($respData)) {
+                $sent++; $results[] = ['token' => mask_token($t), 'validated' => true];
+            } else {
+                $sent++; $results[] = ['token' => mask_token($t), 'name' => $respData['name']];
+            }
         } else {
             $failed++; $results[] = ['token' => mask_token($t), 'http_code' => $code, 'response' => $respData];
         }
     }
-    $final = ['sent' => $sent, 'failed' => $failed, 'responses' => $results, 'mode' => 'v1'];
+    $final = ['sent' => $sent, 'failed' => $failed, 'responses' => $results, 'mode' => 'v1', 'validate_only' => $validateOnly];
     notify_log('FCM_V1_SUMMARY', $final);
     return $final;
 }
