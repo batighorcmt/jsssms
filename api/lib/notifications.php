@@ -41,7 +41,24 @@ function notify_log(string $message, array $context = []): void {
         $line .= ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
     $line .= "\n";
-    @file_put_contents(__DIR__ . '/../../logs/notifications_log.txt', $line, FILE_APPEND);
+
+    // Preferred location in project logs directory
+    $base = dirname(__DIR__, 2); // project root
+    $logDir = $base . '/logs';
+    $logFile = $logDir . '/notifications_log.txt';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0775, true);
+    }
+    $ok = @file_put_contents($logFile, $line, FILE_APPEND);
+    if ($ok === false) {
+        // Fallback to system temp (works in many shared hosts/cPanel)
+        $tmpFile = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'jsssms_notifications.log';
+        $ok2 = @file_put_contents($tmpFile, $line, FILE_APPEND);
+        if ($ok2 === false) {
+            // Last resort: PHP error_log
+            @error_log($line);
+        }
+    }
 }
 
 /**

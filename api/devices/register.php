@@ -16,6 +16,29 @@ if (!in_array($platform, ['android','ios','web'], true)) $platform = 'android';
 global $authUser, $conn;
 $userId = (int)$authUser['id'];
 
+// Diagnostics logging for token registration
+@include_once __DIR__ . '/../../api/lib/notifications.php';
+if (!function_exists('notify_log')) {
+        // lightweight inline fallback if lib not loaded
+        function notify_log($m, $c = []) {
+                $line = '['.date('Y-m-d H:i:s').'] '.$m.' '.json_encode($c)."\n";
+                $base = dirname(__DIR__, 2);
+                $logDir = $base . '/logs';
+                if (!is_dir($logDir)) { @mkdir($logDir, 0775, true); }
+                $ok = @file_put_contents($logDir.'/notifications_log.txt', $line, FILE_APPEND);
+                if ($ok === false) { @error_log($line); }
+        }
+}
+// Mask token for logs
+$len = strlen($token);
+$masked = $len > 12 ? (substr($token,0,8) . '...' . substr($token,-4)) : str_repeat('*', $len);
+notify_log('DEVICE_TOKEN_REGISTER', [
+    'user_id' => $userId,
+    'platform' => $platform,
+    'token_len' => $len,
+    'token_masked' => $masked,
+]);
+
 // Ensure table exists (idempotent create)
 $conn->query("CREATE TABLE IF NOT EXISTS device_tokens (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -35,13 +58,16 @@ if ($st = $conn->prepare("INSERT INTO device_tokens (user_id, platform, token, a
     $st->bind_param('iss', $userId, $platform, $token);
     if ($st->execute()) {
         $st->close();
+        notify_log('DEVICE_TOKEN_REGISTER_OK', ['user_id'=>$userId, 'platform'=>$platform]);
         api_response(true, ['ok'=>true]);
     } else {
         $err = $conn->error;
         $st->close();
+        notify_log('DEVICE_TOKEN_REGISTER_FAIL', ['user_id'=>$userId, 'error'=>$err]);
         api_response(false, 'Failed to save token: '.$err, 500);
     }
 } else {
+    notify_log('DEVICE_TOKEN_REGISTER_PREPARE_FAIL', ['user_id'=>$userId]);
     api_response(false, 'Prepare failed', 500);
 }
 
