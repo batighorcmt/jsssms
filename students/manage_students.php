@@ -701,7 +701,10 @@ $sectionsRes = null; // removed preloading sections to avoid initial stale optio
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="edit_student.php?student_id=<?= $row['student_id']; ?>" target="_blank">Edit</a></li>
                             <li><a class="dropdown-item" href="add_subjects.php?student_id=<?= $row['student_id']; ?>" target="_blank">Select Subject</a></li>
-                            <li><a class="dropdown-item text-danger" href="delete_student.php?id=<?= $row['id']; ?>" onclick="return confirm('Are you sure?');">Delete</a></li>
+                            <li><a class="dropdown-item text-danger" href="delete_student.php?id=<?= $row['id']; ?>" onclick="return confirm('Are you sure you want to delete this student? This will remove all related subjects and marks!');">Delete</a></li>
+                            <li><a class="dropdown-item" href="toggle_student_status.php?id=<?= $row['id']; ?>">
+                                <?= ($row['status'] === 'Active') ? 'Mark Inactive' : 'Mark Active'; ?>
+                            </a></li>
                         </ul>
                     </div>
                 </td>
