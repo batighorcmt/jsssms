@@ -201,7 +201,7 @@ function firebase_v1_get_access_token(): ?string {
     if (!$file || !is_readable($file)) return null;
     $sa = json_decode(@file_get_contents($file), true);
     if (!is_array($sa)) return null;
-    $email = $sa['client_email'] ?? null; $key = $sa['private_key'] ?? null;
+    $email = $sa['client_email'] ?? null; $key = $sa['private_key'] ?? null; $kid = $sa['private_key_id'] ?? null;
     if (!$email || !$key) return null;
     // Normalize key newlines in case of accidental literal \n
     if (strpos($key, "\\n") !== false) { $key = str_replace("\\n", "\n", $key); }
@@ -213,7 +213,9 @@ function firebase_v1_get_access_token(): ?string {
         return null;
     }
     $iat = time(); $expTime = $iat + 3600;
-    $header = base64url_encode(json_encode(['alg' => 'RS256','typ'=>'JWT']));
+    $jwtHeader = ['alg' => 'RS256','typ'=>'JWT'];
+    if ($kid) { $jwtHeader['kid'] = $kid; }
+    $header = base64url_encode(json_encode($jwtHeader));
     $claims = base64url_encode(json_encode([
         'iss' => $email,
         'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
