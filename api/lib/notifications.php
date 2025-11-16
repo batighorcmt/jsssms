@@ -213,6 +213,9 @@ function firebase_v1_get_access_token(): ?string {
     if (!$email || !$key) return null;
     // Normalize key newlines in case of accidental literal \n
     if (strpos($key, "\\n") !== false) { $key = str_replace("\\n", "\n", $key); }
+    // Normalize any CRLF to LF and trim extraneous whitespace
+    $key = preg_replace("/\r\n?|\r/", "\n", $key);
+    $key = trim($key);
     // Obtain private key resource
     $pkey = openssl_pkey_get_private($key);
     if ($pkey === false) {
@@ -234,7 +237,11 @@ function firebase_v1_get_access_token(): ?string {
     $unsigned = $header . '.' . $claims;
     $signature = '';
     $ok = openssl_sign($unsigned, $signature, $pkey, OPENSSL_ALGO_SHA256);
-    if (!$ok) { notify_log('FCM_V1_JWT_SIGN_FAIL', []); return null; }
+    if (!$ok) {
+        $e = function_exists('openssl_error_string') ? openssl_error_string() : 'unknown';
+        notify_log('FCM_V1_JWT_SIGN_FAIL', ['openssl_error' => $e]);
+        return null;
+    }
     if (PHP_VERSION_ID >= 80000 && is_object($pkey)) {
         // PHP 8 returns OpenSSLAsymmetricKey; freeing not necessary but safe
     } else {
