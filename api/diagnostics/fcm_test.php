@@ -1,9 +1,8 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../bootstrap.php';
-@include_once __DIR__ . '/../../config/notifications.php';
-@include_once __DIR__ . '/../../config/db.php';
-@include_once __DIR__ . '/../lib/notifications.php';
+  api_response(false, ['error' => 'Notifications diagnostics removed', 'code' => 410]);
+/* Notifications system removed; legacy code below is commented out to prevent parsing.
 
 // Restrict to super_admins only
 api_require_auth(['super_admin']);
@@ -55,51 +54,8 @@ if (empty($tokens)) {
     'success'=>false,
     'error'=>'No tokens found. Provide ?device=... or ?user_id=... or ?username=...',
     'mode'=>$mode,
-    'resolved_user_id' => $userId,
-  ]);
-  exit;
-}
+    <?php
+    header('Content-Type: application/json');
+    require_once __DIR__ . '/../bootstrap.php';
+    api_response(false, ['error' => 'Notifications diagnostics removed', 'code' => 410]);
 
-$data = [
-  'type' => 'diagnostic',
-  'ts' => time(),
-  'source' => $source,
-];
-
-// Optional validate-only mode to surface detailed FCM errors without sending
-if (!empty($_GET['validate'])) { $data['_validate_only'] = true; }
-
-$result = fcm_send_tokens($tokens, $title, $body, $data);
-
-// Mask tokens in output
-$masked = array_map('mask_tok', $tokens);
-
-$response = [
-  'success' => true,
-  'mode' => $mode,
-  'token_count' => count($tokens),
-  'tokens_masked' => $masked,
-  'result' => $result,
-  'source' => $source,
-];
-
-// Optional debug: include tail of notifications log to see error details
-if (!empty($_GET['debug'])) {
-  $logTail = '';
-  $logPath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'notifications_log.txt';
-  if (is_readable($logPath)) {
-    $size = filesize($logPath);
-    $fh = fopen($logPath, 'rb');
-    if ($fh) {
-      $read = 4096; // ~ last 4KB
-      if ($size > $read) fseek($fh, -$read, SEEK_END);
-      $logTail = stream_get_contents($fh) ?: '';
-      fclose($fh);
-    }
-  }
-  $response['debug'] = [
-    'log_tail' => $logTail,
-  ];
-}
-
-echo json_encode($response);

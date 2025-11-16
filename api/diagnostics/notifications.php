@@ -1,13 +1,8 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../bootstrap.php';
-// Include notifications library to access v1 helpers
-@include_once __DIR__ . '/../lib/notifications.php';
-@include_once __DIR__ . '/../../config/notifications.php';
-@include_once __DIR__ . '/../../config/db.php';
-
-// Restrict to super_admin
-api_require_auth(['super_admin']);
+api_response(false, ['error' => 'Notifications diagnostics removed', 'code' => 410]);
+/* Notifications system removed; legacy code below is commented out to prevent parsing.
 
 function path_info_status(string $dir, string $file): array {
     $exists = is_dir($dir);

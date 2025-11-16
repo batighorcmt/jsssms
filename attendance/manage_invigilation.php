@@ -2,6 +2,7 @@
 @include_once __DIR__ . '/../includes/bootstrap.php';
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 @include_once __DIR__ . '/../config/config.php';
+@include_once __DIR__ . '/../api/lib/fcm.php';
 // Fallback if BASE_URL isn't defined by config
 if (!defined('BASE_URL')) { define('BASE_URL', '../'); }
 if (!isset($_SESSION['role'])) { header('Location: ' . BASE_URL . 'auth/login.php'); exit(); }
@@ -125,53 +126,78 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
         if (function_exists('app_log')) { app_log('Prepare failed for exam_room_invigilation upsert: '.($conn->error ?? 'unknown error')); }
         $toast=['type'=>'error','msg'=>'Failed to save duties (prepare error).'];
       } else {
+        // Helper to get room label
+        $roomLabelCache = [];
+        $getRoomLabel = function(int $rid) use ($conn, &$roomLabelCache) {
+          if (isset($roomLabelCache[$rid])) return $roomLabelCache[$rid];
+          $label = 'Room #' . $rid;
+          if ($qr = $conn->prepare('SELECT room_no, title FROM seat_plan_rooms WHERE id=? LIMIT 1')){
+            $qr->bind_param('i', $rid);
+            $qr->execute();
+            $res = $qr->get_result();
+            if ($res && $row = $res->fetch_assoc()){
+              $label = trim(($row['room_no'] ?? ''));
+              if (!empty($row['title'])) { $label .= ' — ' . $row['title']; }
+              if ($label==='') $label = 'Room #' . $rid;
+            }
+            $qr->close();
+          }
+          $roomLabelCache[$rid] = $label;
+          return $label;
+        };
+
+        // Get plan display
+        $planName = '';
+        $planShift = '';
+        if ($rp = $conn->prepare('SELECT plan_name, shift FROM seat_plans WHERE id=? LIMIT 1')){
+          $rp->bind_param('i', $plan_id);
+          $rp->execute();
+          $rpr = $rp->get_result();
+          if ($rpr && $prow = $rpr->fetch_assoc()){
+            $planName = (string)$prow['plan_name'];
+            $planShift = (string)$prow['shift'];
+          }
+          $rp->close();
+        }
+
         foreach ($map as $room_id => $teacher_user_id){
           $room_id=(int)$room_id; $teacher_user_id=(int)$teacher_user_id; if ($room_id<=0 || $teacher_user_id<=0) continue;
+
+          // Check existing assignment to avoid duplicate notifications
+          $prev = null;
+          if ($qprev = $conn->prepare('SELECT teacher_user_id FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? LIMIT 1')){
+            $qprev->bind_param('sii', $duty_date, $plan_id, $room_id);
+            $qprev->execute();
+            $resPrev = $qprev->get_result();
+            if ($resPrev && $rowPrev = $resPrev->fetch_assoc()) { $prev = (int)$rowPrev['teacher_user_id']; }
+            $qprev->close();
+          }
+
           $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
           @$stmt->execute();
+
+          // Notify only when new or changed
+          if ($prev === null || $prev !== $teacher_user_id) {
+            $roomLabel = $getRoomLabel($room_id);
+            $dateDisp = $duty_date;
+            if (($t = strtotime($duty_date)) !== false) { $dateDisp = date('d M Y', $t); }
+            $title = 'Room Duty Assigned';
+            $body  = 'You are assigned to ' . $roomLabel . ' on ' . $dateDisp . ($planName ? (' — ' . $planName . ($planShift ? (' (' . $planShift . ')') : '')) : '');
+            // Send push to the assigned teacher
+            try {
+              fcm_send_to_user($conn, (int)$teacher_user_id, $title, $body, [
+                'type' => 'duty_assignment',
+                'plan_id' => (string)$plan_id,
+                'room_id' => (string)$room_id,
+                'duty_date' => (string)$duty_date,
+              ]);
+            } catch (Throwable $e) {
+              if (function_exists('fcm_log')) { fcm_log('Notify error: '.$e->getMessage()); }
+            }
+          }
         }
         $stmt->close();
         $toast=['type'=>'success','msg'=>'Duties saved'];
-
-        // Push notifications (mirror api/exam/duties.php) if FCM enabled
-        @include_once __DIR__ . '/../config/notifications.php';
-        @include_once __DIR__ . '/../api/lib/notifications.php';
-        if (defined('FCM_ENABLED') && FCM_ENABLED) {
-          try {
-            // Collect teacher ids assigned in this submit
-            $teacherIdsSubmit = [];
-            foreach ($map as $r=>$t){ $rt=(int)$t; if($rt>0) $teacherIdsSubmit[]=$rt; }
-            $teacherIdsSubmit = array_values(array_unique($teacherIdsSubmit));
-            if (!empty($teacherIdsSubmit)) {
-              $tokensMap = get_user_device_tokens($conn, $teacherIdsSubmit);
-              // Fetch plan metadata
-              $planName=''; $shift='';
-              if ($sp=$conn->prepare('SELECT plan_name, shift FROM seat_plans WHERE id=? LIMIT 1')) {
-                $sp->bind_param('i',$plan_id); if($sp->execute()){ $res=$sp->get_result(); if($res && ($row=$res->fetch_assoc())){ $planName=(string)$row['plan_name']; $shift=(string)$row['shift']; } }
-                $sp->close();
-              }
-              // Send per teacher
-              foreach ($map as $room_id=>$teacher_user_id){
-                $rid=(int)$room_id; $tid=(int)$teacher_user_id; if($rid<=0||$tid<=0) continue;
-                $tokens = $tokensMap[$tid] ?? [];
-                if (empty($tokens)) continue;
-                // Room number
-                $roomNo='';
-                if ($sr=$conn->prepare('SELECT room_no FROM seat_plan_rooms WHERE id=? LIMIT 1')) {
-                  $sr->bind_param('i',$rid); if($sr->execute()){ $rr=$sr->get_result(); if($rr && ($rm=$rr->fetch_assoc())) $roomNo=(string)$rm['room_no']; }
-                  $sr->close();
-                }
-                $title='Duty Room Assigned to You';
-                $parts = array_filter([$planName,$shift,$roomNo?('Room '.$roomNo):'']);
-                $body = implode(' • ',$parts);
-                $data = [ 'type'=>'duty_assignment','date'=>$duty_date,'plan_id'=>$plan_id,'room_id'=>$rid ];
-                fcm_send_tokens($tokens,$title,$body,$data); // fire-and-forget
-              }
-            }
-          } catch (Throwable $e) {
-            // swallow; do not break UI toast
-          }
-        }
       }
     }
     }
