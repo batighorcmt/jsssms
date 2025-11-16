@@ -577,9 +577,10 @@ class _DutiesScreenState extends State<DutiesScreen> {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
       // Filter rooms assigned to this teacher only
-      _rooms = allRooms
-          .where((r) => dutyMap[(r['id']).toString()] == userId)
-          .toList();
+      _rooms = allRooms.where((r) {
+        final roomId = (r['id']).toString();
+        return dutyMap[roomId] == userId;
+      }).toList();
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to load rooms: $e')));
@@ -2186,7 +2187,17 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
             .showSnackBar(SnackBar(content: Text('Duties saved successfully')));
       }
     } catch (e) {
-      _showError('Failed to save duties: $e');
+      final raw = e.toString();
+      String friendly = raw;
+      final lower = raw.toLowerCase();
+      if (lower.contains('401') || lower.contains('unauthorized')) {
+        friendly = 'অননুমোদিত (401). আবার লগইন করুন.';
+      } else if (lower.contains('403') || lower.contains('forbidden')) {
+        friendly = 'নিষিদ্ধ (403). আপনার রোল এই কাজের অনুমতি পায়নি.';
+      } else if (lower.contains('timeout')) {
+        friendly = 'সময় শেষ হয়েছে। নেটওয়ার্ক পরীক্ষা করে আবার চেষ্টা করুন.';
+      }
+      _showError('Failed to save duties: $friendly');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -2335,8 +2346,20 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
                     context: context,
                     builder: (ctx) => AlertDialog(
                       title: const Text('Teacher Already Assigned'),
-                      content: Text(
-                          'This teacher is already assigned to Room ${_rooms.firstWhere((r) => r['id'].toString() == already.key)['room_no']}. Remove that assignment first if you want to reassign.'),
+                      content: Builder(builder: (_) {
+                        final existing =
+                            _rooms.cast<Map<String, dynamic>?>().firstWhere(
+                                  (r) => (r?['id']).toString() == already.key,
+                                  orElse: () => null,
+                                );
+                        final roomNo = (existing != null
+                                ? (existing['room_no'] ?? '')
+                                : '')
+                            .toString();
+                        final label = roomNo.isNotEmpty ? roomNo : already.key;
+                        return Text(
+                            'This teacher is already assigned to Room $label. Remove that assignment first if you want to reassign.');
+                      }),
                       actions: [
                         TextButton(
                             onPressed: () => Navigator.of(ctx).pop(),
@@ -2685,28 +2708,73 @@ class ApiService {
   static Future<dynamic> _post(
       String endpoint, Map<String, dynamic> body) async {
     final token = await _getToken();
-    final response = await http
-        .post(
-          Uri.parse('$_baseUrl/$endpoint'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
+    final uri = Uri.parse('$_baseUrl/$endpoint');
+    http.Response response;
+    try {
+      response = await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      throw Exception('Request timeout while posting to $endpoint');
+    } catch (e) {
+      throw Exception('Network error posting to $endpoint: $e');
+    }
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success']) {
-        return data; // Return full response data for success cases
-      } else {
-        throw Exception('API Error: ${data['error']}');
+      dynamic data;
+      try {
+        data = jsonDecode(response.body);
+      } catch (_) {
+        throw Exception('Invalid JSON response from $endpoint');
       }
-    } else {
-      throw Exception(
-          'Failed to post data to $endpoint. Status code: ${response.statusCode}');
+      if (data is Map && data['success'] == true) {
+        return data; // full success payload
+      }
+      // If server follows bootstrap.php error schema
+      final err = (data is Map && data.containsKey('error'))
+          ? data['error']
+          : 'Unknown server error';
+      throw Exception('API Error: $err');
     }
+
+    // Non-200: attempt to parse body for richer diagnostics
+    String serverError = '';
+    try {
+      final j = jsonDecode(response.body);
+      if (j is Map) {
+        final parts = <String>[];
+        if (j['error'] != null) parts.add(j['error'].toString());
+        if (j['code'] != null) parts.add('code=${j['code']}');
+        serverError = parts.join(' | ');
+      }
+    } catch (_) {
+      // ignore parse failures
+    }
+
+    final code = response.statusCode;
+    final tokenInfo =
+        token.isEmpty ? 'token=EMPTY' : 'token.len=${token.length}';
+    String hint = '';
+    if (code == 401) {
+      hint = 'Unauthorized (401). Please login again. টোকেন মেয়াদ শেষ বা অবৈধ.';
+    } else if (code == 403) {
+      hint = 'Forbidden (403). আপনার রোল এই অপারেশনের জন্য অনুমোদিত নয়.';
+    }
+    final msg = [
+      'POST $endpoint failed',
+      'status=$code',
+      tokenInfo,
+      if (serverError.isNotEmpty) 'server="$serverError"',
+      if (hint.isNotEmpty) hint,
+    ].join(' | ');
+    throw Exception(msg);
   }
 
   static Future<bool> isController(String userId) async {
