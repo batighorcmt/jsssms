@@ -131,7 +131,16 @@ function seatCell($data, $pos){
     $grade = detectGradeFromClass($clsRaw);
     $displayClass = $cls;
     if ($grade===9 || $grade===10) {
-        if ($grpRaw!=='') { $displayClass .= ' - '.htmlspecialchars(strtoupper(substr($grpRaw,0,1))); }
+        // Map group to S/A/C
+        $grpLetter = '';
+        if ($grpRaw === 'Science') $grpLetter = 'S';
+        elseif ($grpRaw === 'Humanities') $grpLetter = 'A';
+        elseif ($grpRaw === 'Business Studies') $grpLetter = 'C';
+        if ($grpLetter !== '') {
+            $displayClass = $cls . ' - ' . $grpLetter;
+        } else {
+            $displayClass = $cls;
+        }
     }
     $photoTag = '';
     if (!empty($data['photo'])){
