@@ -1,6 +1,8 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../bootstrap.php';
+// Include notifications library to access v1 helpers
+@include_once __DIR__ . '/../lib/notifications.php';
 @include_once __DIR__ . '/../../config/notifications.php';
 @include_once __DIR__ . '/../../config/db.php';
 
@@ -78,6 +80,7 @@ try {
 
 // curl availability
 $curlAvailable = function_exists('curl_init');
+$opensslAvailable = extension_loaded('openssl');
 
 $saFile = defined('FIREBASE_SERVICE_ACCOUNT_FILE') ? FIREBASE_SERVICE_ACCOUNT_FILE : null;
 $saExists = $saFile && is_readable($saFile);
@@ -99,6 +102,7 @@ $payload = [
     'fcm' => [
         'legacy_server_key_len' => defined('FCM_SERVER_KEY') ? strlen((string)FCM_SERVER_KEY) : 0,
         'curl_available' => $curlAvailable,
+        'openssl_available' => $opensslAvailable,
         'mode' => (defined('FCM_SERVER_KEY') && FCM_SERVER_KEY) ? 'legacy' : ($saExists ? 'v1' : 'disabled'),
         'v1' => [
             'service_account_file' => $saFile,
