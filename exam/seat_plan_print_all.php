@@ -228,7 +228,7 @@ for ($cc=1; $cc<=3; $cc++){
                 </div>
                 <div class="brand-right" aria-hidden="true"></div>
             </div>
-            <div class="shift-overlay"><div class="line1"><?= htmlspecialchars($shiftLine1) ?></div><div class="line2"><?= htmlspecialchars($shiftLine2) ?></div></div>
+            <div class="shift-overlay"><div class="line2"><?= htmlspecialchars($shiftLine1) ?></div><div class="line1"><?= htmlspecialchars($shiftLine2) ?></div></div>
         </div>
         <div class="exam-title">
             <div class="plan-name"><?= htmlspecialchars($plan['plan_name'] ?? 'Seat Plan') ?></div>
