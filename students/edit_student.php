@@ -170,7 +170,7 @@ $dob_display = formatDobForInput($student['date_of_birth'] ?? '');
                     </div>
 
                     <!-- Photo -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Photo</label>
                         <div class="d-flex align-items-center">
                             <div class="mr-3">
@@ -193,7 +193,7 @@ $dob_display = formatDobForInput($student['date_of_birth'] ?? '');
                     </div>
 
                     <!-- Gender -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Gender</label>
                         <select name="gender" class="form-control form-control-lg">
                             <option value="">Select</option>
@@ -204,7 +204,7 @@ $dob_display = formatDobForInput($student['date_of_birth'] ?? '');
                         <div class="invalid-feedback">Please select gender</div>
                     </div>
                     <!-- Religion -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Religion</label>
                         <select name="religion" class="form-control form-control-lg">
                             <option value="">Select</option>
@@ -217,7 +217,7 @@ $dob_display = formatDobForInput($student['date_of_birth'] ?? '');
                     </div>
 
                     <!-- Blood Group -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Blood Group</label>
                         <select name="blood_group" class="form-control form-control-lg">
                             <option value="">Select</option>
