@@ -203,6 +203,15 @@ function firebase_v1_get_access_token(): ?string {
     if (!is_array($sa)) return null;
     $email = $sa['client_email'] ?? null; $key = $sa['private_key'] ?? null;
     if (!$email || !$key) return null;
+    // Normalize key newlines in case of accidental literal \n
+    if (strpos($key, "\\n") !== false) { $key = str_replace("\\n", "\n", $key); }
+    // Obtain private key resource
+    $pkey = openssl_pkey_get_private($key);
+    if ($pkey === false) {
+        $err = function_exists('openssl_error_string') ? openssl_error_string() : 'unknown';
+        notify_log('FCM_V1_PKEY_LOAD_FAIL', ['error' => $err]);
+        return null;
+    }
     $iat = time(); $expTime = $iat + 3600;
     $header = base64url_encode(json_encode(['alg' => 'RS256','typ'=>'JWT']));
     $claims = base64url_encode(json_encode([
@@ -214,8 +223,13 @@ function firebase_v1_get_access_token(): ?string {
     ]));
     $unsigned = $header . '.' . $claims;
     $signature = '';
-    $ok = openssl_sign($unsigned, $signature, $key, OPENSSL_ALGO_SHA256);
+    $ok = openssl_sign($unsigned, $signature, $pkey, OPENSSL_ALGO_SHA256);
     if (!$ok) { notify_log('FCM_V1_JWT_SIGN_FAIL', []); return null; }
+    if (PHP_VERSION_ID >= 80000 && is_object($pkey)) {
+        // PHP 8 returns OpenSSLAsymmetricKey; freeing not necessary but safe
+    } else {
+        @openssl_pkey_free($pkey);
+    }
     $jwt = $unsigned . '.' . base64url_encode($signature);
     $postFields = http_build_query([
         'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
