@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:batighor_jss_management/services/notification_service.dart';
 
@@ -136,13 +137,21 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           await prefs.remove('is_controller');
         }
-        final role = user['role']?.toString() ?? '';
-        if (role.toLowerCase() != 'teacher') {
+        final roleRaw = user['role']?.toString() ?? '';
+        final role = roleRaw.toLowerCase();
+        await prefs.setString('user_role', role);
+        const allowedRoles = ['teacher', 'super_admin'];
+        if (!allowedRoles.contains(role)) {
           setState(() {
             _busy = false;
-            _error = 'Only teachers can log in';
+            _error = 'Only teachers or super admins can log in';
           });
           return;
+        }
+        // Super admin treated as controller for duty features
+        if (role == 'super_admin') {
+          await prefs.setBool('is_controller', true);
+          await prefs.setString('is_controller_user_id', uid);
         }
         if (!mounted) return;
         // Ensure device token is registered now that we have auth
@@ -287,6 +296,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _userName;
   String? _userId;
   bool _isController = false;
+  String? _userRole;
 
   @override
   void initState() {
@@ -312,6 +322,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final name = prefs.getString('user_name');
       if (mounted) setState(() => _userName = name);
     }
+    final userRole = prefs.getString('user_role');
+    if (mounted) setState(() => _userRole = userRole);
+
     final userId = prefs.getString('user_id');
     if (userId != null && userId.isNotEmpty) {
       if (mounted) {
@@ -419,6 +432,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         builder: (context) => AttendanceReportScreen()));
               }),
             ],
+            if (_userRole == 'super_admin')
+              _buildDashboardCard(
+                  context, 'Student Management', Icons.people, Colors.red,
+                  () async {
+                final url = Uri.parse(
+                    'https://jss.batighorbd.com/students/manage_students.php');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Could not open student management.')),
+                    );
+                  }
+                }
+              }),
           ],
         ),
       ),
