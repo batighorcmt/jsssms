@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:batighor_jss_management/services/notification_service.dart';
-import 'package:batighor_jss_management/pages/fcm_status.dart';
+import 'package:batighor_jss_management/pages/notification_list_page.dart';
+import 'package:batighor_jss_management/pages/student_mgmt/student_mgmt_home.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +19,7 @@ class JssApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: NotificationService.navigatorKey, // Set the navigatorKey
       debugShowCheckedModeBanner: false,
       title: 'Batighor School Management',
       theme: ThemeData(
@@ -377,30 +378,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text('Dashboard'),
         actions: [
           IconButton(
-            tooltip: 'FCM Status',
+            icon: const Icon(Icons.notifications),
+            tooltip: 'View Notifications',
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const FcmStatusPage()),
+                MaterialPageRoute(builder: (_) => const NotificationListPage()),
               );
             },
-            icon: const Icon(Icons.notifications_active_outlined),
           ),
-          if (_userName != null && _userName!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Center(
-                  child: Row(children: [
-                const Icon(Icons.account_circle_outlined, size: 22),
-                const SizedBox(width: 6),
-                Text(_userName!,
-                    style: const TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(width: 12),
-              ])),
-            ),
           IconButton(
-              tooltip: 'Logout',
-              onPressed: _logout,
-              icon: const Icon(Icons.logout)),
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+          ),
         ],
       ),
       body: Padding(
@@ -443,21 +432,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
             if (_userRole == 'super_admin')
               _buildDashboardCard(
-                  context, 'Student Management', Icons.people, Colors.red,
-                  () async {
-                final url = Uri.parse(
-                    'https://jss.batighorbd.com/students/manage_students.php');
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                } else {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Could not open student management.')),
-                    );
-                  }
-                }
-              }),
+                context,
+                'Student Management',
+                Icons.people,
+                Colors.red,
+                () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const StudentMgmtHomePage(),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
       ),
@@ -522,7 +509,6 @@ class _DutiesScreenState extends State<DutiesScreen> {
   bool _loadingRooms = false;
   bool _loadingStudents = false;
   bool _bulkSaving = false;
-  String? _userName;
   bool _isController = false; // loaded from preferences
   bool _noDutyMessage =
       false; // show message when teacher selects non-today date
@@ -535,7 +521,6 @@ class _DutiesScreenState extends State<DutiesScreen> {
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    _userName = prefs.getString('user_name');
     _isController = prefs.getBool('is_controller') ?? false;
     await _loadPlans();
   }
@@ -734,12 +719,6 @@ class _DutiesScreenState extends State<DutiesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Today's Duties"),
-        actions: [
-          if (_userName != null)
-            Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Center(child: Text(_userName!)))
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -794,6 +773,7 @@ class _DutiesScreenState extends State<DutiesScreen> {
                 child: _loadingPlans
                     ? const _LoadingBox(label: 'Seat Plan')
                     : DropdownButtonFormField<String>(
+                        isExpanded: true,
                         decoration:
                             const InputDecoration(labelText: 'Seat Plan'),
                         value: _selectedPlanId,
@@ -825,6 +805,7 @@ class _DutiesScreenState extends State<DutiesScreen> {
                 child: _loadingDates
                     ? const _LoadingBox(label: 'Date')
                     : DropdownButtonFormField<String>(
+                        isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Date'),
                         value: _selectedDate,
                         items: _examDates
@@ -856,6 +837,7 @@ class _DutiesScreenState extends State<DutiesScreen> {
                 child: _loadingRooms
                     ? const _LoadingBox(label: 'Room')
                     : DropdownButtonFormField<String>(
+                        isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Room'),
                         value: _selectedRoomId,
                         items: _rooms
@@ -1258,6 +1240,30 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
   bool _showTotals =
       false; // user toggle for total column visibility (default OFF for speed)
 
+  bool _allowMarksEntry() {
+    // Try different common keys the API might provide
+    final dateStr =
+        (_meta['exam_date'] ?? _meta['date'] ?? _meta['examDate'] ?? '')
+            .toString()
+            .trim();
+    if (dateStr.isEmpty) return true; // if not provided, allow by default
+    DateTime? examDate;
+    try {
+      examDate = DateTime.parse(dateStr);
+    } catch (_) {
+      // Try dd-MM-yyyy
+      try {
+        examDate = DateFormat('dd-MM-yyyy').parse(dateStr);
+      } catch (_) {}
+    }
+    if (examDate == null) return true;
+    final now = DateTime.now();
+    // Compare by date-only (ignore time)
+    final today = DateTime(now.year, now.month, now.day);
+    final exam = DateTime(examDate.year, examDate.month, examDate.day);
+    return today.isAfter(exam) || today.isAtSameMomentAs(exam);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1362,6 +1368,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
           } else {
             final data = snapshot.data!;
             _meta = Map<String, dynamic>.from(data['meta'] ?? {});
+            final allowEntry = _allowMarksEntry();
             final students =
                 (data['students'] as List).cast<Map<String, dynamic>>();
             final cqMax = (_meta['creativeMax'] ?? 0) as int;
@@ -1415,7 +1422,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   width: 60,
                   child: Focus(
                     onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
+                      if (!hasFocus && allowEntry) {
                         _validateAndClamp(
                             _cqControllers[studentId]!, cqMax, 'CQ');
                         _saveSingleStudentFireAndForget(studentId);
@@ -1423,11 +1430,11 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                     },
                     child: TextField(
                       controller: _cqControllers[studentId],
+                      enabled: allowEntry,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
                       decoration: const InputDecoration(
                           isDense: true, border: OutlineInputBorder()),
-                      // Removed per-keystroke total recompute for performance
                     ),
                   ),
                 )));
@@ -1437,7 +1444,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   width: 60,
                   child: Focus(
                     onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
+                      if (!hasFocus && allowEntry) {
                         _validateAndClamp(
                             _mcqControllers[studentId]!, mcqMax, 'MCQ');
                         _saveSingleStudentFireAndForget(studentId);
@@ -1445,11 +1452,11 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                     },
                     child: TextField(
                       controller: _mcqControllers[studentId],
+                      enabled: allowEntry,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
                       decoration: const InputDecoration(
                           isDense: true, border: OutlineInputBorder()),
-                      // Removed per-keystroke total recompute
                     ),
                   ),
                 )));
@@ -1459,7 +1466,7 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                   width: 60,
                   child: Focus(
                     onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
+                      if (!hasFocus && allowEntry) {
                         _validateAndClamp(
                             _prControllers[studentId]!, prMax, 'PR');
                         _saveSingleStudentFireAndForget(studentId);
@@ -1467,11 +1474,11 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                     },
                     child: TextField(
                       controller: _prControllers[studentId],
+                      enabled: allowEntry,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
                       decoration: const InputDecoration(
                           isDense: true, border: OutlineInputBorder()),
-                      // Removed per-keystroke total recompute
                     ),
                   ),
                 )));
@@ -1506,6 +1513,25 @@ class _StudentListMarksScreenState extends State<StudentListMarksScreen> {
                           if ((widget.subjectName ?? '').isNotEmpty)
                             Text('Subject: ${widget.subjectName}',
                                 style: const TextStyle(color: Colors.black54)),
+                          if (!allowEntry)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.lock_clock,
+                                      color: Colors.redAccent),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Marks entry will open on the exam date.',
+                                      style: const TextStyle(
+                                          color: Colors.redAccent,
+                                          fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           Row(
                             children: [
                               const Text('Show Total'),
@@ -2252,7 +2278,9 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Room Duty Allocation')),
+      appBar: AppBar(
+        title: Text('Room Duty Allocation'),
+      ),
       body: Column(
         children: [
           _buildFilters(),
@@ -3071,6 +3099,64 @@ class ApiService {
       'subject_id': subjectId,
       'marks': marks,
     });
+  }
+
+  // ===== Students (Super Admin) =====
+  static Future<Map<String, dynamic>> studentCounts() async {
+    final data = await _get('students/counts.php');
+    return {
+      'total': data['total'] ?? 0,
+      'by_class': (data['by_class'] ?? []) as List<dynamic>,
+    };
+  }
+
+  static Future<Map<String, dynamic>> listStudents({
+    int page = 1,
+    int perPage = 20,
+    int? classId,
+    int? sectionId,
+    String? group,
+    String? q,
+  }) async {
+    final params = <String, String>{
+      'page': page.toString(),
+      'per_page': perPage.toString(),
+    };
+    if (classId != null) params['class_id'] = classId.toString();
+    if (sectionId != null) params['section_id'] = sectionId.toString();
+    if (group != null && group.isNotEmpty) params['group'] = group;
+    if (q != null && q.isNotEmpty) params['q'] = q;
+    final ep = 'students/list.php?' +
+        params.entries
+            .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+            .join('&');
+    final data = await _get(ep);
+    return data as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> getStudent(
+      {int? id, String? studentId}) async {
+    final qp = id != null
+        ? 'id=$id'
+        : (studentId != null
+            ? 'student_id=${Uri.encodeQueryComponent(studentId)}'
+            : '');
+    final data = await _get('students/get.php?' + qp);
+    return (data['student'] ?? {}) as Map<String, dynamic>;
+  }
+
+  static Future<int> createStudent(Map<String, dynamic> student) async {
+    final data = await _post('students/create.php', student);
+    final id = (data['data']?['id']) ?? (data['id']);
+    return (id is int) ? id : int.tryParse(id.toString()) ?? 0;
+  }
+
+  static Future<bool> updateStudent(int id, Map<String, dynamic> patch) async {
+    final payload = {'id': id, ...patch};
+    final data = await _post('students/update.php', payload);
+    final updated = (data['data']?['updated']) ?? (data['updated']);
+    if (updated is int) return updated > 0;
+    return int.tryParse(updated.toString()) != 0;
   }
 
   // Register/update this device's FCM token with the server for push notifications

@@ -2,3 +2,4 @@ config/db.php
 jsssms.code-workspace
 # Secrets (do not commit service account / local overrides)
 
+config/firebase_service_account.json

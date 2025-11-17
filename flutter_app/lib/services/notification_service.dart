@@ -4,13 +4,15 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/material.dart';
+import '../models/notification_message.dart';
+import '../pages/notification_list_page.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  // If you're going to use other Firebase services in the background, such as Firestore,
-  // make sure you call `initializeApp` before using other Firebase services.
-  print("Handling a background message: ${message.messageId}");
+  await NotificationService.init(isBackground: true);
+  await NotificationService.addMessageFromRemote(message);
 }
 
 class NotificationService {
@@ -18,15 +20,26 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   static const String _baseUrl = 'https://jss.batighorbd.com/api';
+  static const String _storageKey = 'notification_messages';
   static String get baseUrl => _baseUrl;
 
-  static Future<void> init() async {
-    // Initialize Firebase (guarded so app doesn't crash if not configured yet)
-    try {
-      await Firebase.initializeApp();
-    } catch (e) {
-      // Firebase not configured; skip push setup silently
-      return;
+  // Global navigator key to allow navigation from background
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  // Value notifier to hold and update the list of messages for the UI
+  static final ValueNotifier<List<NotificationMessage>> messages =
+      ValueNotifier([]);
+
+  static Future<void> init({bool isBackground = false}) async {
+    if (!isBackground) {
+      // Initialize Firebase (guarded so app doesn't crash if not configured yet)
+      try {
+        await Firebase.initializeApp();
+      } catch (e) {
+        // Firebase not configured; skip push setup silently
+        return;
+      }
     }
 
     // Android notification channel
@@ -47,7 +60,19 @@ class NotificationService {
       iOS: darwinInitializationSettings,
     );
 
-    await _localNotifications.initialize(initializationSettings);
+    // Handle notification tap
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (response) {
+        if (response.payload != null && response.payload!.isNotEmpty) {
+          // Navigate to the notifications screen
+          navigatorKey.currentState
+              ?.push(MaterialPageRoute(builder: (_) => NotificationListPage()));
+        }
+      },
+    );
+
+    if (isBackground) return;
 
     // Request permissions for iOS and Android 13+
     await _messaging.requestPermission(
@@ -66,7 +91,7 @@ class NotificationService {
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Got a message whilst in the foreground!');
-      print('Message data: ${message.data}');
+      addMessageFromRemote(message);
 
       RemoteNotification? notification = message.notification;
       AndroidNotification? android = message.notification?.android;
@@ -87,15 +112,64 @@ class NotificationService {
               icon: '@mipmap/ic_launcher',
             ),
           ),
+          payload: jsonEncode(message.data), // Pass data for navigation
         );
       }
     });
+
+    // Handle notification tap when app is terminated
+    _messaging.getInitialMessage().then((message) {
+      if (message != null) {
+        navigatorKey.currentState
+            ?.push(MaterialPageRoute(builder: (_) => NotificationListPage()));
+      }
+    });
+
+    // Load existing messages from storage
+    await loadMessages();
 
     // Get the token and save it to the server
     await _getTokenAndSave();
     _messaging.onTokenRefresh.listen((token) {
       _saveTokenToServer(token);
     });
+  }
+
+  static Future<void> addMessageFromRemote(RemoteMessage remoteMessage) async {
+    final notification = NotificationMessage(
+      title: remoteMessage.notification?.title ?? 'No Title',
+      body: remoteMessage.notification?.body ?? 'No Body',
+      data: remoteMessage.data,
+      receivedAt: DateTime.now(),
+    );
+    await addMessage(notification);
+  }
+
+  static Future<void> addMessage(NotificationMessage message) async {
+    final currentMessages = messages.value.toList();
+    currentMessages.insert(0, message); // Add to the top of the list
+    messages.value = currentMessages;
+    await _saveMessages();
+  }
+
+  static Future<void> _saveMessages() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encodedMessages =
+        messages.value.map((msg) => jsonEncode(msg.toJson())).toList();
+    await prefs.setStringList(_storageKey, encodedMessages);
+  }
+
+  static Future<void> loadMessages() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encodedMessages = prefs.getStringList(_storageKey) ?? [];
+    messages.value = encodedMessages
+        .map((str) => NotificationMessage.fromJson(jsonDecode(str)))
+        .toList();
+  }
+
+  static Future<void> clearMessages() async {
+    messages.value = [];
+    await _saveMessages();
   }
 
   static Future<void> _getTokenAndSave() async {
