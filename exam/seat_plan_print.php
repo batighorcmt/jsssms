@@ -307,10 +307,10 @@ for ($cc=1; $cc<=3; $cc++){
         <?php
         // Build statistics
         $classCounts = [];
-        $groupCounts = [];
-        $optionalCounts = [];
+        $groupCountsByGrade = [9=>[], 10=>[]];
+        $optionalCountsByGrade = [9=>[], 10=>[]];
         $has9or10 = false;
-        $assignedSidStr = [];
+        $assignedGradeBySid = [];
         if (!empty($alloc)){
             for ($cc=1;$cc<=3;$cc++){
                 if (empty($alloc[$cc])) continue;
@@ -324,16 +324,16 @@ for ($cc=1; $cc<=3; $cc++){
                         if ($grade===9 || $grade===10) {
                             $has9or10 = true;
                             $grp = normalizeGroupName($d['student_group'] ?? '');
-                            if ($grp!=='') { $groupCounts[$grp] = ($groupCounts[$grp] ?? 0) + 1; }
+                            if ($grp!=='') { $groupCountsByGrade[$grade][$grp] = ($groupCountsByGrade[$grade][$grp] ?? 0) + 1; }
                             $sidStr = (string)($d['sid_str'] ?? '');
-                            if ($sidStr!=='') { $assignedSidStr[$sidStr] = true; }
+                            if ($sidStr!=='') { $assignedGradeBySid[$sidStr] = $grade; }
                         }
                     }
                 }
             }
         }
         // Optional subjects for 9/10 using optional_subject_id if present, else derive from student_subjects
-        if ($has9or10 && !empty($assignedSidStr)){
+        if ($has9or10 && !empty($assignedGradeBySid)){
             // Verify required tables exist before querying optional/group maps
             $tableExists = function($name) use ($conn){
                 $name = mysqli_real_escape_string($conn, $name);
@@ -344,7 +344,7 @@ for ($cc=1; $cc<=3; $cc++){
             $hasStuSubs  = $tableExists('student_subjects');
             $hasMap      = $tableExists('subject_group_map');
             
-            $sidList = array_map(function($s) use ($conn){ return "'".mysqli_real_escape_string($conn, $s)."'"; }, array_keys($assignedSidStr));
+            $sidList = array_map(function($s) use ($conn){ return "'".mysqli_real_escape_string($conn, $s)."'"; }, array_keys($assignedGradeBySid));
             $sidIn = implode(',', $sidList);
             // Check optional_subject_id column (if present)
             $colCheck = $conn->query("SHOW COLUMNS FROM students LIKE 'optional_subject_id'");
@@ -354,7 +354,7 @@ for ($cc=1; $cc<=3; $cc++){
                 if ($q1){ while($r=$q1->fetch_assoc()){ $sn = trim((string)($r['subject_name'] ?? '')); if($sn!==''){ $optMap[$r['student_id']] = $sn; } } }
             }
             // Fallback via student_subjects and subject_group_map
-            $missing = array_diff(array_keys($assignedSidStr), array_keys($optMap));
+            $missing = array_diff(array_keys($assignedGradeBySid), array_keys($optMap));
             if (!empty($missing) && $hasSubjects && $hasStuSubs && $hasMap){
                 $mList = array_map(function($s) use ($conn){ return "'".mysqli_real_escape_string($conn, $s)."'"; }, $missing);
                 $mIn = implode(',', $mList);
@@ -371,7 +371,13 @@ for ($cc=1; $cc<=3; $cc++){
                     foreach ($best as $sid=>$info){ if(!isset($optMap[$sid]) && !empty($info['name'])) $optMap[$sid] = $info['name']; }
                 }
             }
-            foreach ($optMap as $sid=>$subName){ $subName = trim($subName); if($subName!==''){ $optionalCounts[$subName] = ($optionalCounts[$subName] ?? 0) + 1; } }
+            foreach ($optMap as $sid=>$subName){
+                $subName = trim($subName);
+                $g = $assignedGradeBySid[$sid] ?? null;
+                if ($subName!=='' && ($g===9 || $g===10)) {
+                    $optionalCountsByGrade[$g][$subName] = ($optionalCountsByGrade[$g][$subName] ?? 0) + 1;
+                }
+            }
         }
         // Helper to pick badge class for class name
         function badgeClassFor($className){ $g = detectGradeFromClass($className); return $g ? ('grade-'.(int)$g) : ''; }
@@ -391,24 +397,48 @@ for ($cc=1; $cc<=3; $cc++){
                 </div>
                 <div class="stat-col">
                     <h5>Group-wise (9-10)</h5>
-                    <?php if (!empty($groupCounts)): ?>
-                        <ul>
-                            <?php foreach ($groupCounts as $g=>$cnt): ?>
-                                <li><?= htmlspecialchars($g) ?> — <?= (int)$cnt ?></li>
-                            <?php endforeach; ?>
-                        </ul>
+                    <?php $hasGroup = (!empty($groupCountsByGrade[9]) || !empty($groupCountsByGrade[10])); ?>
+                    <?php if ($hasGroup): ?>
+                        <?php if (!empty($groupCountsByGrade[9])): ?>
+                            <div><strong>Class 9</strong></div>
+                            <ul>
+                                <?php foreach ($groupCountsByGrade[9] as $g=>$cnt): ?>
+                                    <li><?= htmlspecialchars($g) ?> — <?= (int)$cnt ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                        <?php if (!empty($groupCountsByGrade[10])): ?>
+                            <div style="margin-top:6px;"><strong>Class 10</strong></div>
+                            <ul>
+                                <?php foreach ($groupCountsByGrade[10] as $g=>$cnt): ?>
+                                    <li><?= htmlspecialchars($g) ?> — <?= (int)$cnt ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
                     <?php else: ?>
                         <div style="color:#666;">Not applicable</div>
                     <?php endif; ?>
                 </div>
                 <div class="stat-col">
                     <h5>Optional subjects (9-10)</h5>
-                    <?php if (!empty($optionalCounts)): ?>
-                        <ul>
-                            <?php foreach ($optionalCounts as $sub=>$cnt): ?>
-                                <li><?= htmlspecialchars($sub) ?> — <?= (int)$cnt ?></li>
-                            <?php endforeach; ?>
-                        </ul>
+                    <?php $hasOpt = (!empty($optionalCountsByGrade[9]) || !empty($optionalCountsByGrade[10])); ?>
+                    <?php if ($hasOpt): ?>
+                        <?php if (!empty($optionalCountsByGrade[9])): ?>
+                            <div><strong>Class 9</strong></div>
+                            <ul>
+                                <?php foreach ($optionalCountsByGrade[9] as $sub=>$cnt): ?>
+                                    <li><?= htmlspecialchars($sub) ?> — <?= (int)$cnt ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                        <?php if (!empty($optionalCountsByGrade[10])): ?>
+                            <div style="margin-top:6px;"><strong>Class 10</strong></div>
+                            <ul>
+                                <?php foreach ($optionalCountsByGrade[10] as $sub=>$cnt): ?>
+                                    <li><?= htmlspecialchars($sub) ?> — <?= (int)$cnt ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
                     <?php else: ?>
                         <div style="color:#666;">Not applicable</div>
                     <?php endif; ?>

@@ -40,6 +40,60 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
             }
         }
     }
+    if ($action==='update_room'){
+        $room_id = (int)($_POST['room_id'] ?? 0);
+        $room_no = trim($_POST['room_no'] ?? '');
+        $title = trim($_POST['title'] ?? '');
+        $columns_count = max(1, min(3, (int)($_POST['columns_count'] ?? 3)));
+        $col1 = max(0, (int)($_POST['col1_benches'] ?? 0));
+        $col2 = max(0, (int)($_POST['col2_benches'] ?? 0));
+        $col3 = max(0, (int)($_POST['col3_benches'] ?? 0));
+        // Zero-out benches for hidden columns
+        if ($columns_count < 3) { $col3 = 0; }
+        if ($columns_count < 2) { $col2 = 0; }
+        if ($room_id<=0 || $room_no===''){
+            $toast = ['type'=>'danger','msg'=>'Room number is required'];
+        } else {
+            // Update room
+            $up = $conn->prepare('UPDATE seat_plan_rooms SET room_no=?, title=?, columns_count=?, col1_benches=?, col2_benches=?, col3_benches=? WHERE id=? AND plan_id=?');
+            if ($up) {
+                $up->bind_param('ssiiiiii', $room_no, $title, $columns_count, $col1, $col2, $col3, $room_id, $plan_id);
+                if (@$up->execute()){
+                    // Prune allocations that exceed new structure
+                    // 1) Remove columns beyond count
+                    if ($del = $conn->prepare('DELETE FROM seat_plan_allocations WHERE room_id=? AND col_no>?')){
+                        $del->bind_param('ii', $room_id, $columns_count);
+                        @$del->execute();
+                        $del->close();
+                    }
+                    // 2) Remove benches beyond per-column bench count
+                    $benchMap = [1=>$col1, 2=>$col2, 3=>$col3];
+                    foreach ($benchMap as $c=>$maxB) {
+                        if ($maxB>0) {
+                            if ($delb = $conn->prepare('DELETE FROM seat_plan_allocations WHERE room_id=? AND col_no=? AND bench_no>?')){
+                                $delb->bind_param('iii', $room_id, $c, $maxB);
+                                @$delb->execute();
+                                $delb->close();
+                            }
+                        } else {
+                            // If max benches is 0 for this col, remove all in that column
+                            if ($delc = $conn->prepare('DELETE FROM seat_plan_allocations WHERE room_id=? AND col_no=?')){
+                                $delc->bind_param('ii', $room_id, $c);
+                                @$delc->execute();
+                                $delc->close();
+                            }
+                        }
+                    }
+                    $toast = ['type'=>'success','msg'=>'Room updated'];
+                } else {
+                    $toast = ['type'=>'danger','msg'=>'Could not update room (possibly duplicate room number).'];
+                }
+                $up->close();
+            } else {
+                $toast = ['type'=>'danger','msg'=>'Prepare failed'];
+            }
+        }
+    }
     if ($action==='delete_room'){
         $room_id = (int)($_POST['room_id'] ?? 0);
         if ($room_id>0){
@@ -195,6 +249,85 @@ include '../includes/sidebar.php';
                     </form>
                 </div>
             </div>
+            <?php
+            $edit_room_id = isset($_GET['edit_room_id']) ? (int)$_GET['edit_room_id'] : 0;
+            $editRoom = null;
+            if ($edit_room_id>0) {
+                $qr = $conn->query('SELECT * FROM seat_plan_rooms WHERE id='.(int)$edit_room_id.' AND plan_id='.(int)$plan_id.' LIMIT 1');
+                if ($qr && $qr->num_rows>0) { $editRoom = $qr->fetch_assoc(); }
+            }
+            if ($editRoom):
+            ?>
+            <div class="card mb-3">
+                <div class="card-header"><strong>Edit Room</strong> <small class="text-muted">(ID: <?= (int)$editRoom['id'] ?>)</small></div>
+                <div class="card-body">
+                    <form method="post">
+                        <input type="hidden" name="action" value="update_room">
+                        <input type="hidden" name="room_id" value="<?= (int)$editRoom['id'] ?>">
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-3">
+                                <label>Room No</label>
+                                <input type="text" name="room_no" class="form-control" value="<?= htmlspecialchars($editRoom['room_no']) ?>" required>
+                            </div>
+                            <div class="form-group col-md-3">
+                                <label>Title (optional)</label>
+                                <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($editRoom['title'] ?? '') ?>" placeholder="e.g., North Building 2nd Floor">
+                            </div>
+                            <div class="form-group col-md-1">
+                                <label>Columns</label>
+                                <select name="columns_count" id="edit_columns_count" class="form-control">
+                                    <option value="1" <?= (int)$editRoom['columns_count']===1?'selected':'' ?>>1</option>
+                                    <option value="2" <?= (int)$editRoom['columns_count']===2?'selected':'' ?>>2</option>
+                                    <option value="3" <?= (int)$editRoom['columns_count']===3?'selected':'' ?>>3</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-1 bench-group-edit" data-col="1">
+                                <label>Col 1 Benches</label>
+                                <input type="number" name="col1_benches" id="edit_col1_benches" class="form-control" min="0" value="<?= (int)$editRoom['col1_benches'] ?>">
+                            </div>
+                            <div class="form-group col-md-1 bench-group-edit" data-col="2">
+                                <label>Col 2 Benches</label>
+                                <input type="number" name="col2_benches" id="edit_col2_benches" class="form-control" min="0" value="<?= (int)$editRoom['col2_benches'] ?>">
+                            </div>
+                            <div class="form-group col-md-1 bench-group-edit" data-col="3">
+                                <label>Col 3 Benches</label>
+                                <input type="number" name="col3_benches" id="edit_col3_benches" class="form-control" min="0" value="<?= (int)$editRoom['col3_benches'] ?>">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary">Update Room</button>
+                        <a class="btn btn-outline-secondary ml-2" href="seat_plan_rooms.php?plan_id=<?= (int)$plan_id ?>">Cancel</a>
+                    </form>
+                </div>
+            </div>
+            <script>
+            (function(){
+                var select = document.getElementById('edit_columns_count');
+                if (!select) return;
+                var groups = Array.prototype.slice.call(document.querySelectorAll('.bench-group-edit'));
+                var inputs = {
+                    1: document.getElementById('edit_col1_benches'),
+                    2: document.getElementById('edit_col2_benches'),
+                    3: document.getElementById('edit_col3_benches')
+                };
+                function applyColumns(){
+                    var cols = parseInt(select.value, 10) || 0;
+                    groups.forEach(function(g){
+                        var c = parseInt(g.getAttribute('data-col'), 10) || 0;
+                        var input = inputs[c];
+                        if (c <= cols){
+                            g.style.display = '';
+                            if (input && input.dataset.prevValue){ input.value = input.dataset.prevValue; }
+                        } else {
+                            g.style.display = 'none';
+                            if (input){ input.dataset.prevValue = input.value; input.value = 0; }
+                        }
+                    });
+                }
+                select.addEventListener('change', applyColumns);
+                applyColumns();
+            })();
+            </script>
+            <?php endif; ?>
             <script>
             (function(){
                 var select = document.getElementById('columns_count');
@@ -270,6 +403,7 @@ include '../includes/sidebar.php';
                                 <td>
                                     <a class="btn btn-sm btn-primary" href="seat_plan_assign.php?plan_id=<?= (int)$plan_id ?>&room_id=<?= (int)$r['id'] ?>">Assign Seats</a>
                                     <a class="btn btn-sm btn-secondary" target="_blank" href="seat_plan_print.php?plan_id=<?= (int)$plan_id ?>&room_id=<?= (int)$r['id'] ?>">Print</a>
+                                    <a class="btn btn-sm btn-info" href="seat_plan_rooms.php?plan_id=<?= (int)$plan_id ?>&edit_room_id=<?= (int)$r['id'] ?>">Edit</a>
                                     <form method="post" action="" style="display:inline" onsubmit="return confirm('Clear all allocations in this room?');">
                                         <input type="hidden" name="action" value="clear_room">
                                         <input type="hidden" name="room_id" value="<?= (int)$r['id'] ?>">
