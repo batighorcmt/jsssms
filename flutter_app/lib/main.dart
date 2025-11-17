@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:batighor_jss_management/services/notification_service.dart';
+import 'package:batighor_jss_management/pages/fcm_status.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -375,6 +376,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          IconButton(
+            tooltip: 'FCM Status',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const FcmStatusPage()),
+              );
+            },
+            icon: const Icon(Icons.notifications_active_outlined),
+          ),
           if (_userName != null && _userName!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 8.0),

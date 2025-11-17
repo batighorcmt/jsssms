@@ -18,6 +18,7 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   static const String _baseUrl = 'https://jss.batighorbd.com/api';
+  static String get baseUrl => _baseUrl;
 
   static Future<void> init() async {
     // Initialize Firebase (guarded so app doesn't crash if not configured yet)
