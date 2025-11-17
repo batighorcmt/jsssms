@@ -59,8 +59,3 @@ if ($ok) {
     api_response(false, ['error'=>'db_execute_failed','db_error'=>$conn->error ?: 'stmt_error'], 500);
 }
 ?>
-<?php
-header('Content-Type: application/json');
-require_once __DIR__ . '/../bootstrap.php';
-api_response(false, ['error' => 'Device token registration removed', 'code' => 410]);
-/* Notifications system removed; legacy code below is commented out to prevent parsing.
