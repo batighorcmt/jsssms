@@ -10,6 +10,13 @@ if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 if (!defined('BASE_URL')) { define('BASE_URL','../'); }
 if (($_SESSION['role'] ?? '') !== 'super_admin') { header('Location: ' . BASE_URL . 'auth/forbidden.php'); exit; }
 
+// Load Service Account details for health check display
+$saPath = __DIR__ . '/../config/firebase_service_account.json';
+$sa = null;
+if (is_file($saPath)) {
+    $sa = json_decode(file_get_contents($saPath), true);
+}
+
 $toast = null;
 // Ensure logs table (may not exist yet)
 $GLOBALS['conn']->query("CREATE TABLE IF NOT EXISTS fcm_send_logs (
