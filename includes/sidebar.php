@@ -132,6 +132,12 @@ if (!function_exists('jss_is_exam_controller')) {
             <p>Attendance Stats</p>
           </a>
         </li>
+        <li class="nav-item">
+          <a href="<?= $BASE_URL ?>settings/fcm_admin.php" class="nav-link <?= ($current=='fcm_admin.php')?'active':'' ?>">
+            <i class="nav-icon fas fa-bell"></i>
+            <p>FCM Admin</p>
+          </a>
+        </li>
         <?php endif; ?>
 
         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'teacher'): ?>

@@ -54,13 +54,17 @@ if (!function_exists('fcm_get_access_token')) {
         $jwtClaim  = fcm_base64url_encode(json_encode($claim));
 
         $privateKey = (string)($sa['private_key'] ?? '');
-        // Normalize potential CRLF issues
-        $privateKey = str_replace(["\r\n", "\r"], "\n", trim($privateKey));
-
+        // Normalize potential CRLF issues but preserve PEM markers
+        $privateKey = preg_replace('~\r\n?~', "\n", trim($privateKey));
         $dataToSign = $jwtHeader . '.' . $jwtClaim;
         $signature = '';
-        $ok = openssl_sign($dataToSign, $signature, $privateKey, OPENSSL_ALGO_SHA256);
-        if (!$ok) {
+        $keyResource = @openssl_pkey_get_private($privateKey);
+        if (!$keyResource) {
+            fcm_log('FCM: openssl_pkey_get_private failed (bad key format?)');
+            return null;
+        }
+        $ok = openssl_sign($dataToSign, $signature, $keyResource, OPENSSL_ALGO_SHA256);
+        if (!$ok || !$signature) {
             fcm_log('FCM: openssl_sign failed: ' . (function_exists('openssl_error_string') ? (openssl_error_string() ?: 'unknown') : 'no openssl_error_string'));
             return null;
         }
@@ -188,19 +192,22 @@ if (!function_exists('fcm_send_to_user')) {
         // Persist per-token send results for diagnostics
         if (is_array($res) && isset($res['results']) && is_array($res['results'])) {
             // Ensure logs table exists
-            $conn->query("CREATE TABLE IF NOT EXISTS fcm_send_logs (
+            $tableSql = "CREATE TABLE IF NOT EXISTS fcm_send_logs (
               id BIGINT AUTO_INCREMENT PRIMARY KEY,
               user_id INT NULL,
               token TEXT NULL,
               title TEXT NULL,
               body TEXT NULL,
-              data_payload JSON NULL,
+              data_payload TEXT NULL,
               http_code INT NULL,
               response_body TEXT NULL,
               success TINYINT(1) NOT NULL DEFAULT 0,
               created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
               INDEX idx_user (user_id)
-            )");
+            )";
+            if (!$conn->query($tableSql)) {
+                fcm_log('FCM: failed to create fcm_send_logs table: ' . ($conn->error ?? 'unknown error'));
+            }
             $ins = $conn->prepare('INSERT INTO fcm_send_logs (user_id, token, title, body, data_payload, http_code, response_body, success) VALUES (?,?,?,?,?,?,?,?)');
             if ($ins) {
                 foreach ($res['results'] as $r) {
