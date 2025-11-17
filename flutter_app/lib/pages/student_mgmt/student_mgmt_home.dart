@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart';
 
 class StudentMgmtHomePage extends StatefulWidget {
@@ -45,11 +47,76 @@ class _StudentMgmtHomePageState extends State<StudentMgmtHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Student Management')),
+      appBar: AppBar(
+        title: const Text('Student Management'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (v) async {
+              final prefs = await SharedPreferences.getInstance();
+              if (v == 'use_remote') {
+                await prefs.remove('api_base_url');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('API base set to remote')),
+                  );
+                }
+                _load();
+              } else if (v == 'use_local') {
+                await prefs.setString(
+                    'api_base_url', 'http://10.0.2.2/jsssms/api');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('API base set to local (10.0.2.2)')),
+                  );
+                }
+                _load();
+              }
+            },
+            itemBuilder: (ctx) => const [
+              PopupMenuItem(value: 'use_remote', child: Text('Use Remote API')),
+              PopupMenuItem(
+                  value: 'use_local', child: Text('Use Local API (10.0.2.2)')),
+            ],
+          )
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text('Error: $_error'))
+              ? Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Error: $_error',
+                          style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString(
+                              'api_base_url', 'http://10.0.2.2/jsssms/api');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content:
+                                      Text('Switched to local API (10.0.2.2)')),
+                            );
+                          }
+                          _load();
+                        },
+                        icon: const Icon(Icons.wifi_tethering),
+                        label: const Text('Try Local API (10.0.2.2)'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: _load,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
               : Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -130,11 +197,29 @@ class _StudentListPageState extends State<StudentListPage> {
   bool _loading = true;
   String? _error;
   final _qCtrl = TextEditingController();
+  // Filters
+  List<dynamic> _classes = [];
+  List<dynamic> _sections = [];
+  List<String> _groups = [];
+  int? _selectedClassId;
+  int? _selectedSectionId;
+  String? _selectedGroup;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    setState(() => _loading = true);
+    try {
+      _classes = await ApiService.getClasses();
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      await _load();
+    }
   }
 
   Future<void> _load() async {
@@ -144,7 +229,13 @@ class _StudentListPageState extends State<StudentListPage> {
     });
     try {
       final data = await ApiService.listStudents(
-          page: _page, perPage: _perPage, q: _qCtrl.text.trim());
+        page: _page,
+        perPage: _perPage,
+        classId: _selectedClassId,
+        sectionId: _selectedSectionId,
+        group: _selectedGroup,
+        q: _qCtrl.text.trim(),
+      );
       if (mounted)
         setState(() {
           _total = data['total'] ?? 0;
@@ -168,6 +259,120 @@ class _StudentListPageState extends State<StudentListPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Students')),
       body: Column(children: [
+        // Filters Row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: Row(children: [
+            // Class
+            Expanded(
+              child: DropdownButtonFormField<int>(
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Class'),
+                value: _selectedClassId,
+                items: _classes.map<DropdownMenuItem<int>>((c) {
+                  final id = int.tryParse(c['id'].toString());
+                  final name = c['class_name']?.toString() ??
+                      c['name']?.toString() ??
+                      'Class';
+                  return DropdownMenuItem<int>(value: id, child: Text(name));
+                }).toList(),
+                onChanged: (v) async {
+                  setState(() => _selectedClassId = v);
+                  _selectedSectionId = null;
+                  _sections = [];
+                  _groups = [];
+                  _selectedGroup = null;
+                  if (v != null) {
+                    try {
+                      _sections = await ApiService.getSectionsByClass(v);
+                    } catch (_) {}
+                    try {
+                      _groups = await ApiService.getGroupsByClass(v);
+                    } catch (_) {}
+                  }
+                  setState(() {});
+                  _page = 1;
+                  await _load();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Section
+            Expanded(
+              child: DropdownButtonFormField<int>(
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Section'),
+                value: _selectedSectionId,
+                items: _sections.map<DropdownMenuItem<int>>((s) {
+                  final id = int.tryParse(s['id'].toString());
+                  final name = s['section_name']?.toString() ?? 'Section';
+                  return DropdownMenuItem<int>(value: id, child: Text(name));
+                }).toList(),
+                onChanged: (v) async {
+                  setState(() => _selectedSectionId = v);
+                  _page = 1;
+                  await _load();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Group
+            Expanded(
+              child: DropdownButtonFormField<String?>(
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Group'),
+                value: _selectedGroup,
+                items: <DropdownMenuItem<String?>>[
+                  DropdownMenuItem<String?>(
+                      value: null, child: const Text('All')),
+                  ..._groups
+                      .map((g) =>
+                          DropdownMenuItem<String?>(value: g, child: Text(g)))
+                      .toList(),
+                ],
+                onChanged: (v) async {
+                  setState(() => _selectedGroup = v);
+                  _page = 1;
+                  await _load();
+                },
+              ),
+            ),
+          ]),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Error: $_error',
+                    style: const TextStyle(color: Colors.red)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, children: [
+                  ElevatedButton(
+                    onPressed: _load,
+                    child: const Text('Retry'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setString(
+                          'api_base_url', 'http://10.0.2.2/jsssms/api');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                                  Text('Switched to local API (10.0.2.2)')),
+                        );
+                      }
+                      _load();
+                    },
+                    child: const Text('Use Local API'),
+                  ),
+                ]),
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(children: [
@@ -208,11 +413,32 @@ class _StudentListPageState extends State<StudentListPage> {
                 subtitle: Text(
                     'ID: ${s['student_id'] ?? ''} • Class: ${s['class_name'] ?? ''}'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => StudentDetailPage(id: s['id'] as int)),
+                onTap: () async {
+                  final choice = await showModalBottomSheet<String>(
+                    context: context,
+                    builder: (ctx) => SafeArea(
+                      child: Wrap(children: [
+                        ListTile(
+                            leading: const Icon(Icons.edit),
+                            title: const Text('Edit'),
+                            onTap: () => Navigator.pop(ctx, 'edit')),
+                        ListTile(
+                            leading: const Icon(Icons.person),
+                            title: const Text('View Profile'),
+                            onTap: () => Navigator.pop(ctx, 'view')),
+                      ]),
+                    ),
                   );
+                  if (choice == 'edit') {
+                    if (!mounted) return;
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => StudentDetailPage(id: s['id'] as int)));
+                  } else if (choice == 'view') {
+                    final root = await ApiService.getSiteRoot();
+                    final url = Uri.parse(
+                        '$root/students/student_profile.php?id=${s['id']}');
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
                 },
               );
             },
@@ -257,17 +483,19 @@ class StudentDetailPage extends StatefulWidget {
 }
 
 class _StudentDetailPageState extends State<StudentDetailPage> {
-  Map<String, dynamic>? _student;
   bool _loading = true;
   String? _error;
   bool _saving = false;
   final _nameCtrl = TextEditingController();
   final _sidCtrl = TextEditingController();
   final _rollCtrl = TextEditingController();
-  final _classCtrl = TextEditingController();
-  final _sectionCtrl = TextEditingController();
+  List<dynamic> _classes = [];
+  List<dynamic> _sections = [];
+  List<String> _groups = [];
+  int? _classId;
+  int? _sectionId;
+  String? _group;
   final _mobileCtrl = TextEditingController();
-  final _groupCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -282,14 +510,24 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
     });
     try {
       final s = await ApiService.getStudent(id: widget.id);
-      _student = s;
       _nameCtrl.text = s['student_name']?.toString() ?? '';
       _sidCtrl.text = s['student_id']?.toString() ?? '';
       _rollCtrl.text = s['roll_no']?.toString() ?? '';
-      _classCtrl.text = s['class_id']?.toString() ?? '';
-      _sectionCtrl.text = s['section_id']?.toString() ?? '';
+      _classId = int.tryParse(s['class_id']?.toString() ?? '');
+      _sectionId = int.tryParse(s['section_id']?.toString() ?? '');
       _mobileCtrl.text = s['mobile_no']?.toString() ?? '';
-      _groupCtrl.text = s['student_group']?.toString() ?? '';
+      _group = s['student_group']?.toString();
+      try {
+        _classes = await ApiService.getClasses();
+      } catch (_) {}
+      if (_classId != null) {
+        try {
+          _sections = await ApiService.getSectionsByClass(_classId!);
+        } catch (_) {}
+        try {
+          _groups = await ApiService.getGroupsByClass(_classId!);
+        } catch (_) {}
+      }
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted)
@@ -311,10 +549,10 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
         'student_name': _nameCtrl.text.trim(),
         'student_id': _sidCtrl.text.trim(),
         'roll_no': _rollCtrl.text.trim(),
-        'class_id': _classCtrl.text.trim(),
-        'section_id': _sectionCtrl.text.trim(),
+        'class_id': _classId?.toString() ?? '',
+        'section_id': _sectionId?.toString() ?? '',
         'mobile_no': _mobileCtrl.text.trim(),
-        'student_group': _groupCtrl.text.trim(),
+        'student_group': _group?.toString() ?? '',
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -356,23 +594,71 @@ class _StudentDetailPageState extends State<StudentDetailPage> {
                         controller: _rollCtrl,
                         decoration: const InputDecoration(labelText: 'Roll')),
                     const SizedBox(height: 8),
-                    TextFormField(
-                        controller: _classCtrl,
-                        decoration:
-                            const InputDecoration(labelText: 'Class ID')),
+                    DropdownButtonFormField<int>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Class'),
+                      value: _classId,
+                      items: _classes.map<DropdownMenuItem<int>>((c) {
+                        final id = int.tryParse(c['id'].toString());
+                        final name = c['class_name']?.toString() ??
+                            c['name']?.toString() ??
+                            'Class';
+                        return DropdownMenuItem<int>(
+                            value: id, child: Text(name));
+                      }).toList(),
+                      onChanged: (v) async {
+                        setState(() => _classId = v);
+                        _sectionId = null;
+                        _sections = [];
+                        _groups = [];
+                        _group = null;
+                        if (v != null) {
+                          try {
+                            _sections = await ApiService.getSectionsByClass(v);
+                          } catch (_) {}
+                          try {
+                            _groups = await ApiService.getGroupsByClass(v);
+                          } catch (_) {}
+                        }
+                        setState(() {});
+                      },
+                    ),
                     const SizedBox(height: 8),
-                    TextFormField(
-                        controller: _sectionCtrl,
-                        decoration:
-                            const InputDecoration(labelText: 'Section ID')),
+                    DropdownButtonFormField<int>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Section'),
+                      value: _sectionId,
+                      items: _sections.map<DropdownMenuItem<int>>((s) {
+                        final id = int.tryParse(s['id'].toString());
+                        final name = s['section_name']?.toString() ?? 'Section';
+                        return DropdownMenuItem<int>(
+                            value: id, child: Text(name));
+                      }).toList(),
+                      onChanged: (v) {
+                        setState(() => _sectionId = v);
+                      },
+                    ),
                     const SizedBox(height: 8),
                     TextFormField(
                         controller: _mobileCtrl,
                         decoration: const InputDecoration(labelText: 'Mobile')),
                     const SizedBox(height: 8),
-                    TextFormField(
-                        controller: _groupCtrl,
-                        decoration: const InputDecoration(labelText: 'Group')),
+                    DropdownButtonFormField<String?>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Group'),
+                      value: _group,
+                      items: [
+                        DropdownMenuItem<String?>(
+                            value: null, child: const Text('None')),
+                        ..._groups
+                            .map((g) => DropdownMenuItem<String?>(
+                                value: g, child: Text(g)))
+                            .toList(),
+                      ],
+                      onChanged: (v) {
+                        setState(() => _group = v);
+                      },
+                    ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                         onPressed: _saving ? null : _save,
@@ -393,21 +679,46 @@ class _StudentCreatePageState extends State<StudentCreatePage> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _sidCtrl = TextEditingController();
-  final _classCtrl = TextEditingController();
-  final _sectionCtrl = TextEditingController();
   final _rollCtrl = TextEditingController();
   bool _saving = false;
+  // Dropdown data/state
+  List<dynamic> _classes = [];
+  List<dynamic> _sections = [];
+  List<String> _groups = [];
+  int? _classId;
+  int? _sectionId;
+  String? _group;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    try {
+      _classes = await ApiService.getClasses();
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
 
   Future<void> _create() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_classId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a class')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       final id = await ApiService.createStudent({
         'student_name': _nameCtrl.text.trim(),
         'student_id': _sidCtrl.text.trim(),
-        'class_id': _classCtrl.text.trim(),
-        'section_id': _sectionCtrl.text.trim(),
+        'class_id': _classId?.toString() ?? '',
+        'section_id': _sectionId?.toString() ?? '',
         'roll_no': _rollCtrl.text.trim(),
+        'student_group': _group?.toString() ?? '',
       });
       if (!mounted) return;
       if (id > 0) {
@@ -450,18 +761,70 @@ class _StudentCreatePageState extends State<StudentCreatePage> {
                 decoration: const InputDecoration(labelText: 'Student ID'),
                 validator: (v) => (v == null || v.isEmpty) ? 'Required' : null),
             const SizedBox(height: 8),
-            TextFormField(
-                controller: _classCtrl,
-                decoration: const InputDecoration(labelText: 'Class ID'),
-                validator: (v) => (v == null || v.isEmpty) ? 'Required' : null),
+            DropdownButtonFormField<int>(
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Class'),
+              value: _classId,
+              items: _classes.map<DropdownMenuItem<int>>((c) {
+                final id = int.tryParse(c['id'].toString());
+                final name = c['class_name']?.toString() ??
+                    c['name']?.toString() ??
+                    'Class';
+                return DropdownMenuItem<int>(value: id, child: Text(name));
+              }).toList(),
+              onChanged: (v) async {
+                setState(() => _classId = v);
+                _sectionId = null;
+                _sections = [];
+                _groups = [];
+                _group = null;
+                if (v != null) {
+                  try {
+                    _sections = await ApiService.getSectionsByClass(v);
+                  } catch (_) {}
+                  try {
+                    _groups = await ApiService.getGroupsByClass(v);
+                  } catch (_) {}
+                }
+                setState(() {});
+              },
+              validator: (v) => (v == null) ? 'Required' : null,
+            ),
             const SizedBox(height: 8),
-            TextFormField(
-                controller: _sectionCtrl,
-                decoration: const InputDecoration(labelText: 'Section ID')),
+            DropdownButtonFormField<int>(
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Section'),
+              value: _sectionId,
+              items: _sections.map<DropdownMenuItem<int>>((s) {
+                final id = int.tryParse(s['id'].toString());
+                final name = s['section_name']?.toString() ?? 'Section';
+                return DropdownMenuItem<int>(value: id, child: Text(name));
+              }).toList(),
+              onChanged: (v) {
+                setState(() => _sectionId = v);
+              },
+            ),
             const SizedBox(height: 8),
             TextFormField(
                 controller: _rollCtrl,
                 decoration: const InputDecoration(labelText: 'Roll')),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String?>(
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Group'),
+              value: _group,
+              items: [
+                DropdownMenuItem<String?>(
+                    value: null, child: const Text('None')),
+                ..._groups
+                    .map((g) =>
+                        DropdownMenuItem<String?>(value: g, child: Text(g)))
+                    .toList(),
+              ],
+              onChanged: (v) {
+                setState(() => _group = v);
+              },
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
                 onPressed: _saving ? null : _create,

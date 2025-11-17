@@ -33,13 +33,14 @@ $sql = "SELECT s.*, c.class_name, sec.section_name
         ORDER BY s.class_id ASC, s.section_id ASC, s.roll_no ASC, s.student_name ASC
         LIMIT $offset,$perPage";
 
-$base = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\');
-$photoBase = $base . '/uploads/students/';
+$scriptBase = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\');
+$photoBase = '/uploads/students/';
+$origin = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '');
 $list = [];
 if ($res = $conn->query($sql)) {
   while ($s = $res->fetch_assoc()) {
     $photo = trim((string)($s['photo'] ?? ''));
-    $photo_url = $photo ? ($photoBase . $photo) : '';
+    $photo_url = $photo ? ($origin . $photoBase . $photo) : '';
     $list[] = [
       'id' => (int)$s['id'],
       'student_id' => $s['student_id'],

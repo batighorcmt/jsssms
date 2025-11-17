@@ -2738,8 +2738,17 @@ class _SeatPlanScreenState extends State<SeatPlanScreen> {
 }
 
 class ApiService {
-  static const String _baseUrl =
-      'https://jss.batighorbd.com/api'; // Use 10.0.2.2 for Android emulator
+  static const String _remoteBase = 'https://jss.batighorbd.com/api';
+  static const String _localFallback =
+      'http://10.0.2.2/jsssms/api'; // Android emulator -> Windows host XAMPP
+
+  static Future<String> _resolveBaseUrl() async {
+    // Allow overriding base URL from SharedPreferences for development
+    final prefs = await SharedPreferences.getInstance();
+    final manual = prefs.getString('api_base_url');
+    if (manual != null && manual.trim().isNotEmpty) return manual.trim();
+    return _remoteBase;
+  }
 
   // Simple in-memory caches to speed up app usage within a session
   static final Map<String, List<dynamic>> _seatPlansCache = {}; // key: date
@@ -2752,100 +2761,178 @@ class ApiService {
     return prefs.getString('token') ?? '';
   }
 
+  // Expose resolved base and site root for building links (e.g., profile pages)
+  static Future<String> getBaseUrl() => _resolveBaseUrl();
+  static Future<String> getSiteRoot() async {
+    final base = await _resolveBaseUrl();
+    if (base.endsWith('/api')) return base.substring(0, base.length - 4);
+    return base;
+  }
+
   static Future<dynamic> _get(String endpoint) async {
     final token = await _getToken();
-    final response = await http.get(
-      Uri.parse('$_baseUrl/$endpoint'),
-      headers: {'Authorization': 'Bearer $token'},
-    ).timeout(const Duration(seconds: 12));
+    final base = await _resolveBaseUrl();
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success']) {
-        return data['data'];
-      } else {
-        throw Exception('API Error: ${data['error']}');
+    Future<dynamic> attempt(String baseUrl) async {
+      final uri = Uri.parse('$baseUrl/$endpoint');
+      final r = await http.get(uri, headers: {
+        'Authorization': 'Bearer $token'
+      }).timeout(const Duration(seconds: 12));
+      if (r.statusCode != 200) {
+        throw Exception('GET $endpoint failed (${r.statusCode})');
       }
-    } else {
-      throw Exception(
-          'Failed to load data from $endpoint. Status code: ${response.statusCode}');
+      final ct = (r.headers['content-type'] ?? '').toLowerCase();
+      final body = r.body;
+      // Guard against HTML/text responses (e.g., 404 page, login page)
+      if (!ct.contains('application/json') && body.trim().startsWith('<')) {
+        final trimmed = body.trim().replaceAll('\n', ' ');
+        final snippet = trimmed.substring(0, trimmed.length.clamp(0, 160));
+        throw Exception(
+            'Non-JSON response from $endpoint at $baseUrl: $snippet');
+      }
+      dynamic decoded;
+      try {
+        decoded = jsonDecode(body);
+      } catch (_) {
+        throw Exception('Invalid JSON response from $endpoint at $baseUrl');
+      }
+      if (decoded is Map && decoded['success'] == true) {
+        return decoded['data'];
+      }
+      final err = (decoded is Map && decoded.containsKey('error'))
+          ? decoded['error']
+          : 'Unknown server error';
+      throw Exception('API Error from $endpoint at $baseUrl: $err');
+    }
+
+    // Try primary base first; if it yields non-JSON/HTML, attempt local fallback once
+    try {
+      return await attempt(base);
+    } catch (e) {
+      final msg = e.toString();
+      // Only try fallback if current base is remote and error looks like non-JSON/HTML or 404-like
+      if (base == _remoteBase &&
+          (msg.contains('Non-JSON response') ||
+              msg.contains('Invalid JSON') ||
+              msg.contains('failed (404)'))) {
+        try {
+          return await attempt(_localFallback);
+        } catch (_) {
+          // rethrow original error for clarity
+          throw Exception(msg);
+        }
+      }
+      rethrow;
     }
   }
 
   static Future<dynamic> _post(
       String endpoint, Map<String, dynamic> body) async {
     final token = await _getToken();
-    final uri = Uri.parse('$_baseUrl/$endpoint');
-    http.Response response;
-    try {
-      response = await http
-          .post(
-            uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 15));
-    } on TimeoutException {
-      throw Exception('Request timeout while posting to $endpoint');
-    } catch (e) {
-      throw Exception('Network error posting to $endpoint: $e');
-    }
+    final base = await _resolveBaseUrl();
 
-    if (response.statusCode == 200) {
-      dynamic data;
+    Future<dynamic> attempt(String baseUrl) async {
+      final uri = Uri.parse('$baseUrl/$endpoint');
+      http.Response response;
       try {
-        data = jsonDecode(response.body);
+        response = await http
+            .post(
+              uri,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode(body),
+            )
+            .timeout(const Duration(seconds: 15));
+      } on TimeoutException {
+        throw Exception(
+            'Request timeout while posting to $endpoint at $baseUrl');
+      } catch (e) {
+        throw Exception('Network error posting to $endpoint at $baseUrl: $e');
+      }
+
+      if (response.statusCode == 200) {
+        final ct = (response.headers['content-type'] ?? '').toLowerCase();
+        final bodyText = response.body;
+        if (!ct.contains('application/json') &&
+            bodyText.trim().startsWith('<')) {
+          final trimmed = bodyText.trim().replaceAll('\n', ' ');
+          final snippet = trimmed.substring(0, trimmed.length.clamp(0, 160));
+          throw Exception(
+              'Non-JSON response from $endpoint at $baseUrl: $snippet');
+        }
+        dynamic data;
+        try {
+          data = jsonDecode(bodyText);
+        } catch (_) {
+          throw Exception('Invalid JSON response from $endpoint at $baseUrl');
+        }
+        if (data is Map && data['success'] == true) {
+          return data; // full success payload
+        }
+        // If server follows bootstrap.php error schema
+        final err = (data is Map && data.containsKey('error'))
+            ? data['error']
+            : 'Unknown server error';
+        throw Exception('API Error from $endpoint at $baseUrl: $err');
+      }
+
+      // Non-200: attempt to parse body for richer diagnostics
+      String serverError = '';
+      try {
+        final j = jsonDecode(response.body);
+        if (j is Map) {
+          final parts = <String>[];
+          if (j['error'] != null) parts.add(j['error'].toString());
+          if (j['code'] != null) parts.add('code=${j['code']}');
+          serverError = parts.join(' | ');
+        }
       } catch (_) {
-        throw Exception('Invalid JSON response from $endpoint');
+        // ignore parse failures
       }
-      if (data is Map && data['success'] == true) {
-        return data; // full success payload
+
+      final code = response.statusCode;
+      final tokenInfo =
+          token.isEmpty ? 'token=EMPTY' : 'token.len=${token.length}';
+      String hint = '';
+      if (code == 401) {
+        hint =
+            'Unauthorized (401). Please login again. টোকেন মেয়াদ শেষ বা অবৈধ.';
+      } else if (code == 403) {
+        hint = 'Forbidden (403). আপনার রোল এই অপারেশনের জন্য অনুমোদিত নয়.';
       }
-      // If server follows bootstrap.php error schema
-      final err = (data is Map && data.containsKey('error'))
-          ? data['error']
-          : 'Unknown server error';
-      throw Exception('API Error: $err');
+      final msg = [
+        'POST $endpoint failed at $baseUrl',
+        'status=$code',
+        tokenInfo,
+        if (serverError.isNotEmpty) 'server="${serverError}"',
+        if (hint.isNotEmpty) hint,
+      ].join(' | ');
+      throw Exception(msg);
     }
 
-    // Non-200: attempt to parse body for richer diagnostics
-    String serverError = '';
     try {
-      final j = jsonDecode(response.body);
-      if (j is Map) {
-        final parts = <String>[];
-        if (j['error'] != null) parts.add(j['error'].toString());
-        if (j['code'] != null) parts.add('code=${j['code']}');
-        serverError = parts.join(' | ');
+      return await attempt(base);
+    } catch (e) {
+      final msg = e.toString();
+      if (base == _remoteBase &&
+          (msg.contains('Non-JSON response') ||
+              msg.contains('Invalid JSON') ||
+              msg.contains('failed (404)'))) {
+        try {
+          return await attempt(_localFallback);
+        } catch (_) {
+          throw Exception(msg);
+        }
       }
-    } catch (_) {
-      // ignore parse failures
+      rethrow;
     }
-
-    final code = response.statusCode;
-    final tokenInfo =
-        token.isEmpty ? 'token=EMPTY' : 'token.len=${token.length}';
-    String hint = '';
-    if (code == 401) {
-      hint = 'Unauthorized (401). Please login again. টোকেন মেয়াদ শেষ বা অবৈধ.';
-    } else if (code == 403) {
-      hint = 'Forbidden (403). আপনার রোল এই অপারেশনের জন্য অনুমোদিত নয়.';
-    }
-    final msg = [
-      'POST $endpoint failed',
-      'status=$code',
-      tokenInfo,
-      if (serverError.isNotEmpty) 'server="$serverError"',
-      if (hint.isNotEmpty) hint,
-    ].join(' | ');
-    throw Exception(msg);
   }
 
   static Future<bool> isController(String userId) async {
-    final uri = Uri.parse('$_baseUrl/is_controller.php?user_id=$userId');
+    final base = await _resolveBaseUrl();
+    final uri = Uri.parse('$base/is_controller.php?user_id=$userId');
     // Try public GET first to avoid CORS issues with Authorization header (Flutter web)
     try {
       final r1 = await http.get(uri).timeout(const Duration(seconds: 10));
@@ -3075,6 +3162,38 @@ class ApiService {
   static Future<List<dynamic>> getSections() async {
     final data = await _get('marks/get_sections.php');
     return data['sections'];
+  }
+
+  // Sections by Class (uses /ajax endpoint at site root)
+  static Future<List<dynamic>> getSectionsByClass(int classId) async {
+    final root = await getSiteRoot();
+    final uri = Uri.parse('$root/ajax/get_sections.php?class_id=$classId');
+    final r = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) {
+      throw Exception('Failed to load sections for class $classId');
+    }
+    try {
+      final list = jsonDecode(r.body);
+      return (list as List).cast<dynamic>();
+    } catch (_) {
+      throw Exception('Invalid sections JSON for class $classId');
+    }
+  }
+
+  // Groups by Class (uses /ajax endpoint at site root)
+  static Future<List<String>> getGroupsByClass(int classId) async {
+    final root = await getSiteRoot();
+    final uri = Uri.parse('$root/ajax/get_groups.php?class_id=$classId');
+    final r = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (r.statusCode != 200) {
+      throw Exception('Failed to load groups for class $classId');
+    }
+    try {
+      final list = jsonDecode(r.body);
+      return (list as List).map((e) => e.toString()).toList();
+    } catch (_) {
+      throw Exception('Invalid groups JSON for class $classId');
+    }
   }
 
   static Future<List<dynamic>> getSubjectsForTeacher(
