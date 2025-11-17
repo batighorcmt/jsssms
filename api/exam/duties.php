@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../bootstrap.php';
-// Notifications removed
+@include_once __DIR__ . '/../lib/fcm.php';
 
 // Note: GET (read) is open; POST (write) requires auth. No redirects, JSON only.
 
@@ -72,6 +72,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Preload plan display (for notification body)
+    $planName = '';
+    $planShift = '';
+    if ($rp = $conn->prepare('SELECT plan_name, shift FROM seat_plans WHERE id=? LIMIT 1')){
+        $rp->bind_param('i', $plan_id);
+        $rp->execute();
+        $rpr = $rp->get_result();
+        if ($rpr && $prow = $rpr->fetch_assoc()){
+            $planName = (string)($prow['plan_name'] ?? '');
+            $planShift = (string)($prow['shift'] ?? '');
+        }
+        $rp->close();
+    }
+
+    // Helper to get friendly room label once per room (for notification body)
+    $roomLabelCache = [];
+    $getRoomLabel = function(int $rid) use ($conn, &$roomLabelCache): string {
+        if (isset($roomLabelCache[$rid])) return $roomLabelCache[$rid];
+        $label = 'Room #' . $rid;
+        if ($qr = $conn->prepare('SELECT room_no, title FROM seat_plan_rooms WHERE id=? LIMIT 1')){
+            $qr->bind_param('i', $rid);
+            $qr->execute();
+            $res = $qr->get_result();
+            if ($res && $row = $res->fetch_assoc()){
+                $label = trim((string)($row['room_no'] ?? ''));
+                if (!empty($row['title'])) { $label .= ' — ' . (string)$row['title']; }
+                if ($label==='') $label = 'Room #' . $rid;
+            }
+            $qr->close();
+        }
+        $roomLabelCache[$rid] = $label;
+        return $label;
+    };
+
     // Upsert new assignments
     if ($success) {
         $stmt = $conn->prepare('INSERT INTO exam_room_invigilation (duty_date, plan_id, room_id, teacher_user_id, assigned_by) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE teacher_user_id=VALUES(teacher_user_id), assigned_by=VALUES(assigned_by), assigned_at=CURRENT_TIMESTAMP');
@@ -82,8 +116,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $room_id = (int)$room_id;
                 $teacher_user_id = (int)$teacher_user_id;
                 if ($room_id <= 0 || $teacher_user_id <= 0) continue;
+                // Check existing assignment to avoid duplicate notifications
+                $prev = null;
+                if ($qprev = $conn->prepare('SELECT teacher_user_id FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? LIMIT 1')){
+                    $qprev->bind_param('sii', $duty_date, $plan_id, $room_id);
+                    $qprev->execute();
+                    $resPrev = $qprev->get_result();
+                    if ($resPrev && $rowPrev = $resPrev->fetch_assoc()) { $prev = (int)$rowPrev['teacher_user_id']; }
+                    $qprev->close();
+                }
                 $stmt->bind_param('siiii', $duty_date, $plan_id, $room_id, $teacher_user_id, $assigned_by);
                 if (!$stmt->execute()) { $success = false; break; }
+                // Notify only when new or changed
+                if ($success && ($prev === null || $prev !== $teacher_user_id)) {
+                    $roomLabel = $getRoomLabel($room_id);
+                    $dateDisp = $duty_date;
+                    if (($t = strtotime($duty_date)) !== false) { $dateDisp = date('d M Y', $t); }
+                    $title = 'Room Duty Assigned';
+                    $body  = 'You are assigned to ' . $roomLabel . ' on ' . $dateDisp . ($planName ? (' — ' . $planName . ($planShift ? (' (' . $planShift . ')') : '')) : '');
+                    try {
+                        if (function_exists('fcm_send_to_user')) {
+                            fcm_send_to_user($conn, (int)$teacher_user_id, $title, $body, [
+                                'type' => 'duty_assignment',
+                                'plan_id' => (string)$plan_id,
+                                'room_id' => (string)$room_id,
+                                'duty_date' => (string)$duty_date,
+                            ]);
+                        }
+                    } catch (Throwable $e) {
+                        if (function_exists('fcm_log')) { fcm_log('Notify error: '.$e->getMessage()); }
+                    }
+                }
             }
             $stmt->close();
         }
@@ -106,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->close();
         }
-        // Notifications removed
+        // Notifications are sent inline during upsert per change
 
         echo json_encode(['success' => true, 'data' => ['duties' => (object)$dutyMap]]);
     } else {
