@@ -4,9 +4,70 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:batighor_jss_management/services/notification_service.dart';
-import 'package:batighor_jss_management/pages/notification_list_page.dart';
-import 'package:batighor_jss_management/pages/student_mgmt/student_mgmt_home.dart';
+// student_mgmt page import removed (not used in simplified dashboard)
+
+// Minimal Notification Service shim
+class NotificationService {
+  // Navigator key used by MaterialApp to allow navigation from background handlers
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  static final StreamController<String> _controller =
+      StreamController<String>.broadcast();
+  static Stream<String> get notificationStream => _controller.stream;
+
+  static void addNotification(String message) {
+    _controller.add(message);
+  }
+
+  // Initialize any notification-related subsystems. Kept minimal so app won't
+  // crash if Firebase or other services are not configured in this project.
+  static Future<void> init() async {
+    // reserved for future initialization (FCM, etc.)
+    await Future<void>.value();
+  }
+
+  // Attempt to register a saved device token with server if available in prefs.
+  // This is a no-op when no token provider (FCM) is configured; keeps callers
+  // like LoginScreen safe.
+  static Future<void> registerCurrentToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('device_token') ?? '';
+      if (token.isNotEmpty) {
+        // ApiService.saveDeviceToken expects a token; call it but ignore errors
+        try {
+          await ApiService.saveDeviceToken(token);
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  // Convenience to navigate to a notification screen if needed
+  static void openNotifications() {
+    try {
+      navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const NotificationListPage()));
+    } catch (_) {}
+  }
+}
+
+// Placeholder for Notification List Page
+class NotificationListPage extends StatelessWidget {
+  const NotificationListPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notifications'),
+      ),
+      body: const Center(
+        child: Text('No notifications yet.'),
+      ),
+    );
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,9 +113,29 @@ class _SplashGateState extends State<SplashGate> {
   }
 
   Future<void> _load() async {
+    // Ensure splash is visible for a short minimum duration so it isn't
+    // skipped on fast devices. This also gives SharedPreferences time to
+    // initialize and keeps the UX smooth.
+    const minSplash = Duration(milliseconds: 1200);
+    final start = DateTime.now();
+    // Precache key assets to reduce first-frame jank
+    try {
+      await precacheImage(
+          const AssetImage('assets/images/Splash.gif'), context);
+      await precacheImage(const AssetImage('assets/images/icon.png'), context);
+      await precacheImage(
+          const AssetImage('assets/images/loading.gif'), context);
+    } catch (_) {
+      // ignore precache failures (asset may be large or missing in dev)
+    }
+
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('token');
     _userName = prefs.getString('user_name');
+    final took = DateTime.now().difference(start);
+    if (took < minSplash) {
+      await Future.delayed(minSplash - took);
+    }
     if (mounted) setState(() => _ready = true);
   }
 
@@ -291,81 +372,85 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  List<dynamic> duties = [];
-  bool loading = true;
-  String? error;
   String? _userName;
-  String? _userId;
-  bool _isController = false;
+  String? _userUsername; // For mobile number
   String? _userRole;
+  String? _userSchool;
+  String? _userLocation;
+  int _notificationCount = 0;
+  bool _isController = false;
 
   @override
   void initState() {
     super.initState();
     _userName = widget.userName;
-    _load();
     _loadUserInfo();
+    _listenForNotifications();
   }
 
-  Future<void> _load() async {
-    setState(() => loading = true);
-    try {
-      duties = await ApiService.getDuties();
-    } catch (e) {
-      error = e.toString();
-    }
-    setState(() => loading = false);
+  void _listenForNotifications() {
+    NotificationService.notificationStream.listen((_) {
+      // For simplicity, just increment. A real app might fetch a count.
+      if (mounted) {
+        setState(() {
+          _notificationCount++;
+        });
+      }
+    });
   }
 
   Future<void> _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
-    if (_userName == null || _userName!.isEmpty) {
-      final name = prefs.getString('user_name');
-      if (mounted) setState(() => _userName = name);
-    }
-    final userRole = prefs.getString('user_role');
-    if (mounted) setState(() => _userRole = userRole);
+    if (!mounted) return;
 
-    final userId = prefs.getString('user_id');
-    if (userId != null && userId.isNotEmpty) {
-      if (mounted) {
-        setState(() => _userId = userId);
-        final cachedCtrl = prefs.getBool('is_controller');
-        final cacheFor = prefs.getString('is_controller_user_id');
-        if (cachedCtrl == true && cacheFor == userId) {
-          _isController = true;
-        } else {
-          _checkControllerStatus();
+    final role = prefs.getString('user_role');
+
+    setState(() {
+      _userName = prefs.getString('user_name') ?? widget.userName;
+      _userUsername = prefs.getString('user_username');
+      _userRole = role;
+      // Static for now as per screenshot
+      _userSchool = "JOREPUKURIA SECONDARY SCHOOL";
+      _userLocation = "Gangni, Meherpur";
+      // Determine controller flag from prefs (support legacy string values)
+      bool? prefCtrl;
+      try {
+        prefCtrl = prefs.getBool('is_controller');
+      } catch (_) {
+        prefCtrl = null;
+      }
+      if (prefCtrl == null) {
+        // Try legacy string storage
+        final s = prefs.getString('is_controller');
+        if (s != null) {
+          final ls = s.toLowerCase();
+          prefCtrl = (ls == '1' || ls == 'true' || ls == 'yes');
+        }
+      }
+      _isController = (prefCtrl ?? false) || (role == 'super_admin');
+    });
+
+    // If pref was not present, try server probe (helps existing installs)
+    final hadPref = prefs.containsKey('is_controller');
+    if (!hadPref) {
+      final uid = prefs.getString('user_id') ?? '';
+      if (uid.isNotEmpty) {
+        try {
+          final serverCtrl = await ApiService.isController(uid);
+          await prefs.setBool('is_controller', serverCtrl);
+          if (mounted)
+            setState(() =>
+                _isController = serverCtrl || (_userRole == 'super_admin'));
+        } catch (_) {
+          // ignore network failures; default remains as-is
         }
       }
     }
   }
 
-  Future<void> _checkControllerStatus() async {
-    if (_userId == null) return;
-    try {
-      final isController = await ApiService.isController(_userId!);
-      if (mounted) {
-        setState(() {
-          _isController = isController;
-        });
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('is_controller', isController);
-      }
-    } catch (e) {
-      // Silently fail, as it's not a critical feature
-      // Intentionally not printing to avoid noisy logs in web due to CORS
-    }
-  }
-
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('user_name');
-    await prefs.remove('user_username');
-    await prefs.remove('user_id');
-    await prefs.remove('is_controller');
-    await prefs.remove('is_controller_user_id');
+    await prefs.clear(); // Clear all data on logout
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
@@ -374,114 +459,267 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            tooltip: 'View Notifications',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const NotificationListPage()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          children: <Widget>[
-            _buildDashboardCard(
-                context, 'Today\'s Duties', Icons.event_note, Colors.blue, () {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => DutiesScreen()));
-            }),
-            _buildDashboardCard(
-                context, 'Find Exam Seat', Icons.event_seat, Colors.green, () {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => SeatPlanScreen()));
-            }),
-            _buildDashboardCard(
-                context, 'Marks Entry', Icons.edit, Colors.orange, () {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => MarksEntryScreen()));
-            }),
-            if (_isController) ...[
-              _buildDashboardCard(context, 'Room Duty Allocation',
-                  Icons.supervisor_account, Colors.purple, () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => RoomDutyAllocationScreen()));
-              }),
-              _buildDashboardCard(context, 'Exam Attendance Report',
-                  Icons.table_chart, Colors.teal, () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => AttendanceReportScreen()));
-              }),
-            ],
-            if (_userRole == 'super_admin')
-              _buildDashboardCard(
-                context,
-                'Student Management',
-                Icons.people,
-                Colors.red,
-                () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const StudentMgmtHomePage(),
-                    ),
-                  );
-                },
-              ),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(context),
+            // year selector removed per request
+            Expanded(
+              child: _buildGrid(context),
+            ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _load,
-        child: const Icon(Icons.refresh),
       ),
     );
   }
 
-  Card _buildDashboardCard(BuildContext context, String title, IconData icon,
-      Color color, VoidCallback onTap) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: color,
-                child: Icon(icon, size: 32, color: Colors.white),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
+              const Text('Dashboard',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00539C))),
+              Row(
+                children: [
+                  Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined,
+                            color: Color(0xFF00539C), size: 28),
+                        tooltip: 'View Notifications',
+                        onPressed: () {
+                          setState(() => _notificationCount = 0);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const NotificationListPage()),
+                          );
+                        },
+                      ),
+                      if (_notificationCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '$_notificationCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout,
+                        color: Color(0xFF00539C), size: 28),
+                    onPressed: _logout,
+                    tooltip: 'Logout',
+                  ),
+                ],
+              )
             ],
           ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3B82F6),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.2),
+                  spreadRadius: 2,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, size: 40, color: Color(0xFF3B82F6)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _userName ?? 'Loading...',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                      ),
+                      Text(
+                        _userRole?.replaceAll('_', ' ').toUpperCase() ?? '',
+                        style: TextStyle(fontSize: 14, color: Colors.blue[100]),
+                      ),
+                      if (_userUsername != null &&
+                          _userUsername!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _buildInfoRow(Icons.phone_android, _userUsername!),
+                      ],
+                      const SizedBox(height: 8),
+                      _buildInfoRow(Icons.school_outlined, _userSchool ?? ''),
+                      const SizedBox(height: 4),
+                      _buildInfoRow(
+                          Icons.location_on_outlined, _userLocation ?? ''),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white.withOpacity(0.8), size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(color: Colors.white.withOpacity(0.9)),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Year selector removed per user request.
+
+  Widget _buildGrid(BuildContext context) {
+    final items = [
+      {
+        'title': "Today's Duty",
+        'icon': Icons.event_available,
+        'color': const Color(0xFFE0F2FE),
+        'onTap': () {
+          Navigator.push(
+              context, MaterialPageRoute(builder: (context) => DutiesScreen()));
+        }
+      },
+      {
+        'title': 'Mark Entry',
+        'icon': Icons.edit,
+        'color': const Color(0xFFEEF2FF),
+        'onTap': () {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (context) => MarksEntryScreen()));
+        }
+      },
+      {
+        'title': 'Find Seat',
+        'icon': Icons.event_seat,
+        'color': const Color(0xFFE0E7FF),
+        'onTap': () {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (context) => SeatPlanScreen()));
+        }
+      },
+    ];
+
+    // Add controller / super_admin only items
+    if (_isController || _userRole == 'super_admin') {
+      items.addAll([
+        {
+          'title': 'Room Duty Allocation',
+          'icon': Icons.meeting_room,
+          'color': const Color(0xFFFFF4E6),
+          'onTap': () {
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => RoomDutyAllocationScreen()));
+          }
+        },
+        {
+          'title': 'Exam Attendance Report',
+          'icon': Icons.assignment_turned_in,
+          'color': const Color(0xFFE6FFFA),
+          'onTap': () {
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => AttendanceReportScreen()));
+          }
+        },
+      ]);
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.1,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return _buildGridItem(
+          item['title'] as String,
+          item['icon'] as IconData,
+          item['color'] as Color,
+          item['onTap'] as VoidCallback,
+        );
+      },
+    );
+  }
+
+  Widget _buildGridItem(
+      String title, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                size: 56, color: const Color(0xFF1E293B).withOpacity(0.8)),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF1E293B)),
+            ),
+          ],
         ),
       ),
     );
@@ -2161,6 +2399,8 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
   bool _loadingDates = false;
   bool _loadingRoomsAndDuties = false;
   bool _saving = false;
+  bool _isController = false;
+  String? _userRole;
 
   @override
   void initState() {
@@ -2171,6 +2411,9 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
   Future<void> _loadInitialData() async {
     setState(() => _loadingPlans = true);
     try {
+      final prefs = await SharedPreferences.getInstance();
+      _isController = prefs.getBool('is_controller') ?? false;
+      _userRole = prefs.getString('user_role');
       final plans = await ApiService.getSeatPlans('');
       final teachers = await ApiService.getTeachers();
       if (mounted) {
@@ -2291,7 +2534,9 @@ class _RoomDutyAllocationScreenState extends State<RoomDutyAllocationScreen> {
           ),
         ],
       ),
-      floatingActionButton: (_rooms.isNotEmpty && !_saving)
+      floatingActionButton: (_rooms.isNotEmpty &&
+              !_saving &&
+              (_isController || _userRole == 'super_admin'))
           ? FloatingActionButton.extended(
               onPressed: _saveDuties,
               icon: Icon(Icons.save),
