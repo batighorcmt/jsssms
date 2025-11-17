@@ -184,7 +184,39 @@ if (!function_exists('fcm_send_to_user')) {
             fcm_log('FCM: no tokens for user_id=' . $userId);
             return ['ok' => false, 'error' => 'no_tokens_for_user'];
         }
-        return fcm_send_to_tokens($tokens, $title, $body, $dataPayload, $validateOnly);
+        $res = fcm_send_to_tokens($tokens, $title, $body, $dataPayload, $validateOnly);
+        // Persist per-token send results for diagnostics
+        if (is_array($res) && isset($res['results']) && is_array($res['results'])) {
+            // Ensure logs table exists
+            $conn->query("CREATE TABLE IF NOT EXISTS fcm_send_logs (
+              id BIGINT AUTO_INCREMENT PRIMARY KEY,
+              user_id INT NULL,
+              token TEXT NULL,
+              title TEXT NULL,
+              body TEXT NULL,
+              data_payload JSON NULL,
+              http_code INT NULL,
+              response_body TEXT NULL,
+              success TINYINT(1) NOT NULL DEFAULT 0,
+              created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_user (user_id)
+            )");
+            $ins = $conn->prepare('INSERT INTO fcm_send_logs (user_id, token, title, body, data_payload, http_code, response_body, success) VALUES (?,?,?,?,?,?,?,?)');
+            if ($ins) {
+                foreach ($res['results'] as $r) {
+                    $tok = $r['token'] ?? null;
+                    $http = isset($r['http']) ? (int)$r['http'] : null;
+                    $bodyResp = isset($r['body']) ? (string)$r['body'] : ($r['error'] ?? null);
+                    $ok = !empty($r['ok']) ? 1 : 0;
+                    $jsonData = null;
+                    try { $jsonData = json_encode($dataPayload, JSON_UNESCAPED_UNICODE); } catch (Throwable $e) { $jsonData = null; }
+                    $ins->bind_param('isssssis', $userId, $tok, $title, $body, $jsonData, $http, $bodyResp, $ok);
+                    @$ins->execute();
+                }
+                $ins->close();
+            }
+        }
+        return $res;
     }
 }
 
