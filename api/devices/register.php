@@ -1,30 +1,31 @@
 <?php
 // Registers/updates an FCM device token for a user.
-// Accepts POST: user_id (int), token (string)
-header('Content-Type: application/json');
+// Accepts:
+//  - Authorization: Bearer <api_token> (preferred)
+//  - Body: JSON { token, platform? } OR form-data user_id, token
 
-@include_once __DIR__ . '/../../includes/bootstrap.php';
-if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
-@include_once __DIR__ . '/../../config/config.php';
-include __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../api/bootstrap.php';
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-if ($method !== 'POST') {
-    echo json_encode(['ok' => false, 'error' => 'method_not_allowed', 'code' => 405]);
-    exit;
+require_method('POST');
+
+// Prefer API auth
+api_require_auth();
+global $conn, $authUser;
+
+$json = read_json_body();
+
+$token = '';
+if (isset($json['token'])) {
+    $token = trim((string)$json['token']);
+} elseif (isset($_POST['token'])) {
+    $token = trim((string)$_POST['token']);
 }
 
-$userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
-$token  = isset($_POST['token']) ? trim((string)$_POST['token']) : '';
-
-// Allow session user if user_id is not specified explicitly
-if ($userId <= 0 && isset($_SESSION['id'])) {
-    $userId = (int)$_SESSION['id'];
-}
+// Use authenticated user id; do not allow spoofing via body
+$userId = (int)($authUser['id'] ?? 0);
 
 if ($userId <= 0 || $token === '') {
-    echo json_encode(['ok' => false, 'error' => 'missing_params', 'code' => 422]);
-    exit;
+    api_response(false, 'Missing params', 422);
 }
 
 // Ensure table exists
@@ -38,20 +39,16 @@ $conn->query("CREATE TABLE IF NOT EXISTS fcm_tokens (
   INDEX idx_user (user_id)
 )");
 
-// Upsert behavior: keep multiple tokens per user (different devices); unique by token
 $stmt = $conn->prepare('INSERT INTO fcm_tokens (user_id, token) VALUES (?, ?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), updated_at=CURRENT_TIMESTAMP');
-if (!$stmt) {
-    echo json_encode(['ok' => false, 'error' => 'prepare_failed']);
-    exit;
-}
+if (!$stmt) api_response(false, 'Prepare failed', 500);
 $stmt->bind_param('is', $userId, $token);
 $ok = @$stmt->execute();
 $stmt->close();
 
 if ($ok) {
-    echo json_encode(['ok' => true, 'message' => 'token_saved']);
+    api_response(true, ['message' => 'token_saved']);
 } else {
-    echo json_encode(['ok' => false, 'error' => 'db_execute_failed']);
+    api_response(false, 'DB execute failed', 500);
 }
 ?>
 <?php
