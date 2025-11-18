@@ -124,6 +124,27 @@ if (!function_exists('fcm_send_to_tokens')) {
                         'title' => $title,
                         'body'  => $body,
                     ],
+                    // Ensure heads-up with sound on Android & lock-screen on iOS
+                    'android' => [
+                        'priority' => 'HIGH',
+                        'notification' => [
+                            'channel_id' => 'jsssms_channel_high',
+                            'sound' => 'default',
+                            'priority' => 'PRIORITY_HIGH',
+                            'visibility' => 'PUBLIC',
+                        ],
+                    ],
+                    'apns' => [
+                        'headers' => [ 'apns-priority' => '10' ],
+                        'payload' => [
+                            'aps' => [
+                                'alert' => ['title' => $title, 'body' => $body],
+                                'sound' => 'default',
+                                'badge' => 1,
+                                'content-available' => 0,
+                            ],
+                        ],
+                    ],
                     'data' => $dataPayload,
                 ],
                 'validate_only' => $validateOnly,
@@ -173,8 +194,14 @@ if (!function_exists('fcm_get_user_tokens')) {
         if ($stmt) {
             $stmt->bind_param('i', $userId);
             $stmt->execute();
-            $res = $stmt->get_result();
-            if ($res) { while ($r = $res->fetch_assoc()) { $tok = trim((string)$r['token']); if ($tok) $tokens[] = $tok; } }
+            // Prefer get_result when available; otherwise fall back to bind_result
+            if (method_exists($stmt, 'get_result')) {
+                $res = $stmt->get_result();
+                if ($res) { while ($r = $res->fetch_assoc()) { $tok = trim((string)$r['token']); if ($tok) $tokens[] = $tok; } }
+            } else {
+                $stmt->bind_result($tok);
+                while ($stmt->fetch()) { $t = trim((string)$tok); if ($t) $tokens[] = $t; }
+            }
             $stmt->close();
         }
         return array_values(array_unique($tokens));

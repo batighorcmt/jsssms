@@ -146,16 +146,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
           return $label;
         };
 
-        // Get plan display
+        // Get plan display (avoid get_result dependency)
         $planName = '';
         $planShift = '';
         if ($rp = $conn->prepare('SELECT plan_name, shift FROM seat_plans WHERE id=? LIMIT 1')){
           $rp->bind_param('i', $plan_id);
           $rp->execute();
-          $rpr = $rp->get_result();
-          if ($rpr && $prow = $rpr->fetch_assoc()){
-            $planName = (string)$prow['plan_name'];
-            $planShift = (string)$prow['shift'];
+          if (method_exists($rp, 'get_result')) {
+            $rpr = $rp->get_result();
+            if ($rpr && $prow = $rpr->fetch_assoc()){
+              $planName = (string)$prow['plan_name'];
+              $planShift = (string)$prow['shift'];
+            }
+          } else {
+            $rp->bind_result($pname, $pshift);
+            if ($rp->fetch()) { $planName = (string)$pname; $planShift = (string)$pshift; }
           }
           $rp->close();
         }
@@ -168,8 +173,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action'] ?? '')==='save_duti
           if ($qprev = $conn->prepare('SELECT teacher_user_id FROM exam_room_invigilation WHERE duty_date=? AND plan_id=? AND room_id=? LIMIT 1')){
             $qprev->bind_param('sii', $duty_date, $plan_id, $room_id);
             $qprev->execute();
-            $resPrev = $qprev->get_result();
-            if ($resPrev && $rowPrev = $resPrev->fetch_assoc()) { $prev = (int)$rowPrev['teacher_user_id']; }
+            if (method_exists($qprev, 'get_result')) {
+              $resPrev = $qprev->get_result();
+              if ($resPrev && $rowPrev = $resPrev->fetch_assoc()) { $prev = (int)$rowPrev['teacher_user_id']; }
+            } else {
+              $qprev->bind_result($prevTid);
+              if ($qprev->fetch()) { $prev = (int)$prevTid; }
+            }
             $qprev->close();
           }
 

@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 // student_mgmt page import removed (not used in simplified dashboard)
 
 // Minimal Notification Service shim
@@ -16,6 +19,17 @@ class NotificationService {
       StreamController<String>.broadcast();
   static Stream<String> get notificationStream => _controller.stream;
 
+  // Local notifications plugin and channel for foreground display
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  static final AndroidNotificationChannel _channel =
+      const AndroidNotificationChannel(
+    'jsssms_channel_high',
+    'JSSSMS Notifications',
+    description: 'Notifications for JSSSMS app',
+    importance: Importance.max,
+  );
+
   static void addNotification(String message) {
     _controller.add(message);
   }
@@ -23,8 +37,190 @@ class NotificationService {
   // Initialize any notification-related subsystems. Kept minimal so app won't
   // crash if Firebase or other services are not configured in this project.
   static Future<void> init() async {
-    // reserved for future initialization (FCM, etc.)
-    await Future<void>.value();
+    // Try to initialize Firebase & notification subsystems. Use guarded
+    // try/catch so the app still runs if platform Firebase files are absent.
+    try {
+      await Firebase.initializeApp();
+
+      // Initialize local notifications
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosInit = DarwinInitializationSettings();
+      await _localNotifications.initialize(
+        const InitializationSettings(android: androidInit, iOS: iosInit),
+      );
+
+      // Create Android channel
+      try {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(_channel);
+      } catch (_) {}
+
+      // iOS: allow alerts/sounds in foreground
+      try {
+        await FirebaseMessaging.instance
+            .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      } catch (_) {}
+
+      // Register background message handler
+      try {
+        FirebaseMessaging.onBackgroundMessage(
+            _firebaseMessagingBackgroundHandler);
+      } catch (_) {}
+
+      // Request push permission (iOS & Android 13+)
+      try {
+        await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      } catch (_) {}
+
+      // Obtain FCM token and persist + register with server
+      try {
+        final token = await FirebaseMessaging.instance.getToken();
+        if (token != null && token.isNotEmpty) {
+          // Persist token locally and attempt server registration
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('device_token', token);
+          // Helpful debug log (remove for production if desired)
+          // ignore: avoid_print
+          print('FCM token: $token');
+          try {
+            await ApiService.saveDeviceToken(token);
+          } catch (_) {}
+        }
+      } catch (_) {}
+
+      // Foreground messages -> show local notification
+      FirebaseMessaging.onMessage.listen((RemoteMessage msg) async {
+        try {
+          if (msg.notification != null) {
+            await _showLocalNotification(msg);
+          }
+          final ttl = msg.notification?.title ?? 'New notification';
+          addNotification(ttl);
+          await _recordInbox(
+            title: msg.notification?.title,
+            body: msg.notification?.body,
+            data: msg.data,
+          );
+        } catch (_) {}
+      });
+
+      // Tapped notification when app opened
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage msg) async {
+        final ttl = msg.notification?.title ?? 'Opened notification';
+        addNotification(ttl);
+        await _recordInbox(
+          title: msg.notification?.title,
+          body: msg.notification?.body,
+          data: msg.data,
+        );
+        // Optionally navigate using navigatorKey when needed
+      });
+    } catch (_) {
+      // If Firebase not configured on this machine, leave shim behavior.
+    }
+  }
+
+  static Future<void> _showLocalNotification(RemoteMessage msg) async {
+    final notif = msg.notification;
+    final androidDetails = AndroidNotificationDetails(
+      _channel.id,
+      _channel.name,
+      channelDescription: _channel.description,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      visibility: NotificationVisibility.public,
+    );
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+    await _localNotifications.show(
+      msg.hashCode,
+      notif?.title,
+      notif?.body,
+      details,
+      payload: msg.data['payload']?.toString(),
+    );
+  }
+
+  static const String _inboxKey = 'notifications_inbox_v1';
+  static List<Map<String, dynamic>> _inboxCache = [];
+
+  static Future<void> _recordInbox({
+    String? title,
+    String? body,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_inboxCache.isEmpty) {
+        final raw = prefs.getString(_inboxKey);
+        if (raw != null && raw.isNotEmpty) {
+          final list = jsonDecode(raw);
+          if (list is List) {
+            _inboxCache = list
+                .whereType<Map>()
+                .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+                .cast<Map<String, dynamic>>()
+                .toList();
+          }
+        }
+      }
+      final item = <String, dynamic>{
+        'title': title ?? '',
+        'body': body ?? '',
+        'data': data ?? <String, dynamic>{},
+        'at': DateTime.now().toIso8601String(),
+      };
+      _inboxCache.insert(0, item);
+      if (_inboxCache.length > 50) {
+        _inboxCache = _inboxCache.sublist(0, 50);
+      }
+      await prefs.setString(_inboxKey, jsonEncode(_inboxCache));
+    } catch (_) {}
+  }
+
+  static Future<List<Map<String, dynamic>>> loadInbox() async {
+    try {
+      if (_inboxCache.isNotEmpty) return _inboxCache;
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_inboxKey);
+      if (raw == null || raw.isEmpty) return [];
+      final list = jsonDecode(raw);
+      if (list is List) {
+        _inboxCache = list
+            .whereType<Map>()
+            .map((m) => m.map((k, v) => MapEntry(k.toString(), v)))
+            .cast<Map<String, dynamic>>()
+            .toList();
+        return _inboxCache;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<void> clearInbox() async {
+    _inboxCache = [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_inboxKey);
+    } catch (_) {}
   }
 
   // Attempt to register a saved device token with server if available in prefs.
@@ -33,9 +229,16 @@ class NotificationService {
   static Future<void> registerCurrentToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('device_token') ?? '';
+      var token = prefs.getString('device_token') ?? '';
+      if (token.isEmpty) {
+        try {
+          token = await FirebaseMessaging.instance.getToken() ?? '';
+          if (token.isNotEmpty) {
+            await prefs.setString('device_token', token);
+          }
+        } catch (_) {}
+      }
       if (token.isNotEmpty) {
-        // ApiService.saveDeviceToken expects a token; call it but ignore errors
         try {
           await ApiService.saveDeviceToken(token);
         } catch (_) {}
@@ -53,19 +256,84 @@ class NotificationService {
 }
 
 // Placeholder for Notification List Page
-class NotificationListPage extends StatelessWidget {
+class NotificationListPage extends StatefulWidget {
   const NotificationListPage({super.key});
+  @override
+  State<NotificationListPage> createState() => _NotificationListPageState();
+}
+
+class _NotificationListPageState extends State<NotificationListPage> {
+  List<Map<String, dynamic>> _items = [];
+  late final StreamSubscription _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _sub = NotificationService.notificationStream.listen((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final list = await NotificationService.loadInbox();
+    if (!mounted) return;
+    setState(() => _items = list);
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
+        actions: [
+          IconButton(
+              onPressed: () async {
+                await NotificationService.clearInbox();
+                if (mounted) setState(() => _items = []);
+              },
+              tooltip: 'Clear',
+              icon: const Icon(Icons.clear_all))
+        ],
       ),
-      body: const Center(
-        child: Text('No notifications yet.'),
-      ),
+      body: _items.isEmpty
+          ? const Center(child: Text('No notifications yet.'))
+          : ListView.separated(
+              itemCount: _items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (ctx, i) {
+                final it = _items[i];
+                final title = (it['title'] ?? '').toString();
+                final body = (it['body'] ?? '').toString();
+                final at = (it['at'] ?? '').toString();
+                return ListTile(
+                  leading: const Icon(Icons.notifications_active),
+                  title: Text(title.isEmpty ? '(No title)' : title),
+                  subtitle: Text(body),
+                  trailing: Text(
+                    _formatTime(at),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  onTap: () {
+                    // Optionally handle deep-links from it['data']
+                  },
+                );
+              },
+            ),
     );
+  }
+
+  String _formatTime(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      return DateFormat('MMM d, h:mm a').format(dt);
+    } catch (_) {
+      return '';
+    }
   }
 }
 
@@ -73,6 +341,46 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.init();
   runApp(const JssApp());
+}
+
+// Top-level background message handler. Must be a top-level or static function.
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+
+  // Try to show a local notification for background messages
+  try {
+    final fln = FlutterLocalNotificationsPlugin();
+    const channel = AndroidNotificationChannel(
+      'jsssms_channel',
+      'JSSSMS Notifications',
+      description: 'Notifications for JSSSMS app',
+      importance: Importance.defaultImportance,
+    );
+    try {
+      await fln
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+    } catch (_) {}
+
+    await fln.initialize(
+      const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+    );
+
+    await fln.show(
+      message.hashCode,
+      message.notification?.title,
+      message.notification?.body,
+      NotificationDetails(
+          android: AndroidNotificationDetails(channel.id, channel.name,
+              channelDescription: channel.description,
+              importance: channel.importance)),
+      payload: message.data['payload']?.toString(),
+    );
+  } catch (_) {}
 }
 
 class JssApp extends StatelessWidget {
@@ -3526,9 +3834,25 @@ class ApiService {
   // Register/update this device's FCM token with the server for push notifications
   static Future<void> saveDeviceToken(String token) async {
     final platform = 'android'; // Adjust via Platform.isIOS if needed
-    await _post('devices/register.php', {
-      'token': token,
-      'platform': platform,
-    });
+    final payload = {'token': token, 'platform': platform};
+    try {
+      await _post('devices/register.php', payload);
+      return;
+    } catch (_) {
+      // Fallback: some server setups expect api_token in URL query rather than
+      // Authorization header. Try posting to endpoint with ?api_token=token
+      try {
+        final base = await _resolveBaseUrl();
+        final auth = await _getToken();
+        final uri = Uri.parse(
+            '$base/devices/register.php?api_token=${Uri.encodeComponent(auth)}');
+        await http.post(uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload));
+        return;
+      } catch (_) {
+        // swallow any errors; registration is best-effort
+      }
+    }
   }
 }
