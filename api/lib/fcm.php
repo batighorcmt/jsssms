@@ -136,8 +136,8 @@ if (!function_exists('fcm_send_to_tokens')) {
                             'sound' => 'default',
                             // In v1, use notification_priority under android.notification
                             'notification_priority' => 'PRIORITY_HIGH',
-                            // Use enum value for visibility
-                            'visibility' => 'VISIBILITY_PUBLIC',
+                            // Use correct enum value for visibility (PUBLIC/PRIVATE/SECRET)
+                            'visibility' => 'PUBLIC',
                         ],
                     ],
                     'apns' => [
