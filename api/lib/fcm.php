@@ -117,6 +117,10 @@ if (!function_exists('fcm_send_to_tokens')) {
         $url = 'https://fcm.googleapis.com/v1/projects/' . rawurlencode($projectId) . '/messages:send';
         $results = [];
         foreach ($tokens as $t) {
+            // Data values must be strings in FCM v1
+            $dataStr = [];
+            foreach ($dataPayload as $k => $v) { $dataStr[(string)$k] = is_scalar($v) ? (string)$v : json_encode($v); }
+
             $payload = [
                 'message' => [
                     'token' => $t,
@@ -130,8 +134,10 @@ if (!function_exists('fcm_send_to_tokens')) {
                         'notification' => [
                             'channel_id' => 'jsssms_channel_high',
                             'sound' => 'default',
-                            'priority' => 'PRIORITY_HIGH',
-                            'visibility' => 'PUBLIC',
+                            // In v1, use notification_priority under android.notification
+                            'notification_priority' => 'PRIORITY_HIGH',
+                            // Use enum value for visibility
+                            'visibility' => 'VISIBILITY_PUBLIC',
                         ],
                     ],
                     'apns' => [
@@ -141,11 +147,10 @@ if (!function_exists('fcm_send_to_tokens')) {
                                 'alert' => ['title' => $title, 'body' => $body],
                                 'sound' => 'default',
                                 'badge' => 1,
-                                'content-available' => 0,
                             ],
                         ],
                     ],
-                    'data' => $dataPayload,
+                    'data' => $dataStr,
                 ],
                 'validate_only' => $validateOnly,
             ];
