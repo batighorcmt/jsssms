@@ -38,9 +38,30 @@ $action = $_POST['action'] ?? ''; $conn = $GLOBALS['conn'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($action === 'delete_token') {
     $tid = (int)($_POST['token_id'] ?? 0);
-    if ($tid>0 && $conn->query('DELETE FROM fcm_tokens WHERE id=' . $tid)) {
-      $toast = ['type'=>'success','msg'=>'Token deleted'];
-    } else { $toast = ['type'=>'error','msg'=>'Delete failed']; }
+    if ($tid>0) {
+      // Fetch the full token first and delete by exact token to remove any hidden duplicates
+      $tok = null;
+      if ($st = $conn->prepare('SELECT token FROM fcm_tokens WHERE id=?')) {
+        $st->bind_param('i', $tid);
+        $st->execute();
+        $st->bind_result($tok);
+        $st->fetch();
+        $st->close();
+      }
+      $ok = false;
+      if ($tok !== null && $tok !== '') {
+        if ($st2 = $conn->prepare('DELETE FROM fcm_tokens WHERE token = ?')) {
+          $st2->bind_param('s', $tok);
+          $ok = $st2->execute();
+          $st2->close();
+        }
+      }
+      // Fallback: delete by id only
+      if (!$ok) { $ok = (bool)$conn->query('DELETE FROM fcm_tokens WHERE id=' . $tid); }
+      $toast = $ok ? ['type'=>'success','msg'=>'Token deleted'] : ['type'=>'error','msg'=>'Delete failed'];
+    } else {
+      $toast = ['type'=>'error','msg'=>'Invalid token id'];
+    }
   }
   if ($action === 'purge_stale') {
     $days = (int)($_POST['days'] ?? 90); if ($days<1) $days=90;

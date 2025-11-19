@@ -40,19 +40,36 @@ $conn->query("CREATE TABLE IF NOT EXISTS fcm_tokens (
   INDEX idx_user (user_id)
 )");
 
+// Primary path: ON DUPLICATE (by unique token prefix index)
 $stmt = $conn->prepare('INSERT INTO fcm_tokens (user_id, token) VALUES (?, ?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), updated_at=CURRENT_TIMESTAMP');
-if (!$stmt) {
-    if (function_exists('fcm_log')) { fcm_log('Register prepare failed: '.$conn->error); }
-    api_response(false, ['error'=>'prepare_failed','db_error'=>$conn->error], 500);
-}
-$stmt->bind_param('is', $userId, $token);
-$ok = @$stmt->execute();
-if (!$ok && function_exists('fcm_log')) { fcm_log('Register execute failed: '.$stmt->error); }
-$stmt->close();
-
-if ($ok) {
-    api_response(true, ['message' => 'token_saved']);
+if ($stmt) {
+    $stmt->bind_param('is', $userId, $token);
+    $ok = @$stmt->execute();
+    if (!$ok && function_exists('fcm_log')) { fcm_log('Register execute failed (upsert): '.$stmt->error); }
+    $stmt->close();
 } else {
-    api_response(false, ['error'=>'db_execute_failed','db_error'=>$conn->error ?: 'stmt_error'], 500);
+    $ok = false;
+    if (function_exists('fcm_log')) { fcm_log('Register prepare failed (upsert): '.$conn->error); }
 }
+
+// Fallback 1: REPLACE (delete + insert on unique key)
+if (!$ok) {
+    $stmt2 = $conn->prepare('REPLACE INTO fcm_tokens (user_id, token) VALUES (?, ?)');
+    if ($stmt2) {
+        $stmt2->bind_param('is', $userId, $token);
+        $ok = @$stmt2->execute();
+        if (!$ok && function_exists('fcm_log')) { fcm_log('Register execute failed (REPLACE): '.$stmt2->error); }
+        $stmt2->close();
+    }
+}
+
+// Fallback 2: explicit delete by exact token then insert
+if (!$ok) {
+    $del = $conn->prepare('DELETE FROM fcm_tokens WHERE token = ?');
+    if ($del) { $del->bind_param('s', $token); @$del->execute(); $del->close(); }
+    $ins = $conn->prepare('INSERT INTO fcm_tokens (user_id, token) VALUES (?, ?)');
+    if ($ins) { $ins->bind_param('is', $userId, $token); $ok = @$ins->execute(); $ins->close(); }
+}
+
+api_response($ok, $ok ? ['message'=>'token_saved'] : ['error'=>'db_execute_failed','db_error'=>$conn->error ?: 'stmt_error'], $ok ? 200 : 500);
 ?>
