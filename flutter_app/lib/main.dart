@@ -2161,6 +2161,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   Map<String, int> _roomTotalP = {};
   Map<String, int> _roomTotalA = {};
   List<String> _classList = [];
+  // Collected per-student details for those marked absent (for bottom list)
+  List<Map<String, dynamic>> _absentStudents = [];
 
   @override
   void initState() {
@@ -2258,6 +2260,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       _roomTotalP = {};
       _roomTotalA = {};
       _classList = [];
+      _absentStudents = [];
     });
     try {
       final rooms = await ApiService.getRooms(pid, dt);
@@ -2272,15 +2275,48 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         final pMap = <String, int>{};
         final aMap = <String, int>{};
         for (final s in list) {
-          final cls = (s['class_name'] ?? '-').toString();
+          // Support multiple possible class keys returned by API
+          final cls = (s['class_name'] ??
+                  s['class'] ??
+                  s['className'] ??
+                  s['classname'] ??
+                  '-')
+              .toString();
           classSet.add(cls);
-          final st = (s['status'] ?? '').toString();
-          if (st == 'present') {
+          // Normalize status from various representations
+          final rawStatus = (s['status'] ??
+                  s['attendance_status'] ??
+                  s['att_status'] ??
+                  s['present'] ??
+                  '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          final isPresent =
+              ['present', 'p', '1', 'true', 'yes', 'y'].contains(rawStatus);
+          final isAbsent =
+              ['absent', 'a', '0', 'false', 'no', 'n'].contains(rawStatus);
+          if (isPresent) {
             pMap[cls] = (pMap[cls] ?? 0) + 1;
             tp++;
-          } else if (st == 'absent') {
+          } else if (isAbsent) {
             aMap[cls] = (aMap[cls] ?? 0) + 1;
             ta++;
+            // Capture absent student details for list view
+            try {
+              _absentStudents.add({
+                'roll_no': s['roll_no'],
+                'student_name': s['student_name'],
+                'class_name': cls,
+                'section_name':
+                    s['section_name'] ?? s['section'] ?? s['sec_name'] ?? '',
+                'photo': s['photo'] ??
+                    s['image'] ??
+                    s['picture'] ??
+                    s['student_photo'],
+                'room_no': roomNo,
+              });
+            } catch (_) {}
           }
         }
         _byRoomClassP[roomNo] = pMap;
@@ -2293,6 +2329,19 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       if (!mounted) return;
       setState(() {
         _classList = classes;
+        // Sort absent students by class then roll (if numeric)
+        _absentStudents.sort((a, b) {
+          final ca = (a['class_name'] ?? '').toString();
+          final cb = (b['class_name'] ?? '').toString();
+          final cmpC = ca.toLowerCase().compareTo(cb.toLowerCase());
+          if (cmpC != 0) return cmpC;
+          final ra = (a['roll_no'] ?? '').toString();
+          final rb = (b['roll_no'] ?? '').toString();
+          final ia = int.tryParse(ra);
+          final ib = int.tryParse(rb);
+          if (ia != null && ib != null) return ia.compareTo(ib);
+          return ra.compareTo(rb);
+        });
       });
     } catch (e) {
       if (mounted) {
@@ -2374,8 +2423,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     if (_loadingReport) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_rooms.isEmpty || _classList.isEmpty) {
+    if (_rooms.isEmpty) {
       return const Center(child: Text('Select Seat Plan and Date.'));
+    }
+    if (_classList.isEmpty) {
+      return const Center(child: Text('No class data found (field mismatch).'));
     }
     const double leftColWidth = 100;
     const double cellWidth = 64;
@@ -2674,7 +2726,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       );
     }
 
-    return Padding(
+    final table = Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2689,6 +2741,93 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             ),
           ),
         ],
+      ),
+    );
+
+    // Wrap table + absent list in a scroll view so list appears below
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          table,
+          const SizedBox(height: 12),
+          _buildAbsentListSection(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(
+                'Rooms: ${_rooms.length} • Classes: ${_classList.length} • Absent: ${_absentStudents.length}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAbsentListSection() {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.people_alt, color: Colors.redAccent),
+                const SizedBox(width: 8),
+                Text('Absent Students (${_absentStudents.length})',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_absentStudents.isEmpty)
+              const Text('No absent students.',
+                  style: TextStyle(color: Colors.green))
+            else
+              ListView.separated(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                itemCount: _absentStudents.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (ctx, i) {
+                  final s = _absentStudents[i];
+                  final roll = (s['roll_no'] ?? '').toString();
+                  final name = (s['student_name'] ?? '').toString();
+                  final cls = (s['class_name'] ?? '').toString();
+                  final sec = (s['section_name'] ?? '').toString();
+                  final roomNo = (s['room_no'] ?? '').toString();
+                  final photoRaw = (s['photo'] ?? '').toString();
+                  ImageProvider? avatar;
+                  if (photoRaw.isNotEmpty) {
+                    final hasHttp = photoRaw.startsWith('http://') ||
+                        photoRaw.startsWith('https://');
+                    final url = hasHttp
+                        ? photoRaw
+                        : 'https://jss.batighorbd.com/uploads/students/$photoRaw';
+                    avatar = NetworkImage(url);
+                  }
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.red.shade100,
+                      backgroundImage: avatar,
+                      child: avatar == null
+                          ? Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.red),
+                            )
+                          : null,
+                    ),
+                    title: Text('$roll  $name'),
+                    subtitle: Text(
+                        '${cls}${sec.isNotEmpty ? ' • $sec' : ''}${roomNo.isNotEmpty ? ' • Room $roomNo' : ''}'),
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
