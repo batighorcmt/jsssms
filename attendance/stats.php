@@ -37,17 +37,21 @@ if (empty($dateOptions)) {
 
 $rows = [];
 if ($date && preg_match('~^\d{4}-\d{2}-\d{2}$~',$date) && $plan_id>0){
-  $sql = "SELECT r.room_no, COALESCE(c1.class_name, c2.class_name) AS class_name,
-                 SUM(CASE WHEN a.status='present' THEN 1 ELSE 0 END) AS present_cnt,
-                 SUM(CASE WHEN a.status='absent' THEN 1 ELSE 0 END) AS absent_cnt
-          FROM exam_room_attendance a
-          JOIN seat_plan_rooms r ON r.id=a.room_id AND r.plan_id=a.plan_id
-          LEFT JOIN students s1 ON s1.student_id=a.student_id
-          LEFT JOIN students s2 ON s2.id=a.student_id
-          LEFT JOIN classes c1 ON c1.id=s1.class_id
-          LEFT JOIN classes c2 ON c2.id=s2.class_id
-          WHERE a.duty_date='".$conn->real_escape_string($date)."' AND a.plan_id=".(int)$plan_id.
-          " GROUP BY r.room_no, class_name ORDER BY r.room_no, class_name";
+  $sql = "SELECT r.room_no,
+        COALESCE(c1.class_name, c2.class_name) AS class_name,
+        COALESCE(t.name, u.username) AS teacher_name,
+        SUM(CASE WHEN a.status='present' THEN 1 ELSE 0 END) AS present_cnt,
+        SUM(CASE WHEN a.status='absent' THEN 1 ELSE 0 END) AS absent_cnt
+      FROM exam_room_attendance a
+      JOIN seat_plan_rooms r ON r.id=a.room_id AND r.plan_id=a.plan_id
+      LEFT JOIN users u ON u.id = a.marked_by
+      LEFT JOIN teachers t ON t.contact = u.username
+      LEFT JOIN students s1 ON s1.student_id=a.student_id
+      LEFT JOIN students s2 ON s2.id=a.student_id
+      LEFT JOIN classes c1 ON c1.id=s1.class_id
+      LEFT JOIN classes c2 ON c2.id=s2.class_id
+      WHERE a.duty_date='".$conn->real_escape_string($date)."' AND a.plan_id=".(int)$plan_id.
+      " GROUP BY r.room_no, class_name, teacher_name ORDER BY r.room_no, class_name";
   if ($rs=$conn->query($sql)){ while($r=$rs->fetch_assoc()){ $rows[]=$r; } }
 }
 
@@ -102,8 +106,13 @@ include '../includes/sidebar.php';
           $cls = (string)($r['class_name'] ?? '-');
           $p = (int)($r['present_cnt'] ?? 0);
           $a = (int)($r['absent_cnt'] ?? 0);
+          $teacherName = trim((string)($r['teacher_name'] ?? ''));
           if (!isset($classes[$cls])) $classes[$cls] = true;
-          if (!isset($byRoom[$room])) $byRoom[$room] = ['classes'=>[], 'tp'=>0, 'ta'=>0];
+          if (!isset($byRoom[$room])) $byRoom[$room] = ['teacher'=>$teacherName, 'classes'=>[], 'tp'=>0, 'ta'=>0];
+          // If teacher already set and current teacherName non-empty but previous empty, update
+          if (isset($byRoom[$room]['teacher']) && $byRoom[$room]['teacher']==='' && $teacherName!=='') {
+            $byRoom[$room]['teacher'] = $teacherName;
+          }
           $byRoom[$room]['classes'][$cls] = ['p'=>$p, 'a'=>$a];
           $byRoom[$room]['tp'] += $p; $byRoom[$room]['ta'] += $a;
         }
@@ -128,6 +137,7 @@ include '../includes/sidebar.php';
               <thead class="thead-light">
                 <tr>
                   <th rowspan="2" class="align-middle text-center">Room</th>
+                  <th rowspan="2" class="align-middle text-center">Teacher</th>
                   <?php foreach($classList as $cn): ?>
                     <th colspan="2" class="text-center text-center"><?= htmlspecialchars($cn) ?></th>
                   <?php endforeach; ?>
@@ -145,6 +155,7 @@ include '../includes/sidebar.php';
                 <?php foreach($byRoom as $roomNo => $info): ?>
                   <tr>
                     <td><?= htmlspecialchars($roomNo) ?></td>
+                    <td><?= htmlspecialchars($info['teacher'] ?? '') ?></td>
                     <?php foreach($classList as $cn): $cell = $info['classes'][$cn] ?? ['p'=>0,'a'=>0]; ?>
                       <td class="text-center"><?= (int)$cell['p'] ?></td>
                       <td class="text-center text-danger"><?= (int)$cell['a'] ?></td>
