@@ -137,8 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exam_date = ?, exam_time = ?, mark_entry_deadline = ?,
                 creative_marks = ?, objective_marks = ?, practical_marks = ?,
                 creative_pass = ?, objective_pass = ?, practical_pass = ?,
-                pass_type = ?,
-                total_marks = (? + ? + ?)
+                pass_type = ?
             WHERE id = ? AND exam_id = ?");
 
         for ($i = 0; $i < $rowCount; $i++) {
@@ -156,7 +155,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $dl = _normalize_dmy($dlRaw);
             $pt = isset($pass_types[$i]) && $pass_types[$i] !== '' ? $pass_types[$i] : 'total';
             $tid = isset($teacher_ids[$i]) && $teacher_ids[$i] !== '' ? (int)$teacher_ids[$i] : null;
-            $typestr = 'iisss' . str_repeat('i', 6) . 's' . str_repeat('i', 5); // added deadline as string
+            
+            // Type string: i(subject_id), i(teacher_id), s(exam_date), s(exam_time), s(deadline), 
+            //              i(creative), i(objective), i(practical), i(creative_pass), i(objective_pass), i(practical_pass), 
+            //              s(pass_type), i(id), i(exam_id)
+            $typestr = 'iisss' . str_repeat('i', 6) . 'sii';
+            
             // Use NULL for teacher when not selected
             if (is_null($tid)) {
                 // mysqli doesn't support binding NULL for integer directly in this pattern; set to null via SQL by conditional
@@ -164,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Instead, reuse prepared statement and pass 0; separately run a fix to set teacher_id=NULL when 0.
                 $tid = 0;
             }
-            $upd->bind_param($typestr, $sid, $tid, $ed, $et, $dl, $c, $o, $p, $cp, $op, $pp, $pt, $c, $o, $p, $id, $exam_id);
+            $upd->bind_param($typestr, $sid, $tid, $ed, $et, $dl, $c, $o, $p, $cp, $op, $pp, $pt, $id, $exam_id);
             $upd->execute();
             // If teacher was left blank, set teacher_id NULL for this row
             if (isset($teacher_ids[$i]) && $teacher_ids[$i] === '') {
