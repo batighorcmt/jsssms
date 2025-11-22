@@ -2264,6 +2264,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     });
     try {
       final rooms = await ApiService.getRooms(pid, dt);
+      print('DEBUG: Loaded ${rooms.length} rooms for plan=$pid, date=$dt');
       final classSet = <String>{};
       _rooms = rooms;
       await Future.wait(rooms.map((room) async {
@@ -2271,6 +2272,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         final roomNo = (room['room_no'] ?? '').toString();
         final list = await ApiService.getAttendanceForReport(
             dt, int.parse(pid), int.parse(roomId));
+        print('DEBUG: Room $roomNo has ${list.length} students');
+        if (list.isNotEmpty) {
+          final firstStudent = list[0];
+          print('DEBUG: First student keys: ${firstStudent.keys.toList()}');
+          print(
+              'DEBUG: Photo field value: ${firstStudent['photo'] ?? firstStudent['image'] ?? firstStudent['picture'] ?? firstStudent['student_photo'] ?? 'NOT_FOUND'}');
+        }
         int tp = 0, ta = 0;
         final pMap = <String, int>{};
         final aMap = <String, int>{};
@@ -2726,21 +2734,28 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       );
     }
 
+    // Calculate table height based on number of rooms
+    final tableHeight = totalHeaderHeight + (_rooms.length + 1) * 36.0;
+
     final table = Padding(
       padding: const EdgeInsets.all(8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildLeftPane(),
-          Expanded(
-            child: Column(
-              children: [
-                SizedBox(height: totalHeaderHeight, child: buildHeaderRight()),
-                Expanded(child: buildBodyRight()),
-              ],
+      child: SizedBox(
+        height: tableHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildLeftPane(),
+            Expanded(
+              child: Column(
+                children: [
+                  SizedBox(
+                      height: totalHeaderHeight, child: buildHeaderRight()),
+                  Expanded(child: buildBodyRight()),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
 
