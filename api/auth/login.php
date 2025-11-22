@@ -84,9 +84,9 @@ try {
             exit;
         }
 
-        // Generate / persist token (24h expiry)
+        // Generate / persist token (30 days expiry)
         $token = generate_token();
-        $expires = date('Y-m-d H:i:s', time() + 86400);
+        $expires = date('Y-m-d H:i:s', time() + 2592000);
         $ip = $_SERVER['REMOTE_ADDR'] ?? '';
         $insertSql = "INSERT INTO api_tokens (user_id, role, token, expires, last_ip) VALUES (?,?,?,?,?)";
         $ins = $conn->prepare($insertSql);

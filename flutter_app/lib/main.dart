@@ -9,6 +9,88 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 // student_mgmt page import removed (not used in simplified dashboard)
 
+// Custom exception classes
+class NetworkException implements Exception {
+  final String message;
+  NetworkException(this.message);
+  @override
+  String toString() => message;
+}
+
+class SessionExpiredException implements Exception {
+  final String message;
+  SessionExpiredException(this.message);
+  @override
+  String toString() => message;
+}
+
+// Global error handler
+class ErrorHandler {
+  static void show(BuildContext context, dynamic error) {
+    String title = 'ত্রুটি';
+    String message = error.toString();
+    bool canRetry = false;
+
+    if (error is NetworkException) {
+      title = 'ইন্টারনেট সংযোগ নেই';
+      message = 'আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন এবং আবার চেষ্টা করুন।';
+      canRetry = true;
+    } else if (error is SessionExpiredException) {
+      title = 'সেশন মেয়াদ শেষ';
+      message = 'আপনার লগইন সেশন মেয়াদ শেষ হয়ে গেছে। পুনরায় লগইন করুন।';
+      canRetry = false;
+      // Auto logout
+      _handleSessionExpired(context);
+      return;
+    } else if (error.toString().contains('SocketException') ||
+        error.toString().contains('HandshakeException') ||
+        error.toString().contains('Connection refused')) {
+      title = 'ইন্টারনেট সংযোগ নেই';
+      message =
+          'সার্ভারের সাথে সংযোগ করতে ব্যর্থ। আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন।';
+      canRetry = true;
+    } else if (error.toString().contains('401') ||
+        error.toString().contains('Unauthorized')) {
+      title = 'সেশন মেয়াদ শেষ';
+      message = 'পুনরায় লগইন করুন।';
+      _handleSessionExpired(context);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: canRetry,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(canRetry ? Icons.wifi_off : Icons.error_outline,
+                color: Colors.red),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(canRetry ? 'ঠিক আছে' : 'বুঝেছি'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Future<void> _handleSessionExpired(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+}
+
 // Minimal Notification Service shim
 class NotificationService {
   // Navigator key used by MaterialApp to allow navigation from background handlers
@@ -2215,8 +2297,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed to load plans: $e')));
+        ErrorHandler.show(context, e);
       }
     } finally {
       if (mounted) setState(() => _loadingInit = false);
@@ -2240,8 +2321,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed to load dates: $e')));
+        ErrorHandler.show(context, e);
       }
     } finally {
       if (mounted) setState(() => _loadingDates = false);
@@ -2264,7 +2344,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     });
     try {
       final rooms = await ApiService.getRooms(pid, dt);
-      print('DEBUG: Loaded ${rooms.length} rooms for plan=$pid, date=$dt');
       final classSet = <String>{};
       _rooms = rooms;
       await Future.wait(rooms.map((room) async {
@@ -2272,13 +2351,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         final roomNo = (room['room_no'] ?? '').toString();
         final list = await ApiService.getAttendanceForReport(
             dt, int.parse(pid), int.parse(roomId));
-        print('DEBUG: Room $roomNo has ${list.length} students');
-        if (list.isNotEmpty) {
-          final firstStudent = list[0];
-          print('DEBUG: First student keys: ${firstStudent.keys.toList()}');
-          print(
-              'DEBUG: Photo field value: ${firstStudent['photo'] ?? firstStudent['image'] ?? firstStudent['picture'] ?? firstStudent['student_photo'] ?? 'NOT_FOUND'}');
-        }
         int tp = 0, ta = 0;
         final pMap = <String, int>{};
         final aMap = <String, int>{};
@@ -2353,8 +2425,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed to load report: $e')));
+        ErrorHandler.show(context, e);
       }
     } finally {
       if (mounted) setState(() => _loadingReport = false);
@@ -3468,6 +3539,42 @@ class ApiService {
     return prefs.getString('token') ?? '';
   }
 
+  // Auto refresh token if nearing expiry (within 7 days)
+  static Future<void> _autoRefreshToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+      if (token.isEmpty) return;
+
+      // Check if we should refresh (every 7 days)
+      final lastRefresh = prefs.getInt('token_last_refresh') ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+
+      if (now - lastRefresh < sevenDays) return; // Too soon
+
+      // Call refresh endpoint
+      final base = await _resolveBaseUrl();
+      final uri = Uri.parse('$base/auth/refresh_token.php');
+      final resp = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data['success'] == true) {
+          await prefs.setInt('token_last_refresh', now);
+        }
+      }
+    } catch (_) {
+      // Silent fail - not critical
+    }
+  }
+
   // Expose resolved base and site root for building links (e.g., profile pages)
   static Future<String> getBaseUrl() => _resolveBaseUrl();
   static Future<String> getSiteRoot() async {
@@ -3477,17 +3584,43 @@ class ApiService {
   }
 
   static Future<dynamic> _get(String endpoint) async {
+    // Auto-refresh token periodically
+    await _autoRefreshToken();
+
     final token = await _getToken();
     final base = await _resolveBaseUrl();
 
     Future<dynamic> attempt(String baseUrl) async {
       final uri = Uri.parse('$baseUrl/$endpoint');
-      final r = await http.get(uri, headers: {
-        'Authorization': 'Bearer $token'
-      }).timeout(const Duration(seconds: 12));
+      http.Response r;
+
+      try {
+        r = await http.get(uri, headers: {
+          'Authorization': 'Bearer $token'
+        }).timeout(const Duration(seconds: 12));
+      } on TimeoutException {
+        throw NetworkException(
+            'Request timeout - check your internet connection');
+      } catch (e) {
+        // Catch all network errors
+        if (e.toString().contains('SocketException') ||
+            e.toString().contains('HandshakeException') ||
+            e.toString().contains('ClientException') ||
+            e.toString().contains('Connection')) {
+          throw NetworkException('No internet connection');
+        }
+        rethrow;
+      }
+
+      // Check for session expiry
+      if (r.statusCode == 401) {
+        throw SessionExpiredException('Session expired - please login again');
+      }
+
       if (r.statusCode != 200) {
         throw Exception('GET $endpoint failed (${r.statusCode})');
       }
+
       final ct = (r.headers['content-type'] ?? '').toLowerCase();
       final body = r.body;
       // Guard against HTML/text responses (e.g., 404 page, login page)
@@ -3516,6 +3649,9 @@ class ApiService {
     try {
       return await attempt(base);
     } catch (e) {
+      // Don't retry on session/network errors
+      if (e is SessionExpiredException || e is NetworkException) rethrow;
+
       final msg = e.toString();
       // Only try fallback if current base is remote and error looks like non-JSON/HTML or 404-like
       if (base == _remoteBase &&
@@ -3535,6 +3671,9 @@ class ApiService {
 
   static Future<dynamic> _post(
       String endpoint, Map<String, dynamic> body) async {
+    // Auto-refresh token periodically
+    await _autoRefreshToken();
+
     final token = await _getToken();
     final base = await _resolveBaseUrl();
 
@@ -3553,10 +3692,22 @@ class ApiService {
             )
             .timeout(const Duration(seconds: 15));
       } on TimeoutException {
-        throw Exception(
-            'Request timeout while posting to $endpoint at $baseUrl');
+        throw NetworkException(
+            'Request timeout - check your internet connection');
       } catch (e) {
-        throw Exception('Network error posting to $endpoint at $baseUrl: $e');
+        // Catch all network errors
+        if (e.toString().contains('SocketException') ||
+            e.toString().contains('HandshakeException') ||
+            e.toString().contains('ClientException') ||
+            e.toString().contains('Connection')) {
+          throw NetworkException('No internet connection');
+        }
+        rethrow;
+      }
+
+      // Check for session expiry
+      if (response.statusCode == 401) {
+        throw SessionExpiredException('Session expired - please login again');
       }
 
       if (response.statusCode == 200) {
@@ -3622,6 +3773,9 @@ class ApiService {
     try {
       return await attempt(base);
     } catch (e) {
+      // Don't retry on session/network errors
+      if (e is SessionExpiredException || e is NetworkException) rethrow;
+
       final msg = e.toString();
       if (base == _remoteBase &&
           (msg.contains('Non-JSON response') ||
