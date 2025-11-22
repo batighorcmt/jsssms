@@ -1,21 +1,46 @@
 <?php
+// Enable error logging for debugging live server issues
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../logs/php_errors.log');
+
 session_start();
-@include_once __DIR__ . '/../config/config.php';
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
-    header("Location: " . BASE_URL . "auth/login.php");
-    exit();
+
+// Ensure logs directory exists
+$logDir = __DIR__ . '/../logs';
+if (!is_dir($logDir)) {
+    @mkdir($logDir, 0755, true);
 }
 
-include '../config/db.php';
+try {
+    @include_once __DIR__ . '/../config/config.php';
+    
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
+        header("Location: " . BASE_URL . "auth/login.php");
+        exit();
+    }
+
+    include '../config/db.php';
+    
+    if ($conn->connect_error) {
+        throw new Exception('Database connection failed: ' . $conn->connect_error);
+    }
+} catch (Exception $e) {
+    error_log('update_exam.php initialization error: ' . $e->getMessage());
+    http_response_code(500);
+    die('Configuration error. Please check server logs.');
+}
 
 $exam_id = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : 0;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Handle update submission
-    $exam_id = isset($_POST['exam_id']) ? (int)$_POST['exam_id'] : 0;
-    $exam_name = trim($_POST['exam_name'] ?? '');
-    $exam_type = trim($_POST['exam_type'] ?? '');
-    $subjects_without_fourth = isset($_POST['subjects_without_fourth']) && $_POST['subjects_without_fourth'] !== ''
-        ? (int)$_POST['subjects_without_fourth'] : null;
+    try {
+        // Handle update submission
+        $exam_id = isset($_POST['exam_id']) ? (int)$_POST['exam_id'] : 0;
+        $exam_name = trim($_POST['exam_name'] ?? '');
+        $exam_type = trim($_POST['exam_type'] ?? '');
+        $subjects_without_fourth = isset($_POST['subjects_without_fourth']) && $_POST['subjects_without_fourth'] !== ''
+            ? (int)$_POST['subjects_without_fourth'] : null;
 
     if ($exam_id > 0) {
         // Helper to normalize dd/mm/yyyy -> YYYY-MM-DD
@@ -27,11 +52,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Ensure column exists for total_subjects_without_fourth
         $colExists = false;
-        if ($res = $conn->query("SHOW COLUMNS FROM exams LIKE 'total_subjects_without_fourth'")) {
+        $res = $conn->query("SHOW COLUMNS FROM exams LIKE 'total_subjects_without_fourth'");
+        if ($res) {
             $colExists = ($res->num_rows > 0);
         }
         if (!$colExists) {
-            @ $conn->query("ALTER TABLE exams ADD COLUMN total_subjects_without_fourth INT NULL DEFAULT NULL");
+            $alterResult = $conn->query("ALTER TABLE exams ADD COLUMN total_subjects_without_fourth INT NULL DEFAULT NULL");
+            if (!$alterResult) {
+                error_log('Failed to add total_subjects_without_fourth column: ' . $conn->error);
+            }
         }
         // Update exams row
         $sql = "UPDATE exams SET exam_name = ?, exam_type = ?" .
@@ -48,25 +77,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Ensure pass_type column exists in exam_subjects
         $esPassTypeExists = false;
-        if ($chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'pass_type'")) {
+        $chk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'pass_type'");
+        if ($chk) {
             $esPassTypeExists = ($chk->num_rows > 0);
         }
         if (!$esPassTypeExists) {
-            @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN pass_type ENUM('total','individual') NOT NULL DEFAULT 'total'");
+            $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN pass_type ENUM('total','individual') NOT NULL DEFAULT 'total'");
+            if (!$alterResult) {
+                error_log('Failed to add pass_type column: ' . $conn->error);
+            }
         }
 
         // Ensure teacher_id column exists in exam_subjects
         $esTeacherColumn = false;
-        if ($chk2 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) {
+        $chk2 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'");
+        if ($chk2) {
             $esTeacherColumn = ($chk2->num_rows > 0);
         }
         if (!$esTeacherColumn) {
-            @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
+            $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
+            if (!$alterResult) {
+                error_log('Failed to add teacher_id column: ' . $conn->error);
+            }
         }
+        
         // Ensure mark entry deadline column exists
-        if ($res = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'")) {
-            if ($res->num_rows === 0) {
-                @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN mark_entry_deadline DATE NULL AFTER exam_time");
+        $res = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'");
+        if ($res && $res->num_rows === 0) {
+            $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN mark_entry_deadline DATE NULL AFTER exam_time");
+            if (!$alterResult) {
+                error_log('Failed to add mark_entry_deadline column: ' . $conn->error);
             }
         }
 
@@ -144,6 +184,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
     }
+    } catch (Exception $e) {
+        error_log('update_exam.php POST error: ' . $e->getMessage());
+        $_SESSION['error'] = 'Failed to update exam: ' . $e->getMessage();
+        if (!headers_sent()) {
+            header("Location: " . BASE_URL . "settings/manage_exams.php");
+            exit();
+        } else {
+            echo '<script>alert("Error: ' . addslashes($e->getMessage()) . '"); window.location.href = ' . json_encode(BASE_URL . 'settings/manage_exams.php') . ';</script>';
+            exit();
+        }
+    }
 }
 
 if ($exam_id <= 0) {
@@ -161,29 +212,53 @@ if (!$exam) {
 
 // Ensure teacher_id column exists (needed for SELECT below on initial GET as well)
 $esTeacherColumn = false;
-if ($chk2 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'")) {
+$chk2 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'");
+if ($chk2) {
     $esTeacherColumn = ($chk2->num_rows > 0);
 }
 if (!$esTeacherColumn) {
-    @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
+    $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN teacher_id INT NULL AFTER subject_id");
+    if (!$alterResult) {
+        error_log('Failed to add teacher_id column (GET path): ' . $conn->error);
+    }
 }
+
 // Ensure mark_entry_deadline and pass columns exist for GET path as well (before SELECT below)
 $deadlineCol = false;
-if ($chk3 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'")) {
+$chk3 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'");
+if ($chk3) {
     $deadlineCol = ($chk3->num_rows > 0);
 }
 if (!$deadlineCol) {
-    @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN mark_entry_deadline DATE NULL AFTER exam_time");
+    $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN mark_entry_deadline DATE NULL AFTER exam_time");
+    if (!$alterResult) {
+        error_log('Failed to add mark_entry_deadline column (GET path): ' . $conn->error);
+    }
 }
+
 // Ensure pass mark columns to avoid SELECT failures on older schemas
-if ($chk4 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'creative_pass'")) {
-    if ($chk4->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN creative_pass INT NOT NULL DEFAULT 0 AFTER creative_marks"); }
+$chk4 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'creative_pass'");
+if ($chk4 && $chk4->num_rows === 0) {
+    $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN creative_pass INT NOT NULL DEFAULT 0 AFTER creative_marks");
+    if (!$alterResult) {
+        error_log('Failed to add creative_pass column: ' . $conn->error);
+    }
 }
-if ($chk5 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'objective_pass'")) {
-    if ($chk5->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN objective_pass INT NOT NULL DEFAULT 0 AFTER objective_marks"); }
+
+$chk5 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'objective_pass'");
+if ($chk5 && $chk5->num_rows === 0) {
+    $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN objective_pass INT NOT NULL DEFAULT 0 AFTER objective_marks");
+    if (!$alterResult) {
+        error_log('Failed to add objective_pass column: ' . $conn->error);
+    }
 }
-if ($chk6 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'practical_pass'")) {
-    if ($chk6->num_rows === 0) { @ $conn->query("ALTER TABLE exam_subjects ADD COLUMN practical_pass INT NOT NULL DEFAULT 0 AFTER practical_marks"); }
+
+$chk6 = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'practical_pass'");
+if ($chk6 && $chk6->num_rows === 0) {
+    $alterResult = $conn->query("ALTER TABLE exam_subjects ADD COLUMN practical_pass INT NOT NULL DEFAULT 0 AFTER practical_marks");
+    if (!$alterResult) {
+        error_log('Failed to add practical_pass column: ' . $conn->error);
+    }
 }
 
 // Load subjects for this exam
