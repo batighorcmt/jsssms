@@ -116,11 +116,12 @@ include __DIR__ . '/../includes/sidebar.php';
               .bm-header { text-align:center; margin-bottom:14px; }
               .bm-header h2 { font-size:22px; margin:0; }
               .bm-meta { font-size:18px; margin-bottom:10px; width:100%; }
-              .bm-meta .line { display:flex; justify-content:space-between; align-items:baseline; gap:24px; width:100%; }
-              .bm-meta .line span { flex:1; }
+              .bm-meta .line { display:flex; justify-content:flex-start; align-items:baseline; gap:16px; width:100%; }
+              .bm-meta .line span { flex:1; min-width:0; }
               .bm-meta .line .subject { flex:3 1 0; }
               .bm-meta .line .code { flex:1 0 auto; }
-              .bm-meta .line .teacher { flex:2 1 0; }
+              .bm-meta .line .teacher { flex:4 1 0; min-width:0; }
+              .bm-meta .line .teacher strong { white-space:nowrap; }
               table.blank-table { width:100%; border-collapse:collapse; font-size:14.5px; }
               table.blank-table th, table.blank-table td { border:1px solid #000; padding:8px 10px; vertical-align:middle; }
               table.blank-table th { text-align:center; }
