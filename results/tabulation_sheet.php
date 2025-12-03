@@ -713,7 +713,8 @@ while ($stu = mysqli_fetch_assoc($students_q)) {
             $row_data .= "<td class='subgrp-{$__si}'>" . ($fail ? "<span class='fail-mark'>$sub_total</span>" : $sub_total) . "</td>";
 
             // Subject GPA should be 0.00 if subject failed in any part
-            $gpa = $fail ? 0.00 : subjectGPA($sub_total, $sub['max_marks']);
+            // If passed, ensure minimum GPA 1.00 (pass = 1 point) even if percentage < 33%
+            $gpa = $fail ? 0.00 : max(1.00, subjectGPA($sub_total, $sub['max_marks']));
             $row_data .= "<td class='subgrp-{$__si}'>" . number_format($gpa, 2) . "</td>";
 
             if ($is_compulsory) {
