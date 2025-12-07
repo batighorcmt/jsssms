@@ -50,7 +50,7 @@ $upsert = $conn->prepare('INSERT INTO marks (exam_id, student_id, subject_id, cr
     creative_marks=COALESCE(VALUES(creative_marks), creative_marks),
     objective_marks=COALESCE(VALUES(objective_marks), objective_marks),
     practical_marks=COALESCE(VALUES(practical_marks), practical_marks)');
-if (!$upsert) api_response(false,'Prepare failed',500);
+if (!$upsert) api_response(false,['error'=>'prepare_failed','db_error'=>$conn->error],500);
 
 foreach ($marks as $m){
   $sid=(int)($m['student_id'] ?? 0);
@@ -65,7 +65,27 @@ foreach ($marks as $m){
   if ($creative===null) $creative=0.0; if ($objective===null) $objective=0.0; if ($practical===null) $practical=0.0;
 
   $upsert->bind_param('iiiddd',$exam_id,$sid,$subject_id,$creative,$objective,$practical);
-  if ($upsert->execute()) $saved++; else $failed++;
+  if ($upsert->execute()) {
+    $saved++;
+  } else {
+    // Fallback: try UPDATE first, then INSERT
+    $upd = $conn->prepare('UPDATE marks SET creative_marks=?, objective_marks=?, practical_marks=? WHERE exam_id=? AND student_id=? AND subject_id=?');
+    if ($upd) {
+      $upd->bind_param('dddiii',$creative,$objective,$practical,$exam_id,$sid,$subject_id);
+      if ($upd->execute() && $upd->affected_rows>0) { $saved++; $upd->close(); continue; }
+      $upd->close();
+    }
+    $ins = $conn->prepare('INSERT INTO marks (exam_id, student_id, subject_id, creative_marks, objective_marks, practical_marks) VALUES (?,?,?,?,?,?)');
+    if ($ins) {
+      $ins->bind_param('iiiddd',$exam_id,$sid,$subject_id,$creative,$objective,$practical);
+      if ($ins->execute()) { $saved++; $ins->close(); continue; }
+      $ins->close();
+    }
+    $failed++;
+  }
+}
+if ($failed>0 && $saved===0) {
+  api_response(false,['error'=>'save_failed','db_error'=>$conn->error,'saved'=>$saved,'failed'=>$failed],500);
 }
 api_response(true,['saved'=>$saved,'failed'=>$failed]);
 ?>
