@@ -12,6 +12,15 @@ $conn->query("CREATE TABLE IF NOT EXISTS marks (
   practical_marks DECIMAL(6,2) NULL,
   UNIQUE KEY uniq_mark (exam_id, student_id, subject_id)
 ) ENGINE=InnoDB");
+// Ensure UNIQUE KEY exists even if table was created earlier without it
+$hasUnique = false;
+if ($idxRes = $conn->query("SHOW INDEX FROM marks WHERE Key_name='uniq_mark'")) {
+  $hasUnique = ($idxRes->num_rows > 0);
+}
+if (!$hasUnique) {
+  // Best-effort add unique composite index to prevent duplicates
+  @$conn->query("ALTER TABLE marks ADD UNIQUE KEY uniq_mark (exam_id, student_id, subject_id)");
+}
 
 $body = read_json_body();
 $exam_id = (int)($body['exam_id'] ?? 0);
