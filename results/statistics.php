@@ -272,7 +272,10 @@ foreach($students as $stu){
   // GPA bucket
   $g = $final_gpa+1e-8; if($g>=5.00) $gpa_buckets['5.00']++; elseif($g>=4.00) $gpa_buckets['4.00-4.99']++; elseif($g>=3.50) $gpa_buckets['3.50-3.99']++; elseif($g>=3.00) $gpa_buckets['3.00-3.49']++; elseif($g>=2.00) $gpa_buckets['2.00-2.99']++; elseif($g>=1.00) $gpa_buckets['1.00-1.99']++; else $gpa_buckets['0.00-0.99']++;
 
-  $top_students[] = [ 'name'=>$stu['student_name']??'', 'roll'=>$roll, 'group'=>$group, 'total'=>$total_marks, 'gpa'=>number_format($final_gpa,2) ];
+  // Collect for Top-10 only if the student passed (no fails)
+  if($fail_count===0){
+    $top_students[] = [ 'name'=>$stu['student_name']??'', 'roll'=>$roll, 'group'=>$group, 'total'=>$total_marks, 'gpa'=>number_format($final_gpa,2) ];
+  }
   if($fail_count>0){ $failed_students[] = [ 'name'=>$stu['student_name']??'', 'roll'=>$roll, 'group'=>$group, 'section'=>$sec_name, 'fail_count'=>$fail_count, 'fails'=>implode(', ', $failed_list) ]; }
 }
 
