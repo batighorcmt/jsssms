@@ -232,13 +232,25 @@ foreach($students as $stu){
       if(!empty($sub['has_objective'])){ $pm['objective']=(int)($sub['objective_pass']??0); $mk['objective']=$o; }
       if(!empty($sub['has_practical'])){ $pm['practical']=(int)($sub['practical_pass']??0); $mk['practical']=$p; }
       $pass_type=strtolower((string)($sub['pass_type']??($sub['subject_pass_type']??'total')));
-  $isPass = getPassStatus($class_id,$mk,$pm,$pass_type);
-  if(!$isPass){ $fail_count++; $subject_stats[$key]['fail']++; $disp_name = !empty($sub['is_merged']) ? ($sub['subject_name'] ?? (string)$subject_code) : ($sub['subject_name'] ?? (string)$subject_code); $failed_list[] = shortSubjectName($disp_name); }
-      else { $subject_stats[$key]['pass']++; }
+      $isPass = getPassStatus($class_id,$mk,$pm,$pass_type);
+      // Determine compulsory vs optional by chosen optional code (must do BEFORE counting fails)
+      $opt_code = $optionalCodeByStudent[$stu_id] ?? '';
+      $is_optional = (!$is_merged && $opt_code!=='' && (string)$subject_code === (string)$opt_code);
+      if(!$isPass){
+        // Ignore optional-subject fails from overall fail count and failed list
+        if(!$is_optional){
+          $fail_count++;
+          $disp_name = !empty($sub['is_merged']) ? ($sub['subject_name'] ?? (string)$subject_code) : ($sub['subject_name'] ?? (string)$subject_code);
+          $failed_list[] = shortSubjectName($disp_name);
+        }
+        // Subject-wise stats still reflect real pass/fail for analytics
+        $subject_stats[$key]['fail']++;
+      } else {
+        $subject_stats[$key]['pass']++;
+      }
       $gpa = $isPass ? subjectGPA($sub_total, (int)($sub['max_marks']??0)) : 0.00;
       $total_marks += $sub_total;
-      // Determine compulsory vs optional by chosen optional code
-      $is_compulsory = true; $opt_code=$optionalCodeByStudent[$stu_id]??''; if(!$is_merged && $opt_code!=='' && (string)$subject_code===(string)$opt_code){ $is_compulsory=false; }
+      $is_compulsory = !$is_optional;
       if($is_compulsory){ $comp_gpa_total += $gpa; $comp_gpa_subjects++; } else { $optional_gpas[]=$gpa; }
     } else {
       // Excluded paper (e.g., Bangla/English individual papers):
