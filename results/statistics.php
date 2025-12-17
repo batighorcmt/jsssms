@@ -310,6 +310,19 @@ usort($subject_rows,function($a,$b){ return ($a['order']<=>$b['order']); });
 // Top 10 students by total desc then roll asc
 usort($top_students,function($a,$b){ return ($b['total']<=>$a['total']) ?: ($a['roll']<=>$b['roll']); });
 $top_students = array_slice($top_students,0,10);
+
+// Build fail-count summary (subjects failed -> count, rolls list)
+$fail_summary = [];
+foreach ($failed_students as $fs) {
+  $fc = (int)($fs['fail_count'] ?? 0);
+  $roll = (int)($fs['roll'] ?? 0);
+  if ($fc <= 0) continue;
+  if (!isset($fail_summary[$fc])) { $fail_summary[$fc] = ['count'=>0,'rolls'=>[]]; }
+  $fail_summary[$fc]['count']++;
+  $fail_summary[$fc]['rolls'][] = $roll;
+}
+ksort($fail_summary);
+foreach ($fail_summary as $k => $info) { sort($fail_summary[$k]['rolls'], SORT_NUMERIC); }
 ?>
 <!DOCTYPE html>
 <html lang="bn">
@@ -383,6 +396,34 @@ $top_students = array_slice($top_students,0,10);
     </div>
   </div>
 
+  <!-- Fail-count summary below subject summary -->
+  <div class="section">
+    <h3>ফেলের সংখ্যা ভিত্তিক সারাংশ</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ফেলকৃত বিষয় সংখ্যা</th>
+          <th>শিক্ষার্থী সংখ্যা</th>
+          <th class="left">ফেলকৃত শিক্ষার্থীর রোল নং</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (empty($fail_summary)): ?>
+          <tr><td colspan="3">কেউ ফেল করেনি</td></tr>
+        <?php else: ?>
+          <?php foreach ($fail_summary as $fc => $info): ?>
+            <?php $rolls = implode(', ', array_map('strval', $info['rolls'])); ?>
+            <tr>
+              <td><?= (int)$fc ?></td>
+              <td><?= (int)$info['count'] ?></td>
+              <td class="left"><?= htmlspecialchars($rolls) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+
   <div class="kpis">
     <div class="kpi"><div class="label">মোট শিক্ষার্থী</div><div class="value"><?= $total_students ?></div></div>
     <div class="kpi"><div class="label">পাস</div><div class="value" style="color:#16a34a"><?= $overall_pass ?></div></div>
@@ -428,15 +469,17 @@ $top_students = array_slice($top_students,0,10);
 
   <div class="grid-2">
     <div class="section">
-      <h3>GPA বন্টন</h3>
+      <h3>শাখাভিত্তিক পাস হার</h3>
       <table>
-        <thead><tr><th class="left">রেঞ্জ</th><th>সংখ্যা</th><th style="width:60%">চার্ট</th></tr></thead>
+        <thead><tr><th class="left">শাখা</th><th>শিক্ষার্থী</th><th>পাস</th><th>পাস হার</th><th style="width:50%">চার্ট</th></tr></thead>
         <tbody>
-          <?php foreach ($gpa_buckets as $label=>$cnt): $w = ($total_students>0)? round(($cnt*100.0)/$total_students) : 0; ?>
+          <?php foreach ($section_stats as $sid=>$st): $cnt=$st['count']; if($cnt<=0) continue; $pr=round(($st['pass']*100.0)/$cnt); ?>
             <tr>
-              <td class="left"><?= htmlspecialchars($label) ?></td>
+              <td class="left"><?= htmlspecialchars($st['name'] !== '' ? $st['name'] : 'N/A') ?></td>
               <td><?= (int)$cnt ?></td>
-              <td><div class="bar violet"><span style="width: <?= $w ?>%"></span></div></td>
+              <td><?= (int)$st['pass'] ?></td>
+              <td><?= $pr ?>%</td>
+              <td><div class="bar blue"><span style="width: <?= $pr ?>%"></span></div></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -463,17 +506,15 @@ $top_students = array_slice($top_students,0,10);
 
   <div class="grid-2">
     <div class="section">
-      <h3>শাখাভিত্তিক পাস হার</h3>
+      <h3>GPA বন্টন</h3>
       <table>
-        <thead><tr><th class="left">শাখা</th><th>শিক্ষার্থী</th><th>পাস</th><th>পাস হার</th><th style="width:50%">চার্ট</th></tr></thead>
+        <thead><tr><th class="left">রেঞ্জ</th><th>সংখ্যা</th><th style="width:60%">চার্ট</th></tr></thead>
         <tbody>
-          <?php foreach ($section_stats as $sid=>$st): $cnt=$st['count']; if($cnt<=0) continue; $pr=round(($st['pass']*100.0)/$cnt); ?>
+          <?php foreach ($gpa_buckets as $label=>$cnt): $w = ($total_students>0)? round(($cnt*100.0)/$total_students) : 0; ?>
             <tr>
-              <td class="left"><?= htmlspecialchars($st['name'] !== '' ? $st['name'] : 'N/A') ?></td>
+              <td class="left"><?= htmlspecialchars($label) ?></td>
               <td><?= (int)$cnt ?></td>
-              <td><?= (int)$st['pass'] ?></td>
-              <td><?= $pr ?>%</td>
-              <td><div class="bar blue"><span style="width: <?= $pr ?>%"></span></div></td>
+              <td><div class="bar violet"><span style="width: <?= $w ?>%"></span></div></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
