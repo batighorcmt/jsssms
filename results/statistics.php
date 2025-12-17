@@ -396,34 +396,6 @@ foreach ($fail_summary as $k => $info) { sort($fail_summary[$k]['rolls'], SORT_N
     </div>
   </div>
 
-  <!-- Fail-count summary below subject summary -->
-  <div class="section">
-    <h3>ফেলের সংখ্যা ভিত্তিক সারাংশ</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>ফেলকৃত বিষয় সংখ্যা</th>
-          <th>শিক্ষার্থী সংখ্যা</th>
-          <th class="left">ফেলকৃত শিক্ষার্থীর রোল নং</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php if (empty($fail_summary)): ?>
-          <tr><td colspan="3">কেউ ফেল করেনি</td></tr>
-        <?php else: ?>
-          <?php foreach ($fail_summary as $fc => $info): ?>
-            <?php $rolls = implode(', ', array_map('strval', $info['rolls'])); ?>
-            <tr>
-              <td><?= (int)$fc ?></td>
-              <td><?= (int)$info['count'] ?></td>
-              <td class="left"><?= htmlspecialchars($rolls) ?></td>
-            </tr>
-          <?php endforeach; ?>
-        <?php endif; ?>
-      </tbody>
-    </table>
-  </div>
-
   <div class="kpis">
     <div class="kpi"><div class="label">মোট শিক্ষার্থী</div><div class="value"><?= $total_students ?></div></div>
     <div class="kpi"><div class="label">পাস</div><div class="value" style="color:#16a34a"><?= $overall_pass ?></div></div>
@@ -466,6 +438,35 @@ foreach ($fail_summary as $k => $info) { sort($fail_summary[$k]['rolls'], SORT_N
       </tbody>
     </table>
   </div>
+
+  <!-- Fail-count summary below subject summary -->
+  <div class="section">
+    <h3>ফেলের সংখ্যা ভিত্তিক সারাংশ</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ফেলকৃত বিষয় সংখ্যা</th>
+          <th>শিক্ষার্থী সংখ্যা</th>
+          <th class="left">ফেলকৃত শিক্ষার্থীর রোল নং</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (empty($fail_summary)): ?>
+          <tr><td colspan="3">কেউ ফেল করেনি</td></tr>
+        <?php else: ?>
+          <?php foreach ($fail_summary as $fc => $info): ?>
+            <?php $rolls = implode(', ', array_map('strval', $info['rolls'])); ?>
+            <tr>
+              <td><?= (int)$fc ?></td>
+              <td><?= (int)$info['count'] ?></td>
+              <td class="left"><?= htmlspecialchars($rolls) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+
 
   <div class="grid-2">
     <div class="section">
