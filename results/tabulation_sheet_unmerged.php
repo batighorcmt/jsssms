@@ -460,9 +460,9 @@ usort($ranked_students, function ($a, $b) {
 // Render rows
 foreach ($ranked_students as $i => $stu) {
     $serial = $i + 1;
-    $row = preg_replace('/<td><\/td>/', "<td>$serial<\/td>", $stu['row'], 1);
+    $row = preg_replace('/<td><\/td>/', "<td>$serial</td>", $stu['row'], 1);
     $merit_pos = $i + 1;
-    $row = preg_replace('/<td class=\'merit\'><\/td>/', "<td>$merit_pos<\/td>", $row, 1);
+    $row = preg_replace('/<td class=\'merit\'><\/td>/', "<td>$merit_pos</td>", $row, 1);
     echo $row;
 }
 ?>
