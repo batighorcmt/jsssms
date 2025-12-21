@@ -33,12 +33,12 @@ $excluded_subject_codes = ['101', '102', '107', '108'];
 // Load individual subject marks for merged pairs
 foreach ($merged_subjects as $group_name => $sub_codes) {
     $placeholders = implode(',', array_fill(0, count($sub_codes), '?'));
-    $sql = "SELECT m.student_id, m.subject_id, s.subject_code,
+        $sql = "SELECT m.student_id, m.subject_id, s.subject_code,
                    m.creative_marks, m.objective_marks, m.practical_marks
             FROM marks m
             JOIN subjects s ON m.subject_id = s.id
             JOIN students stu ON m.student_id = stu.student_id
-            WHERE m.exam_id = ? AND stu.class_id = ? AND stu.year = ?
+            WHERE m.exam_id = ? AND stu.class_id = ? AND stu.year = ? AND stu.status = 'Active'
               AND s.subject_code IN ($placeholders)";
     $stmt = $conn->prepare($sql);
     $types = 'sss' . str_repeat('s', count($sub_codes));
@@ -168,7 +168,7 @@ $display_subjects = array_merge($compulsory_list, $optional_list);
 $assignedByStudent = [];$assignedCodesByStudent = [];$subjectCodeById = [];
 $assign_sql = "SELECT ss.student_id, ss.subject_id, sb.subject_code
                FROM student_subjects ss
-               JOIN students st ON st.student_id = ss.student_id AND st.class_id = '".$conn->real_escape_string($class_id)."'
+               JOIN students st ON st.student_id = ss.student_id AND st.class_id = '".$conn->real_escape_string($class_id)."' AND st.status = 'Active'
                JOIN subjects sb ON sb.id = ss.subject_id";
 $assign_res = mysqli_query($conn, $assign_sql);
 if ($assign_res) {
@@ -187,7 +187,7 @@ if ($assign_res) {
 $optionalIdByStudent = [];
 $colCheck = mysqli_query($conn, "SHOW COLUMNS FROM students LIKE 'optional_subject_id'");
 if ($colCheck && mysqli_num_rows($colCheck) > 0) {
-    $optIdRes = mysqli_query($conn, "SELECT student_id, optional_subject_id FROM students WHERE class_id='".$conn->real_escape_string($class_id)."' AND year='".$conn->real_escape_string($year)."' AND optional_subject_id IS NOT NULL");
+    $optIdRes = mysqli_query($conn, "SELECT student_id, optional_subject_id FROM students WHERE class_id='".$conn->real_escape_string($class_id)."' AND year='".$conn->real_escape_string($year)."' AND status='Active' AND optional_subject_id IS NOT NULL");
     if ($optIdRes) { while ($row = mysqli_fetch_assoc($optIdRes)) { $optionalIdByStudent[$row['student_id']] = (int)$row['optional_subject_id']; } }
 }
 $effectiveTypeByStudent = [];$optionalCodeByStudent = [];
@@ -201,7 +201,7 @@ $optSql = "
                               THEN 'Optional' ELSE 'Compulsory' END
                END AS effective_type
         FROM student_subjects ss
-        JOIN students st ON st.student_id = ss.student_id AND st.class_id = ? AND st.year = ?
+        JOIN students st ON st.student_id = ss.student_id AND st.class_id = ? AND st.year = ? AND st.status = 'Active'
         JOIN subjects s ON s.id = ss.subject_id
         JOIN subject_group_map gm ON gm.subject_id = s.id AND gm.class_id = st.class_id
         GROUP BY st.student_id, s.id, s.subject_code";
@@ -314,7 +314,7 @@ th, td { vertical-align: middle !important; font-size: 13px; padding: 2px; }
     <tbody>
 <?php
 $all_students = [];
-$students_q = mysqli_query($conn, "SELECT * FROM students WHERE class_id = ".$conn->real_escape_string($class_id)." AND year = ".$conn->real_escape_string($year)." ORDER BY roll_no");
+$students_q = mysqli_query($conn, "SELECT * FROM students WHERE class_id = ".$conn->real_escape_string($class_id)." AND year = ".$conn->real_escape_string($year)." AND status='Active' ORDER BY roll_no");
 if (!$students_q) {
     echo "<tr><td colspan='9' class='text-danger'>Error fetching students: ".mysqli_error($conn)."</td></tr>";
 } else {

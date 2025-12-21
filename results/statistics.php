@@ -69,9 +69,9 @@ $merged_marks = []; $individual_subjects = []; $excluded_subject_codes = ['101',
 // Load individual marks for merged groups
 foreach ($merged_subjects as $group_name => $sub_codes) {
   $placeholders = implode(',', array_fill(0, count($sub_codes), '?'));
-  $sql = "SELECT m.student_id, m.subject_id, s.subject_code, m.creative_marks, m.objective_marks, m.practical_marks
-          FROM marks m JOIN subjects s ON m.subject_id=s.id JOIN students stu ON m.student_id=stu.student_id
-          WHERE m.exam_id=? AND stu.class_id=? AND stu.year=? AND s.subject_code IN ($placeholders)";
+    $sql = "SELECT m.student_id, m.subject_id, s.subject_code, m.creative_marks, m.objective_marks, m.practical_marks
+      FROM marks m JOIN subjects s ON m.subject_id=s.id JOIN students stu ON m.student_id=stu.student_id
+      WHERE m.exam_id=? AND stu.class_id=? AND stu.year=? AND stu.status='Active' AND s.subject_code IN ($placeholders)";
   $stmt = $conn->prepare($sql);
   $types = 'sss' . str_repeat('s', count($sub_codes));
   $params = array_merge([$exam_id, $class_id, $year], $sub_codes);
@@ -154,19 +154,19 @@ $display_subjects=array_merge($compulsory_list,$optional_list);
 
 // Assigned subjects and codes
 $assignedByStudent=[]; $assignedCodesByStudent=[]; $subjectCodeById=[];
-$assign_sql = "SELECT ss.student_id, ss.subject_id, sb.subject_code FROM student_subjects ss JOIN students st ON st.student_id=ss.student_id AND st.class_id='".$conn->real_escape_string($class_id)."' JOIN subjects sb ON sb.id=ss.subject_id";
+$assign_sql = "SELECT ss.student_id, ss.subject_id, sb.subject_code FROM student_subjects ss JOIN students st ON st.student_id=ss.student_id AND st.class_id='".$conn->real_escape_string($class_id)."' AND st.status='Active' JOIN subjects sb ON sb.id=ss.subject_id";
 $assign_res = mysqli_query($conn,$assign_sql);
 if($assign_res){ while($ar=mysqli_fetch_assoc($assign_res)){ $sid=$ar['student_id']; if(!isset($assignedByStudent[$sid])){ $assignedByStudent[$sid]=[]; $assignedCodesByStudent[$sid]=[]; } $subId=(int)$ar['subject_id']; $subCode=(string)$ar['subject_code']; $assignedByStudent[$sid][$subId]=true; $assignedCodesByStudent[$sid][$subCode]=true; $subjectCodeById[$subId]=$subCode; } }
 
 // Optional mapping
 $optionalIdByStudent=[]; $colCheck=mysqli_query($conn,"SHOW COLUMNS FROM students LIKE 'optional_subject_id'");
-if($colCheck && mysqli_num_rows($colCheck)>0){ $optIdRes=mysqli_query($conn,"SELECT student_id, optional_subject_id FROM students WHERE class_id='".$conn->real_escape_string($class_id)."' AND year='".$conn->real_escape_string($year)."' AND optional_subject_id IS NOT NULL"); if($optIdRes){ while($row=mysqli_fetch_assoc($optIdRes)){ $optionalIdByStudent[$row['student_id']]=(int)$row['optional_subject_id']; } } }
+if($colCheck && mysqli_num_rows($colCheck)>0){ $optIdRes=mysqli_query($conn,"SELECT student_id, optional_subject_id FROM students WHERE class_id='".$conn->real_escape_string($class_id)."' AND year='".$conn->real_escape_string($year)."' AND status='Active' AND optional_subject_id IS NOT NULL"); if($optIdRes){ while($row=mysqli_fetch_assoc($optIdRes)){ $optionalIdByStudent[$row['student_id']]=(int)$row['optional_subject_id']; } } }
 $effectiveTypeByStudent=[]; $optionalCodeByStudent=[];
 $optSql = "SELECT st.student_id, s.id AS subject_id, s.subject_code,
            CASE WHEN SUM(CASE WHEN gm.group_name COLLATE utf8mb4_unicode_ci = st.student_group COLLATE utf8mb4_unicode_ci THEN 1 ELSE 0 END) > 0
                 THEN CASE WHEN SUM(CASE WHEN gm.group_name COLLATE utf8mb4_unicode_ci = st.student_group COLLATE utf8mb4_unicode_ci AND gm.type COLLATE utf8mb4_unicode_ci = 'Optional' COLLATE utf8mb4_unicode_ci THEN 1 ELSE 0 END) > 0 THEN 'Optional' ELSE 'Compulsory' END
                 ELSE CASE WHEN SUM(CASE WHEN UPPER(gm.group_name) COLLATE utf8mb4_unicode_ci = 'NONE' COLLATE utf8mb4_unicode_ci AND gm.type COLLATE utf8mb4_unicode_ci = 'Optional' COLLATE utf8mb4_unicode_ci THEN 1 ELSE 0 END) > 0 THEN 'Optional' ELSE 'Compulsory' END END AS effective_type
-          FROM student_subjects ss JOIN students st ON st.student_id=ss.student_id AND st.class_id=? AND st.year=? JOIN subjects s ON s.id=ss.subject_id JOIN subject_group_map gm ON gm.subject_id=s.id AND gm.class_id=st.class_id GROUP BY st.student_id, s.id, s.subject_code";
+      FROM student_subjects ss JOIN students st ON st.student_id=ss.student_id AND st.class_id=? AND st.year=? AND st.status='Active' JOIN subjects s ON s.id=ss.subject_id JOIN subject_group_map gm ON gm.subject_id=s.id AND gm.class_id=st.class_id GROUP BY st.student_id, s.id, s.subject_code";
 $optStmt=$conn->prepare($optSql); $optStmt->bind_param('ss',$class_id,$year); $optStmt->execute(); $optRes=$optStmt->get_result();
 while($r=$optRes->fetch_assoc()){ $effectiveTypeByStudent[$r['student_id']][(int)$r['subject_id']]=$r['effective_type']; }
 foreach($effectiveTypeByStudent as $stuId=>$typeMap){ $optionalCandidates=[]; foreach($typeMap as $subId=>$etype){ if(strcasecmp((string)$etype,'Optional')===0){ $code=$subjectCodeById[$subId]??''; if($code!==''){ $optionalCandidates[$subId]=$code; } } } if(count($optionalCandidates)===1){ $optionalCodeByStudent[$stuId]=(string)array_values($optionalCandidates)[0]; } elseif(count($optionalCandidates)>1){ $chosenCode=''; $maxNum=-1; foreach($optionalCandidates as $code){ $num=is_numeric($code)?(int)$code:-1; if($num>$maxNum){ $maxNum=$num; $chosenCode=(string)$code; } } if($chosenCode!==''){ $optionalCodeByStudent[$stuId]=$chosenCode; } } }
@@ -196,7 +196,7 @@ function shortSubjectName($name){
 }
 
 // Fetch students
-$students_q = mysqli_query($conn, "SELECT * FROM students WHERE class_id = ".$conn->real_escape_string($class_id)." AND year = ".$conn->real_escape_string($year)." ORDER BY roll_no");
+$students_q = mysqli_query($conn, "SELECT * FROM students WHERE class_id = ".$conn->real_escape_string($class_id)." AND year = ".$conn->real_escape_string($year)." AND status='Active' ORDER BY roll_no");
 $students=[]; while($stu=mysqli_fetch_assoc($students_q)){ $students[]=$stu; }
 $total_students = count($students);
 

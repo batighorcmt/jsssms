@@ -45,6 +45,7 @@ foreach ($merged_subjects as $group_name => $sub_codes) {
          WHERE m.exam_id = ?
          AND stu.class_id = ?
          AND stu.year = ?
+         AND stu.status = 'Active'
          AND s.subject_code IN ($placeholders)";
 
     $stmt = $conn->prepare($sql);
@@ -237,7 +238,7 @@ $display_subjects = array_merge($compulsory_list, $optional_list);
 $assignedByStudent = []; $assignedCodesByStudent = []; $subjectCodeById = [];
 $assign_sql = "SELECT ss.student_id, ss.subject_id, sb.subject_code
                FROM student_subjects ss
-               JOIN students st ON st.student_id = ss.student_id AND st.class_id = '".$conn->real_escape_string($class_id)."'
+               JOIN students st ON st.student_id = ss.student_id AND st.class_id = '".$conn->real_escape_string($class_id)."' AND st.status = 'Active'
                JOIN subjects sb ON sb.id = ss.subject_id";
 $assign_res = mysqli_query($conn, $assign_sql);
 if ($assign_res) {
@@ -251,7 +252,7 @@ if ($assign_res) {
 $optionalIdByStudent = [];
 $colCheck = mysqli_query($conn, "SHOW COLUMNS FROM students LIKE 'optional_subject_id'");
 if ($colCheck && mysqli_num_rows($colCheck) > 0) {
-    $optIdRes = mysqli_query($conn, "SELECT student_id, optional_subject_id FROM students WHERE class_id='".$conn->real_escape_string($class_id)."' AND year='".$conn->real_escape_string($year)."' AND optional_subject_id IS NOT NULL");
+    $optIdRes = mysqli_query($conn, "SELECT student_id, optional_subject_id FROM students WHERE class_id='".$conn->real_escape_string($class_id)."' AND year='".$conn->real_escape_string($year)."' AND status='Active' AND optional_subject_id IS NOT NULL");
     if ($optIdRes) { while ($row = mysqli_fetch_assoc($optIdRes)) { $optionalIdByStudent[$row['student_id']] = (int)$row['optional_subject_id']; } }
 }
 // Effective type map per student/subject
@@ -275,7 +276,7 @@ $optSql = "
                             END
                END AS effective_type
         FROM student_subjects ss
-        JOIN students st ON st.student_id = ss.student_id AND st.class_id = ? AND st.year = ?
+        JOIN students st ON st.student_id = ss.student_id AND st.class_id = ? AND st.year = ? AND st.status = 'Active'
         JOIN subjects s ON s.id = ss.subject_id
         JOIN subject_group_map gm ON gm.subject_id = s.id AND gm.class_id = st.class_id
         GROUP BY st.student_id, s.id, s.subject_code";
@@ -343,7 +344,7 @@ $section_result = mysqli_query($conn, "SELECT id, section_name FROM sections"); 
 if ($section_result) { while ($row = mysqli_fetch_assoc($section_result)) { $sections[$row['id']] = $row['section_name']; } }
 
 // Fetch students
-$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year";
+$query = "SELECT * FROM students WHERE class_id = $class_id AND year = $year AND status = 'Active'";
 if (!empty($search_roll)) { $query .= " AND roll_no = '".$conn->real_escape_string($search_roll)."'"; }
 $query .= " ORDER BY roll_no";
 $students_q = mysqli_query($conn, $query);
