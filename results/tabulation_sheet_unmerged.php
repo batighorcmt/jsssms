@@ -295,7 +295,7 @@ function getPassStatus($class_id, $marks, $pass_marks, $pass_type = 'total') {
                 <h5>Tabulation Sheet (Unmerged) — <?= htmlspecialchars($exam) ?> | Class: <?= htmlspecialchars($class) ?> | Year: <?= htmlspecialchars($year) ?></h5>
             </div>
         </div>
-        <button id="btnPrint" class="btn btn-primary no-print btn-print-floating">প্রিন্ট করুন</button>
+        <button id="btnPrint" type="button" class="btn btn-primary no-print btn-print-floating">প্রিন্ট করুন</button>
     </div>
 </div>
 <div class="align-middle">
@@ -508,6 +508,16 @@ foreach ($ranked_students as $i => $stu) {
     }
     toggleSortOn('thRoll', 2);
     toggleSortOn('thMerit', 3);
+})();
+
+// Print handler
+(function(){
+    var btn = document.getElementById('btnPrint');
+    if (!btn) return;
+    btn.addEventListener('click', function(e){
+        e.preventDefault();
+        try { window.print(); } catch (err) { console && console.error && console.error(err); }
+    });
 })();
 </script>
 </body>
