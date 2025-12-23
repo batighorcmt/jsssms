@@ -33,6 +33,24 @@ $GLOBALS['conn']->query("CREATE TABLE IF NOT EXISTS fcm_send_logs (
   INDEX idx_user (user_id)
 )");
 
+// Get user's active API tokens for convenience
+$userApiTokens = [];
+$userId = $_SESSION['id'] ?? 0;
+if ($userId > 0) {
+    $stmt = $GLOBALS['conn']->prepare('SELECT token, expires, created_at FROM api_tokens WHERE user_id=? AND expires > NOW() ORDER BY created_at DESC LIMIT 5');
+    if ($stmt) {
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res) {
+            while ($r = $res->fetch_assoc()) {
+                $userApiTokens[] = $r;
+            }
+        }
+        $stmt->close();
+    }
+}
+
 // Actions
 $action = $_POST['action'] ?? ''; $conn = $GLOBALS['conn'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -123,9 +141,37 @@ include __DIR__ . '/../includes/sidebar.php';
         <div>Service account file: <?= $saOk? '<span class="text-success">OK</span>' : '<span class="text-danger">Missing/Invalid</span>' ?></div>
         <div>Project ID: <code><?= htmlspecialchars($sa['project_id'] ?? 'N/A') ?></code></div>
         <div>Client Email: <code><?= htmlspecialchars($sa['client_email'] ?? 'N/A') ?></code></div>
-        <div class="mt-2">
-          <a target="_blank" href="<?= BASE_URL ?>api/devices/fcm_debug.php?with_token=1&validate_send=1&api_token=<?= urlencode($_GET['api_token'] ?? '') ?>" class="btn btn-sm btn-outline-primary">Open Debug Endpoint</a>
-          <small class="text-muted ml-2">Requires valid ?api_token= in URL (Bearer alternative)</small>
+        <div class="mt-3">
+          <strong>Debug Endpoint Access</strong>
+          <div class="text-muted mb-2">
+            To access the FCM debug endpoint, you need an API token. The endpoint requires authentication via <code>?api_token=YOUR_TOKEN</code> parameter.
+          </div>
+          <?php if (!empty($userApiTokens)): ?>
+            <div class="mb-2">
+              <small class="text-muted">Your active API tokens (click to copy):</small>
+              <?php foreach($userApiTokens as $t): ?>
+                <div class="input-group input-group-sm mb-1" style="max-width:600px">
+                  <input type="text" class="form-control" value="<?= htmlspecialchars($t['token']) ?>" readonly onclick="this.select(); document.execCommand('copy');" style="font-family:monospace; font-size:11px">
+                  <div class="input-group-append">
+                    <span class="input-group-text">Expires: <?= htmlspecialchars($t['expires']) ?></span>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <?php 
+            $debugUrl = BASE_URL . 'api/devices/fcm_debug.php?with_token=1&validate_send=1&api_token=' . urlencode($userApiTokens[0]['token'] ?? '');
+            ?>
+            <a target="_blank" href="<?= $debugUrl ?>" class="btn btn-sm btn-primary">Open Debug Endpoint</a>
+          <?php else: ?>
+            <div class="alert alert-info">
+              No active API tokens found. To get an API token:
+              <ol class="mb-0 mt-2">
+                <li>Use the mobile app login, which returns an API token</li>
+                <li>Or call <code>POST /api/auth/login.php</code> with your credentials</li>
+                <li>Then return to this page to access the debug endpoint</li>
+              </ol>
+            </div>
+          <?php endif; ?>
         </div>
         <hr>
         <form method="post" class="form-inline"> <!-- key refresh guidance (manual) -->
