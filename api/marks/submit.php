@@ -29,36 +29,38 @@ $marks = $body['marks'] ?? [];
 if ($exam_id<=0 || $subject_id<=0) api_response(false,'exam_id and subject_id required',400);
 if (!is_array($marks)) api_response(false,'marks must be array',400);
 
-// Teacher permission: must be assigned in exam_subjects
-if ($authUser['role']==='teacher') {
-  $teacher_id=0; $t=$conn->prepare('SELECT id FROM teachers WHERE contact=? LIMIT 1'); if($t){ $t->bind_param('s',$authUser['username']); $t->execute(); $t->bind_result($teacher_id); $t->fetch(); $t->close(); }
-  $hasTeacherCol=false; $cchk=$conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'"); if ($cchk && $cchk->num_rows>0) $hasTeacherCol=true;
-  $hasDeadlineCol = false;
-  $dchk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'");
-  if ($dchk && $dchk->num_rows > 0) $hasDeadlineCol = true;
+// Teacher permission: must be assigned in exam_subjects and honor deadline
+if ($authUser['role'] === 'teacher') {
+  // Resolve current teacher id by login username (contact number)
+  $teacher_id = 0;
+  if ($t = $conn->prepare('SELECT id FROM teachers WHERE contact=? LIMIT 1')) {
+    $t->bind_param('s', $authUser['username']);
+    $t->execute();
+    $t->bind_result($teacher_id);
+    $t->fetch();
+    $t->close();
+  }
 
-  if ($hasTeacherCol && $teacher_id>0){
-    if ($hasDeadlineCol) {
-      $chk=$conn->prepare('SELECT mark_entry_deadline FROM exam_subjects WHERE exam_id=? AND subject_id=? AND teacher_id=? LIMIT 1');
-      $chk->bind_param('iii',$exam_id,$subject_id,$teacher_id);
-      $chk->execute();
-      $chk->store_result();
-      if ($chk->num_rows===0) api_response(false,'Not assigned to this subject',403);
-      $deadline = null;
-      $chk->bind_result($deadline);
-      $chk->fetch();
-      $chk->close();
-      if (!empty($deadline)) {
-        $today = date('Y-m-d');
-        if ($today > $deadline) {
-          api_response(false, 'Your mark entry deadline has passed. Contact Admin.', 403);
-        }
-      }
-    } else {
-      $chk=$conn->prepare('SELECT 1 FROM exam_subjects WHERE exam_id=? AND subject_id=? AND teacher_id=? LIMIT 1');
-      $chk->bind_param('iii',$exam_id,$subject_id,$teacher_id); $chk->execute(); $chk->store_result();
-      if ($chk->num_rows===0) api_response(false,'Not assigned to this subject',403);
-      $chk->close();
+  // Load assignment + deadline for this exam/subject (match web logic)
+  $assigned_teacher_id = null; $deadline = null;
+  if ($st = $conn->prepare('SELECT teacher_id, mark_entry_deadline FROM exam_subjects WHERE exam_id=? AND subject_id=? LIMIT 1')) {
+    $st->bind_param('ii', $exam_id, $subject_id);
+    $st->execute();
+    $st->bind_result($assigned_teacher_id, $deadline);
+    $st->fetch();
+    $st->close();
+  }
+
+  // If teacher not resolvable OR not assigned, block (same as web)
+  if (empty($teacher_id) || empty($assigned_teacher_id) || intval($teacher_id) !== intval($assigned_teacher_id)) {
+    api_response(false, 'Not assigned to this subject', 403);
+  }
+
+  // Enforce deadline if present
+  if (!empty($deadline)) {
+    $today = date('Y-m-d');
+    if ($today > $deadline) {
+      api_response(false, 'Your mark entry deadline has passed. Contact Admin.', 403);
     }
   }
 }
