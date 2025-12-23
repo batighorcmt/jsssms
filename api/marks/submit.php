@@ -33,11 +33,33 @@ if (!is_array($marks)) api_response(false,'marks must be array',400);
 if ($authUser['role']==='teacher') {
   $teacher_id=0; $t=$conn->prepare('SELECT id FROM teachers WHERE contact=? LIMIT 1'); if($t){ $t->bind_param('s',$authUser['username']); $t->execute(); $t->bind_result($teacher_id); $t->fetch(); $t->close(); }
   $hasTeacherCol=false; $cchk=$conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'teacher_id'"); if ($cchk && $cchk->num_rows>0) $hasTeacherCol=true;
+  $hasDeadlineCol = false;
+  $dchk = $conn->query("SHOW COLUMNS FROM exam_subjects LIKE 'mark_entry_deadline'");
+  if ($dchk && $dchk->num_rows > 0) $hasDeadlineCol = true;
+
   if ($hasTeacherCol && $teacher_id>0){
-    $chk=$conn->prepare('SELECT 1 FROM exam_subjects WHERE exam_id=? AND subject_id=? AND teacher_id=? LIMIT 1');
-    $chk->bind_param('iii',$exam_id,$subject_id,$teacher_id); $chk->execute(); $chk->store_result();
-    if ($chk->num_rows===0) api_response(false,'Not assigned to this subject',403);
-    $chk->close();
+    if ($hasDeadlineCol) {
+      $chk=$conn->prepare('SELECT mark_entry_deadline FROM exam_subjects WHERE exam_id=? AND subject_id=? AND teacher_id=? LIMIT 1');
+      $chk->bind_param('iii',$exam_id,$subject_id,$teacher_id);
+      $chk->execute();
+      $chk->store_result();
+      if ($chk->num_rows===0) api_response(false,'Not assigned to this subject',403);
+      $deadline = null;
+      $chk->bind_result($deadline);
+      $chk->fetch();
+      $chk->close();
+      if (!empty($deadline)) {
+        $today = date('Y-m-d');
+        if ($today > $deadline) {
+          api_response(false, 'Your mark entry deadline has passed. Contact Admin.', 403);
+        }
+      }
+    } else {
+      $chk=$conn->prepare('SELECT 1 FROM exam_subjects WHERE exam_id=? AND subject_id=? AND teacher_id=? LIMIT 1');
+      $chk->bind_param('iii',$exam_id,$subject_id,$teacher_id); $chk->execute(); $chk->store_result();
+      if ($chk->num_rows===0) api_response(false,'Not assigned to this subject',403);
+      $chk->close();
+    }
   }
 }
 
