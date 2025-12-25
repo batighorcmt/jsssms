@@ -290,7 +290,7 @@ th, td { vertical-align: middle !important; font-size: 13px; padding: 2px; }
 </style>
 </head>
 <body>
-<div class="container my-4">
+<div class="container-fluid my-4">
   <div class="text-center mb-3">
     <h5><?= htmlspecialchars($institute_name) ?></h5>
     <p><?= htmlspecialchars($institute_address) ?></p>
@@ -301,6 +301,7 @@ th, td { vertical-align: middle !important; font-size: 13px; padding: 2px; }
     <thead class="table-dark">
       <tr>
         <th>#</th>
+                <th>Student ID</th>
         <th>Student Name</th>
         <th>Roll</th>
         <th>Merit Position</th>
@@ -409,6 +410,7 @@ if (!$students_q) {
             'total' => $total_marks,
             'roll' => isset($stu['roll_no']) ? (int)$stu['roll_no'] : 0,
             'row' => [
+                'student_id' => $stu['student_id'] ?? '',
                 'name' => $stu['student_name'] ?? '',
                 'roll' => $stu['roll_no'] ?? '',
                 'total' => $total_marks,
@@ -432,6 +434,7 @@ foreach ($ranked_students as $i => $stu) {
     $serial = $i + 1; $merit_pos = $i + 1; $r = $stu['row'];
     echo '<tr>';
     echo '<td>'.($serial).'</td>';
+    echo '<td>'.htmlspecialchars($r['student_id']).'</td>';
     echo '<td>'.htmlspecialchars($r['name']).'</td>';
     echo '<td>'.htmlspecialchars($r['roll']).'</td>';
     echo '<td>'.($merit_pos).'</td>';
