@@ -233,6 +233,7 @@ if ($students_q) {
             'total' => $total_marks,
             'roll' => isset($stu['roll_no']) ? (int)$stu['roll_no'] : 0,
             'row' => [
+                'student_id' => $stu['student_id'] ?? '',
                 'name' => $stu['student_name'] ?? '',
                 'roll' => $stu['roll_no'] ?? '',
                 'total' => $total_marks,
@@ -263,7 +264,7 @@ usort($ranked_students, function ($a, $b) {
 </style>
 </head>
 <body>
-<div class="container my-4">
+<div class="container-fluid my-4">
   <div class="text-center mb-3">
     <h5><?= htmlspecialchars($institute_name) ?></h5>
     <p><?= htmlspecialchars($institute_address) ?></p>
@@ -274,6 +275,7 @@ usort($ranked_students, function ($a, $b) {
     <thead class="table-dark">
       <tr>
         <th>#</th>
+                <th>Student ID</th>
         <th>Student Name</th>
         <th>Roll</th>
         <th>Merit Position</th>
@@ -288,6 +290,7 @@ usort($ranked_students, function ($a, $b) {
 <?php foreach ($ranked_students as $i => $stu): $serial = $i + 1; $merit_pos = $i + 1; $r = $stu['row']; ?>
     <tr>
         <td><?= $serial ?></td>
+        <td><?= htmlspecialchars($r['student_id']) ?></td>
         <td><?= htmlspecialchars($r['name']) ?></td>
         <td><?= htmlspecialchars($r['roll']) ?></td>
         <td><?= $merit_pos ?></td>
