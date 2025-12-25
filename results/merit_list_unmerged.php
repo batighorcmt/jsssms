@@ -272,7 +272,7 @@ usort($ranked_students, function ($a, $b) {
     <button onclick="window.print()" class="btn btn-primary no-print">প্রিন্ট করুন</button>
   </div>
   <table class="table table-bordered table-hover text-center align-middle">
-    <thead class="table-dark">
+    <thead class="table-secondary">
       <tr>
         <th>#</th>
                 <th>Student ID</th>
